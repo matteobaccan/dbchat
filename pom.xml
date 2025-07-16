@@ -585,8 +585,14 @@
                 <artifactId>dependency-check-maven</artifactId>
                 <version>12.1.3</version>
                 <configuration>
-                    <format>ALL</format>
-                    <suppressionFile>owasp-suppressions.xml</suppressionFile>
+                    <!-- Use Industry standard Common Vulnerability Scoring System (CVSS)
+                    CVSS Score
+                    0 = No vulnerability
+                    5 = Moderate impact
+                    10 = Critical impact
+                    We fail on Medium+ vulnerabilities -->
+                    <failBuildOnCVSS>4.0</failBuildOnCVSS>
+                    <failBuildOnAnyVulnerability>false</failBuildOnAnyVulnerability>
                 </configuration>
             </plugin>
 
