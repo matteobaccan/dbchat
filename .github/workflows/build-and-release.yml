@@ -1,0 +1,246 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+env:
+  JAVA_VERSION: '17'
+  MAVEN_OPTS: '-Xmx2g -XX:MaxMetaspaceSize=512m'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test Suite
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run tests
+        run: mvn clean test
+
+      - name: Test with standard databases profile
+        run: mvn clean test -P standard-databases
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: target/surefire-reports/
+
+  build-matrix:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+
+    strategy:
+      matrix:
+        variant:
+          - name: "basic"
+            profiles: ""
+            description: "H2, SQLite, PostgreSQL"
+          - name: "standard"
+            profiles: "-P standard-databases"
+            description: "MySQL, MariaDB, ClickHouse"
+          - name: "enterprise"
+            profiles: "-P standard-databases,enterprise-databases"
+            description: "Oracle, SQL Server, IBM DB2"
+          - name: "cloud-analytics"
+            profiles: "-P standard-databases,cloud-analytics"
+            description: "Redshift, Snowflake, BigQuery"
+          - name: "all"
+            profiles: "-P standard-databases,enterprise-databases,cloud-analytics,big-data"
+            description: "All database drivers (400MB+)"
+
+    name: Build ${{ matrix.variant.name }} variant
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "artifact_name=dbmcp-$VERSION-${{ matrix.variant.name }}" >> $GITHUB_OUTPUT
+
+      - name: Build ${{ matrix.variant.name }} variant
+        run: |
+          mvn clean package ${{ matrix.variant.profiles }} -DskipTests
+
+      - name: Rename artifact
+        run: |
+          mv target/dbmcp-${{ steps.version.outputs.version }}.jar \
+             target/${{ steps.version.outputs.artifact_name }}.jar
+
+      - name: Get file size
+        id: filesize
+        run: |
+          SIZE=$(ls -lh target/${{ steps.version.outputs.artifact_name }}.jar | awk '{print $5}')
+          echo "size=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact_name }}
+          path: target/${{ steps.version.outputs.artifact_name }}.jar
+          retention-days: 30
+
+      - name: Create build summary
+        run: |
+          echo "## Build Summary - ${{ matrix.variant.name }} variant" >> $GITHUB_STEP_SUMMARY
+          echo "- **Profile**: ${{ matrix.variant.profiles || 'default' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Description**: ${{ matrix.variant.description }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **File Size**: ${{ steps.filesize.outputs.size }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact**: ${{ steps.version.outputs.artifact_name }}.jar" >> $GITHUB_STEP_SUMMARY
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Generate changelog
+        if: steps.check_tag.outputs.exists == 'false'
+        id: changelog
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -n "$LATEST_TAG" ]; then
+            echo "## Changes since $LATEST_TAG" > changelog.md
+            git log --pretty=format:"- %s (%h)" $LATEST_TAG..HEAD >> changelog.md
+          else
+            echo "## Initial Release" > changelog.md
+            git log --pretty=format:"- %s (%h)" >> changelog.md
+          fi
+          
+          echo "" >> changelog.md
+          echo "## Available Variants" >> changelog.md
+          echo "" >> changelog.md
+          echo "| Variant | Description | Profiles |" >> changelog.md
+          echo "|---------|-------------|----------|" >> changelog.md
+          echo "| basic | H2, SQLite, PostgreSQL | default |" >> changelog.md
+          echo "| standard | MySQL, MariaDB, ClickHouse | standard-databases |" >> changelog.md
+          echo "| enterprise | Oracle, SQL Server, IBM DB2 | standard-databases,enterprise-databases |" >> changelog.md
+          echo "| cloud-analytics | Redshift, Snowflake, BigQuery | standard-databases,cloud-analytics |" >> changelog.md
+          echo "| all | All database drivers (400MB+) | standard-databases,enterprise-databases,cloud-analytics,big-data |" >> changelog.md
+
+      - name: Create Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: changelog.md
+          files: |
+            artifacts/dbmcp-${{ steps.version.outputs.version }}-basic/dbmcp-${{ steps.version.outputs.version }}-basic.jar
+            artifacts/dbmcp-${{ steps.version.outputs.version }}-standard/dbmcp-${{ steps.version.outputs.version }}-standard.jar
+            artifacts/dbmcp-${{ steps.version.outputs.version }}-enterprise/dbmcp-${{ steps.version.outputs.version }}-enterprise.jar
+            artifacts/dbmcp-${{ steps.version.outputs.version }}-cloud-analytics/dbmcp-${{ steps.version.outputs.version }}-cloud-analytics.jar
+            artifacts/dbmcp-${{ steps.version.outputs.version }}-all/dbmcp-${{ steps.version.outputs.version }}-all.jar
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-maven-central:
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+          server-id: ossrh
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      - name: Publish basic variant to Maven Central
+        run: |
+          mvn clean deploy -DskipTests
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run dependency check
+        run: |
+          mvn org.owasp:dependency-check-maven:check \
+            -DfailBuildOnAnyVulnerability=false \
+            -DskipTestScope=true
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: target/dependency-check-report.html

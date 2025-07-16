@@ -27,9 +27,9 @@ public class DatabaseLoader {
         }
     }
 
-    private static final String DROP_TABLES_FILE = "drop-tables.txt";
-    private static final String CREATE_TABLES_SUFFIX = ".txt";
-    private static final String DATA_SUFFIX = "-data.txt";
+    private static final String DROP_TABLES_FILE = "drop-tables.sql";
+    private static final String CREATE_TABLES_SUFFIX = ".sql";
+    private static final String DATA_SUFFIX = "-data.sql";
 
     public static void main(String[] args) {
         //String jdbcUrl = "jdbc:h2:mem:testdb";    // In-Memory Database (Recommended for Testing)
