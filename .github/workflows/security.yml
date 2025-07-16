@@ -53,8 +53,9 @@ jobs:
         NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
     - name: Upload Security Reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: dependency-check-reports
+        name: dependency-check-reports-${{ github.run_number }}
         path: target/dependency-check-report.*
+        retention-days: 30  # Optional: Set retention period
