@@ -46,7 +46,7 @@ A generic MCP (Model Context Protocol) server for database operations using Java
 - **Apache Cassandra** - NoSQL database
 - **Apache Spark SQL** - Unified analytics engine
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Please read [INSTALL.md](INSTALL.md) for more details)
 
 ### 1. Build the Project
 ```bash
