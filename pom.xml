@@ -9,7 +9,7 @@
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>Database MCP Server</name>
+    <name>DBMCP - Database MCP Server</name>
     <description>Generic MCP server for database operations</description>
     <url>https://github.com/skanga/dbmcp</url>
     <inceptionYear>2025</inceptionYear>
@@ -108,7 +108,6 @@
             <version>3.27.3</version>
             <scope>test</scope>
         </dependency>
-        <!--
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -127,7 +126,6 @@
             <version>1.21.3</version>
             <scope>test</scope>
         </dependency>
-        -->
     </dependencies>
     <profiles>
         <profile>

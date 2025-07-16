@@ -170,20 +170,6 @@ public class McpServer {
         return responseNode;
     }
 
-    public static void main(String[] args) throws IOException {
-        // Load configuration from environment or args
-        ConfigParams configParams = loadConfiguration(args);
-        McpServer mcpServer = new McpServer(configParams);
-
-        // Add shutdown hook for clean resource cleanup
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            logger.info("Shutting down Database MCP Server...");
-            mcpServer.databaseService.close();
-        }));
-
-        mcpServer.start();
-    }
-
     public void start() throws IOException {
         logger.info("Starting Database MCP Server...");
 
@@ -279,13 +265,23 @@ public class McpServer {
     }
 
     private static void setRespId(Object requestId, ObjectNode responseNode) {
-        if (requestId != null) {
-            if (requestId instanceof String) {
-                responseNode.put("id", (String) requestId);
-            } else if (requestId instanceof Number) {
-                responseNode.put("id", ((Number) requestId).intValue());
-            } else {
-                responseNode.set("id", objectMapper.valueToTree(requestId));
+        // If requestId is null, don't set the id field at all
+        if (requestId == null) {
+            return;
+        }
+        // Only set the ID if it's not null and not undefined
+        if (requestId instanceof String) {
+            String idStr = (String) requestId;
+            if (!idStr.isEmpty()) {
+                responseNode.put("id", idStr);
+            }
+        } else if (requestId instanceof Number) {
+            responseNode.put("id", ((Number) requestId).intValue());
+        } else {
+            // For other types, convert to tree but check if it's not null
+            JsonNode idNode = objectMapper.valueToTree(requestId);
+            if (idNode != null && !idNode.isNull()) {
+                responseNode.set("id", idNode);
             }
         }
     }
@@ -438,5 +434,19 @@ public class McpServer {
 
         // 4. Default
         return defaultValue;
+    }
+
+    public static void main(String[] args) throws IOException {
+        // Load configuration from environment or args
+        ConfigParams configParams = loadConfiguration(args);
+        McpServer mcpServer = new McpServer(configParams);
+
+        // Add shutdown hook for clean resource cleanup
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.info("Shutting down Database MCP Server...");
+            mcpServer.databaseService.close();
+        }));
+
+        mcpServer.start();
     }
 }
