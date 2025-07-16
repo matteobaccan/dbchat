@@ -5,6 +5,7 @@ A generic MCP (Model Context Protocol) server for database operations using Java
 ## 🌟 Features
 
 - **Multi-database support**: Works with any JDBC-compatible database
+- **Dual transport modes**: stdio (standard) and HTTP modes for flexible deployment
 - **MCP Protocol compliant**: Implements listResources, readResource, listTools, and callTool
 - **Query execution**: Execute SQL queries with formatted, tabular results
 - **Resource discovery**: Browse database structure (tables, views, schemas)
@@ -14,6 +15,8 @@ A generic MCP (Model Context Protocol) server for database operations using Java
 - **Natural language interface**: Use Claude Desktop to query databases conversationally
 - **Data visualization**: Generate charts and graphs from database data
 - **Error handling**: Comprehensive error reporting and logging
+- **Health monitoring**: Built-in health check endpoint (HTTP mode)
+- **CORS support**: Ready for browser-based applications (HTTP mode)
 
 ## 🗃️ Supported Databases
 
@@ -46,6 +49,61 @@ A generic MCP (Model Context Protocol) server for database operations using Java
 - **Apache Cassandra** - NoSQL database
 - **Apache Spark SQL** - Unified analytics engine
 
+## 🚀 Transport Modes
+
+### stdio Mode (Default)
+Standard MCP communication over stdin/stdout for Claude Desktop integration.
+
+```bash
+java -jar target/dbmcp-1.0.0.jar
+```
+
+### HTTP Mode
+HTTP REST API for web applications, testing, and remote access.
+
+```bash
+# Start HTTP server on default port 8080
+java -jar target/dbmcp-1.0.0.jar --http_mode=true
+
+# Start on custom port
+java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
+
+# Or using environment variables
+export HTTP_MODE=true
+export HTTP_PORT=8080
+java -jar target/dbmcp-1.0.0.jar
+```
+
+#### HTTP Endpoints
+- `POST /mcp` - MCP JSON-RPC requests
+- `GET /health` - Health check and server status
+- `OPTIONS /mcp` - CORS preflight support
+
+#### HTTP Examples
+```bash
+# Health check
+curl http://localhost:8080/health
+
+# MCP request
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Initialize protocol
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {"name": "http-client", "version": "1.0.0"}
+    }
+  }'
+```
+
 ## 🚀 Quick Start (Please read [INSTALL.md](INSTALL.md) for more details)
 
 ### 1. Build the Project
@@ -77,13 +135,26 @@ java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
 ```
 
 ### 3. Run the Server
+
+#### For Claude Desktop (stdio mode)
 ```bash
 java -jar target/dbmcp-1.0.0.jar
 ```
 
-### 4. Integrate with Claude Desktop
+#### For HTTP/Web Applications
+```bash
+# Default port 8080
+java -jar target/dbmcp-1.0.0.jar --http_mode=true
 
-Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+# Custom port
+java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
+```
+
+### 4. Integration Options
+
+#### Claude Desktop Integration
+
+Add to your Claude Desktop configuration `claude_desktop_config.json`. You can add multiple databases if needed. Refer to [INSTALL.md](INSTALL.md) for more details:
 
 ```json
 {
@@ -93,13 +164,51 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
       "args": ["-jar", "/absolute/path/to/target/dbmcp-1.0.0.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://localhost:3306/mydb",
-        "DB_USER": "username", 
+        "DB_USER": "username",
         "DB_PASSWORD": "password",
         "DB_DRIVER": "com.mysql.cj.jdbc.Driver"
       }
     }
   }
 }
+```
+
+#### Web Application Integration
+
+For HTTP mode, integrate with any web application or API client:
+
+```javascript
+// JavaScript example
+const response = await fetch('http://localhost:8080/mcp', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: {
+      name: 'query',
+      arguments: {
+        sql: 'SELECT COUNT(*) FROM users',
+        maxRows: 1000
+      }
+    }
+  })
+});
+const result = await response.json();
+```
+
+```python
+# Python example
+import requests
+
+response = requests.post('http://localhost:8080/mcp', json={
+    'jsonrpc': '2.0',
+    'id': 1,
+    'method': 'tools/list',
+    'params': {}
+})
+print(response.json())
 ```
 
 ## 📊 Data Visualization with Claude Desktop
@@ -274,7 +383,7 @@ With Claude Desktop integration, you can interact with your database using natur
 
 ```
 src/main/java/com/skanga/mcp/
-├── McpServer.java            # Main MCP server implementation
+├── McpServer.java           # Main MCP server implementation (stdio + HTTP)
 ├── ConfigParams.java        # Configuration parameter holder (record)
 ├── DatabaseService.java     # Database operations with HikariCP
 ├── DatabaseResource.java    # Resource representation (record)
@@ -283,13 +392,23 @@ src/main/java/com/skanga/mcp/
 
 ### Key Components
 
-- **McpServer.java** - Main entry point implementing JSON-RPC over stdio
+- **McpServer.java** - Main entry point supporting both JSON-RPC over stdio and HTTP
 - **DatabaseService.java** - Core database operations with connection pooling
 - **ConfigParams.java** - Configuration management with validation
 - **DatabaseResource.java** - Database object representation
 - **QueryResult.java** - Structured query results
 
 ## ⚙️ Advanced Configuration
+
+### Transport Mode Configuration
+```bash
+# HTTP mode settings
+export HTTP_MODE="true"       # Enable HTTP mode
+export HTTP_PORT="8080"       # HTTP server port
+
+# Or via command line
+java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=8080
+```
 
 ### Connection Pool Settings
 ```bash
@@ -309,9 +428,9 @@ export MAX_ROWS_LIMIT="1000"     # Limit result size
 ```
 
 ### Configuration Priority Order
-1. Command line arguments: `--db_url=...`
-2. Environment variables: `DB_URL`
-3. System properties: `-Ddb.url=...`
+1. Command line arguments: `--db_url=...`, `--http_mode=true`
+2. Environment variables: `DB_URL`, `HTTP_MODE`
+3. System properties: `-Ddb.url=...`, `-Dhttp.mode=true`
 4. Default values
 
 ## 🛡️ Security Considerations
@@ -325,10 +444,17 @@ export MAX_ROWS_LIMIT="1000"     # Limit result size
 - Consider implementing query allowlists for production use
 
 ### MCP Security
-- Server runs locally with no external network access
+- Server runs locally with no external network access (stdio mode)
 - All data processing happens locally
 - No data is sent to external services
 - Environment variables are encrypted by the OS
+
+### HTTP Mode Security
+- **Local deployment recommended**: HTTP mode is designed for local development and testing
+- **CORS enabled**: Allows browser-based applications (configure as needed)
+- **No authentication**: Consider adding external authentication for production deployments
+- **Health endpoint**: Monitor server status at `/health`
+- **Network binding**: Server binds to localhost by default
 
 ## 📋 Usage Examples
 
@@ -404,18 +530,24 @@ export MAX_ROWS_LIMIT="1000"     # Limit result size
 - **Operational Reports**: Daily/weekly summaries, exception reports
 - **Interactive Analysis**: Ad-hoc queries, drill-down capabilities
 
+### Web Integration (HTTP Mode)
+- **API Integration**: Embed database queries in web applications
+- **Dashboard Development**: Build custom dashboards with real-time data
+- **Microservices**: Use as a database microservice in larger architectures
+- **Testing & Automation**: Automated database testing and validation
+
 ## 🚫 Limitations
 
-- **Claude.ai website**: Does not support MCP servers (use Claude Desktop)
+- **Claude.ai website**: Does not support MCP servers (use Claude Desktop for stdio mode)
 - **Mobile apps**: MCP is only available in Claude Desktop
 - **Linux support**: Currently macOS and Windows (Linux in development)
-- **Network access**: MCP servers run locally only
+- **Network access**: MCP servers run locally only (HTTP mode available for local web apps)
 - **Performance**: Large queries may be slower due to communication overhead
 
 ## 📝 Logging
 
 The server uses SLF4J for logging. Configure logging levels as needed:
-- `INFO` - General server operations
+- `INFO` - General server operations, HTTP requests
 - `DEBUG` - Detailed request/response information
 - `ERROR` - Error conditions
 
@@ -440,10 +572,30 @@ The server provides detailed error responses:
 - `database_error` - SQL or connection errors
 - `internal_error` - Unexpected server errors
 
-### Testing
+## 🧪 Testing
+
+### Automated Testing
 ```bash
-# Run automated tests
-python test-mcp-server.py
+mvn test                    # Unit tests
+mvn verify                  # Integration tests
+python3 test-mcp-protocol.py target/dbmcp-1.0.0.jar stdio    # stdio protocol tests
+python3 test-mcp-protocol.py target/dbmcp-1.0.0.jar http     # HTTP protocol tests
+python3 test-mcp-server.py                                   # server tests
+
+```
+
+### Manual Testing
+```bash
+# Test health endpoint
+curl http://localhost:8080/health
+
+# Test MCP protocol
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Interactive testing (stdio mode)
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbmcp-1.0.0.jar
 
 # Manual testing with debug output
 java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
@@ -452,10 +604,11 @@ java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
 ## 🎯 Getting Started Tips
 
 1. **Start Simple**: Begin with H2 for initial testing
-2. **Use Claude Desktop**: Download and configure the desktop app
+2. **Choose Your Mode**: Use stdio for Claude Desktop, HTTP for web applications
 3. **Test Connection**: Verify database connectivity before MCP integration
 4. **Start with Read-Only**: Use `SELECT_ONLY=true` for safety
 5. **Monitor Performance**: Watch memory usage for large queries
+6. **Use Health Checks**: Monitor `/health` endpoint in HTTP mode
 
 ## 📚 Additional Resources
 
@@ -476,11 +629,13 @@ This project is provided as-is for educational and development purposes under Ap
 1. **Install Prerequisites**: Java 17+, Maven 3.6+
 2. **Build the Project**: `mvn clean package -P standard-databases` or similar
 3. **Configure Database**: Set environment variables
-4. **Download Claude Desktop**: From claude.ai/download
-5. **Configure MCP**: Add server to Claude Desktop config
-6. **Start Querying**: Ask Claude about your data!
+4. **Choose Your Mode**:
+   - **For Claude Desktop**: Run in stdio mode
+   - **For Web Applications**: Run in HTTP mode
+5. **Configure Integration**: Add server to Claude Desktop or integrate with your web app
+6. **Start Querying**: Ask Claude about your data or make HTTP requests!
 
-Transform your database interactions with natural language queries, automated visualizations, and intelligent analysis through the power of Claude Desktop and the Database MCP Server.
+Transform your database interactions with natural language queries, automated visualizations, and intelligent analysis through the power of Claude Desktop and the Database MCP Server - now available in both stdio and HTTP modes for maximum flexibility.
 
 ## License
 

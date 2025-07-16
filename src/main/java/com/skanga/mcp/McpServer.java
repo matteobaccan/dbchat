@@ -4,13 +4,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpExchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.net.InetSocketAddress;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +24,7 @@ import java.util.Map;
 /**
  * Generic MCP Server for Database Operations
  * Supports multiple database types through JDBC drivers
+ * Supports both stdio and HTTP mode MCP servers
  */
 public class McpServer {
     private static final Logger logger = LoggerFactory.getLogger(McpServer.class);
@@ -34,6 +40,168 @@ public class McpServer {
 
     protected DatabaseService createDatabaseService(ConfigParams configParams) {
         return new DatabaseService(configParams);
+    }
+
+    /**
+     * Start the server in HTTP mode
+     */
+    public void startHttpMode(int port) throws IOException {
+        logger.info("Starting Database MCP Server in HTTP mode on port {}...", port);
+
+        HttpServer server = null;
+        try {
+            // Try to create the server - this will fail immediately if port is in use
+            server = HttpServer.create(new InetSocketAddress(port), 0);
+            server.createContext("/mcp", new MCPHttpHandler());
+            server.createContext("/health", new HealthCheckHandler());
+            server.setExecutor(null); // Use default executor
+
+            // Start the server
+            server.start();
+
+            logger.info("Database MCP Server HTTP mode started successfully on port {}", port);
+            logger.info("MCP endpoint: http://localhost:{}/mcp", port);
+            logger.info("Health check: http://localhost:{}/health", port);
+            logger.info("Press Ctrl+C to stop the server");
+
+            // Keep the main thread alive
+            try {
+                Thread.currentThread().join();
+            } catch (InterruptedException e) {
+                logger.info("Server interrupted, shutting down...");
+            }
+        } catch (java.net.BindException e) {
+            logger.error("ERROR: Failed to start HTTP server: Port {} is already in use", port);
+            logger.error("Please try a different port or stop the service using port {}", port);
+            logger.error("You can specify a different port with: --http_port=<port>");
+            throw new IOException("Port " + port + " is already in use", e);
+        } catch (IOException e) {
+            logger.error("ERROR: Failed to start HTTP server on port {}: {}", port, e.getMessage());
+            throw new IOException("Failed to start HTTP server on port " + port, e);
+        } finally {
+            // Always try to stop the server if it was created
+            if (server != null) {
+                try {
+                    server.stop(5);
+                    logger.info("HTTP server stopped");
+                } catch (Exception e) {
+                    logger.warn("Error stopping HTTP server: {}", e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * HTTP handler for MCP requests
+     */
+    private class MCPHttpHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            // Set CORS headers for browser clients
+            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "POST, OPTIONS");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+
+            // Handle preflight OPTIONS request
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(200, 0);
+                exchange.getResponseBody().close();
+                return;
+            }
+
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendErrorResponse(exchange, 405, "Method not allowed. Use POST.");
+                return;
+            }
+
+            try {
+                // Read request body
+                String requestBody = readRequestBody(exchange);
+                logger.debug("Received HTTP request: {}", requestBody);
+
+                // Parse and handle the MCP request
+                JsonNode requestNode = objectMapper.readTree(requestBody);
+                JsonNode responseNode = handleRequest(requestNode);
+
+                // Send response (only if not a notification)
+                if (responseNode != null) {
+                    String responseJson = objectMapper.writeValueAsString(responseNode);
+                    logger.debug("Sending HTTP response: {}", responseJson);
+
+                    exchange.getResponseHeaders().set("Content-Type", "application/json");
+                    byte[] responseBytes = responseJson.getBytes();
+                    exchange.sendResponseHeaders(200, responseBytes.length);
+
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(responseBytes);
+                    }
+                } else {
+                    // Notification - send empty 204 response
+                    exchange.sendResponseHeaders(204, 0);
+                    exchange.getResponseBody().close();
+                }
+
+            } catch (Exception e) {
+                logger.error("Error handling HTTP request", e);
+                sendErrorResponse(exchange, 500, "Internal server error: " + e.getMessage());
+            }
+        }
+
+        private String readRequestBody(HttpExchange exchange) throws IOException {
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(exchange.getRequestBody()))) {
+                StringBuilder body = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    body.append(line);
+                }
+                return body.toString();
+            }
+        }
+
+        private void sendErrorResponse(HttpExchange exchange, int statusCode, String message) throws IOException {
+            ObjectNode errorResponse = objectMapper.createObjectNode();
+            errorResponse.put("error", message);
+
+            String responseJson = objectMapper.writeValueAsString(errorResponse);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            byte[] responseBytes = responseJson.getBytes();
+
+            exchange.sendResponseHeaders(statusCode, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        }
+    }
+
+    /**
+     * Health check handler
+     */
+    private class HealthCheckHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            ObjectNode healthResponse = objectMapper.createObjectNode();
+            healthResponse.put("status", "healthy");
+            healthResponse.put("server", "Database MCP Server");
+            healthResponse.put("timestamp", System.currentTimeMillis());
+
+            // Test database connection
+            try {
+                databaseService.getConnection().close(); // Just test the connection
+                healthResponse.put("database", "connected");
+            } catch (Exception e) {
+                healthResponse.put("database", "error: " + e.getMessage());
+            }
+
+            String responseJson = objectMapper.writeValueAsString(healthResponse);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            byte[] responseBytes = responseJson.getBytes();
+
+            exchange.sendResponseHeaders(200, responseBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        }
     }
 
     protected JsonNode handleRequest(JsonNode requestNode) {
@@ -65,12 +233,19 @@ public class McpServer {
             return createSuccessResponse(resultNode, requestId);
 
         } catch (IllegalArgumentException e) {
-            logger.warn("Invalid request: {}", e.getMessage());
-            // For notifications, return null even for errors
-            if (isNotification) {
-                return null;
+            if (e.getMessage().startsWith("Method not found:")) {
+                logger.warn("Method not found: {}", e.getMessage());
+                if (isNotification) {
+                    return null;
+                }
+                return createErrorResponse("method_not_found", e.getMessage(), requestId);
+            } else {
+                logger.warn("Invalid request: {}", e.getMessage());
+                if (isNotification) {
+                    return null;
+                }
+                return createErrorResponse("invalid_request", e.getMessage(), requestId);
             }
-            return createErrorResponse("invalid_request", e.getMessage(), requestId);
         } catch (SQLException e) {
             logger.error("Database error: {}", e.getMessage(), e);
             if (isNotification) {
@@ -84,6 +259,50 @@ public class McpServer {
             }
             return createErrorResponse("internal_error", "Internal error: " + e.getMessage(), requestId);
         }
+    }
+
+    /**
+     * Start the server in stdio mode
+     */
+    public void startStdioMode() throws IOException {
+        logger.info("Starting Database MCP Server in stdio mode...");
+
+        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
+             PrintWriter printWriter = new PrintWriter(System.out, true)) {
+
+            String currLine;
+            while ((currLine = bufferedReader.readLine()) != null) {
+                try {
+                    JsonNode requestNode = objectMapper.readTree(currLine);
+                    JsonNode responseNode = handleRequest(requestNode);
+
+                    // Only send a response if it's not a notification
+                    if (responseNode != null) {
+                        printWriter.println(objectMapper.writeValueAsString(responseNode));
+                    }
+                } catch (Exception e) {
+                    logger.error("Error processing request: {}", currLine, e);
+
+                    // Try to determine if this was a notification
+                    boolean isNotification = false;
+                    try {
+                        JsonNode requestNode = objectMapper.readTree(currLine);
+                        isNotification = !requestNode.has("id");
+                    } catch (Exception parseException) {
+                        // If we can't parse the request, assume it's not a notification
+                        // and send an error response
+                    }
+
+                    if (!isNotification) {
+                        JsonNode errorResponse = createErrorResponse("internal_error",
+                            "Internal server error: " + e.getMessage(), null);
+                        printWriter.println(objectMapper.writeValueAsString(errorResponse));
+                    }
+                }
+            }
+        }
+
+        logger.info("Database MCP Server stopped.");
     }
 
     private JsonNode handleInitialize() {
@@ -100,7 +319,7 @@ public class McpServer {
         // Query tool
         ObjectNode queryTool = objectMapper.createObjectNode();
         queryTool.put("name", "query");
-        queryTool.put("description", "Execute SQL queries on the database");
+        queryTool.put("description", "Execute SQL queries on the database. Do not use SQL comments. They are blocked");
         
         ObjectNode querySchema = objectMapper.createObjectNode();
         querySchema.put("type", "object");
@@ -136,7 +355,7 @@ public class McpServer {
     private JsonNode handleCallTool(JsonNode paramsNode) throws SQLException {
         String toolName = paramsNode.path("name").asText();
         JsonNode arguments = paramsNode.path("arguments");
-        
+
         return switch (toolName) {
             case "query" -> executeQuery(arguments);
             default -> throw new IllegalArgumentException("Unknown tool: " + toolName);
@@ -186,47 +405,6 @@ public class McpServer {
         responseNode.put("isError", false);
         
         return responseNode;
-    }
-
-    public void start() throws IOException {
-        logger.info("Starting Database MCP Server...");
-
-        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
-             PrintWriter printWriter = new PrintWriter(System.out, true)) {
-
-            String currLine;
-            while ((currLine = bufferedReader.readLine()) != null) {
-                try {
-                    JsonNode requestNode = objectMapper.readTree(currLine);
-                    JsonNode responseNode = handleRequest(requestNode);
-
-                    // Only send a response if it's not a notification
-                    if (responseNode != null) {
-                        printWriter.println(objectMapper.writeValueAsString(responseNode));
-                    }
-                } catch (Exception e) {
-                    logger.error("Error processing request: {}", currLine, e);
-
-                    // Try to determine if this was a notification
-                    boolean isNotification = false;
-                    try {
-                        JsonNode requestNode = objectMapper.readTree(currLine);
-                        isNotification = !requestNode.has("id");
-                    } catch (Exception parseException) {
-                        // If we can't parse the request, assume it's not a notification
-                        // and send an error response
-                    }
-
-                    if (!isNotification) {
-                        JsonNode errorResponse = createErrorResponse("internal_error",
-                            "Internal server error: " + e.getMessage(), null);
-                        printWriter.println(objectMapper.writeValueAsString(errorResponse));
-                    }
-                }
-            }
-        }
-
-        logger.info("Database MCP Server stopped.");
     }
 
     private JsonNode handleListResources() throws SQLException {
@@ -396,8 +574,8 @@ public class McpServer {
     CLI argument: --db_url=...
     Environment variable: DB_URL
     System property: -Ddb.url=...
-    Default: hard-coded
-    Keys are case-insensitive for args but uppercase for env (to keep convention).
+    Default: internal hard-coded values
+    Keys are case-insensitive for args but uppercase for environment variables (as per convention).
     */
     private static ConfigParams loadConfiguration(String[] args) {
         Map<String, String> cliArgs = parseArgs(args);
@@ -426,6 +604,18 @@ public class McpServer {
                 Integer.parseInt(idleTimeoutMs),
                 Integer.parseInt(maxLifetimeMs),
                 Integer.parseInt(leakDetectionThresholdMs));
+    }
+
+    private static boolean isHttpMode(String[] args) {
+        Map<String, String> cliArgs = parseArgs(args);
+        String httpMode = getConfigValue("HTTP_MODE", "false", cliArgs);
+        return Boolean.parseBoolean(httpMode);
+    }
+
+    private static int getHttpPort(String[] args) {
+        Map<String, String> cliArgs = parseArgs(args);
+        String httpPort = getConfigValue("HTTP_PORT", "8080", cliArgs);
+        return Integer.parseInt(httpPort);
     }
 
     private static Map<String, String> parseArgs(String[] args) {
@@ -475,6 +665,33 @@ public class McpServer {
             mcpServer.databaseService.close();
         }));
 
-        mcpServer.start();
+        // Check configuration for HTTP mode
+        try {
+            if (isHttpMode(args)) {
+                int port = getHttpPort(args);
+                mcpServer.startHttpMode(port);
+            } else {
+                mcpServer.startStdioMode();
+            }
+        } catch (IOException e) {
+            logger.error("Failed to start server: {}", e.getMessage());
+
+            // Print helpful error message and exit
+            if (e.getMessage().contains("already in use")) {
+                System.err.println("\nERROR: Cannot start server");
+                System.err.println("The specified port is already in use by another application.");
+                System.err.println("\nSolutions:");
+                System.err.println("1. Stop the application using the port");
+                System.err.println("2. Use a different port: --http_port=9090");
+                System.err.println("3. Find what's using the port: netstat -ano | findstr :<port>");
+            } else {
+                System.err.println("\nERROR: Cannot start server");
+                System.err.println("Reason: " + e.getMessage());
+            }
+
+            // Ensure database resources are cleaned up
+            mcpServer.databaseService.close();
+            System.exit(1);
+        }
     }
 }

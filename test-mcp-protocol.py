@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-MCP Protocol Test Script for Windows
-Tests the Database MCP Server for protocol compliance and validates responses
+Unified MCP Protocol Test Script
+Tests both stdio and HTTP modes for the Database MCP Server
+Includes comprehensive protocol compliance testing and comparison
 """
 
 import json
@@ -9,14 +10,29 @@ import subprocess
 import sys
 import time
 import os
-from typing import Dict, Any, List, Optional
+import signal
+import socket
+import platform
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
+
+# Try to import requests for HTTP testing
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 class TestResult(Enum):
     PASS = "PASS"
     FAIL = "FAIL"
     ERROR = "ERROR"
+
+class TransportMode(Enum):
+    STDIO = "stdio"
+    HTTP = "http"
+    BOTH = "both"
 
 @dataclass
 class TestCase:
@@ -30,280 +46,366 @@ class TestCase:
     error_message: Optional[str] = None
     execution_time: float = 0.0
 
-class MCPTester:
-    def __init__(self, jar_path: str, java_path: str = "java"):
+@dataclass
+class ModeResults:
+    mode: TransportMode
+    total: int
+    passed: int
+    failed: int
+    errors: int
+    test_cases: List[TestCase]
+    success_rate: float
+
+class UnifiedMCPTester:
+    def __init__(self, jar_path: str, java_path: str = "java", port: int = 8080):
         self.jar_path = jar_path
         self.java_path = java_path
+        self.port = port
+        self.server_process = None
         self.test_cases = []
-        self.setup_environment()
 
-    def setup_environment(self):
-        """Setup environment variables for H2 database"""
-        os.environ['DB_URL'] = 'jdbc:h2:mem:testdb'
-        os.environ['DB_USER'] = 'sa'
-        os.environ['DB_PASSWORD'] = ''
-        os.environ['DB_DRIVER'] = 'org.h2.Driver'
+    def print_header(self):
+        """Print test header with system information"""
+        print("=" * 70)
+        print("UNIFIED MCP PROTOCOL TEST SUITE")
+        print("=" * 70)
+        print(f"Platform: {platform.system()} {platform.release()}")
+        print(f"Python: {sys.version.split()[0]}")
+        print(f"Java: {self.get_java_version()}")
+        print(f"JAR Path: {self.jar_path}")
+        print(f"HTTP Port: {self.port}")
+        print(f"Requests Library: {'Available' if HAS_REQUESTS else 'Not Available (HTTP tests will be skipped)'}")
+        print()
 
-    def add_test_case(self, name: str, request: Dict[str, Any], expected_fields: List[str],
-                     is_notification: bool = False, should_have_response: bool = True):
-        """Add a test case to the test suite"""
-        test_case = TestCase(
-            name=name,
-            request=request,
-            expected_fields=expected_fields,
-            is_notification=is_notification,
-            should_have_response=should_have_response
-        )
-        self.test_cases.append(test_case)
-
-    def create_standard_test_cases(self):
-        """Create standard MCP protocol test cases"""
-
-        # Test 1: Initialize
-        self.add_test_case(
-            name="Initialize Protocol",
-            request={
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {
-                        "name": "test-client",
-                        "version": "1.0.0"
-                    }
-                }
-            },
-            expected_fields=["jsonrpc", "id", "result"]
-        )
-
-        # Test 2: Initialize WITHOUT ID (notification - NO response expected)
-        self.add_test_case(
-            name="Initialize Protocol (Notification - No Response Expected)",
-            request={
-                "jsonrpc": "2.0",
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {
-                        "name": "test-client",
-                        "version": "1.0.0"
-                    }
-                }
-            },
-            expected_fields=[],  # No response expected
-            is_notification=True,
-            should_have_response=False
-        )
-
-        # Test 3: ID with empty string (should echo back empty string)
-        self.add_test_case(
-            name="Initialize Protocol (Empty String ID)",
-            request={
-                "jsonrpc": "2.0",
-                "id": "",
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {
-                        "name": "test-client",
-                        "version": "1.0.0"
-                    }
-                }
-            },
-            expected_fields=["jsonrpc", "id", "result"]
-        )
-
-        # Test 4: ID with null (should echo back null)
-        self.add_test_case(
-            name="Initialize Protocol (Null ID)",
-            request={
-                "jsonrpc": "2.0",
-                "id": None,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {
-                        "name": "test-client",
-                        "version": "1.0.0"
-                    }
-                }
-            },
-            expected_fields=["jsonrpc", "id", "result"]
-        )
-
-        # Test 5: List Tools
-        self.add_test_case(
-            name="List Tools",
-            request={
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/list",
-                "params": {}
-            },
-            expected_fields=["jsonrpc", "id", "result", "result.tools"]
-        )
-
-        # Test 6: List Tools WITHOUT ID (notification - NO response expected)
-        self.add_test_case(
-            name="List Tools (Notification - No Response Expected)",
-            request={
-                "jsonrpc": "2.0",
-                "method": "tools/list",
-                "params": {}
-            },
-            expected_fields=[],  # No response expected
-            is_notification=True,
-            should_have_response=False
-        )
-
-        # Test 7: List Resources
-        self.add_test_case(
-            name="List Resources",
-            request={
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "resources/list",
-                "params": {}
-            },
-            expected_fields=["jsonrpc", "id", "result", "result.resources"]
-        )
-
-        # Test 8: Call Query Tool
-        self.add_test_case(
-            name="Call Query Tool",
-            request={
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT 1 as test_value, 'Hello' as message",
-                        "maxRows": 10
-                    }
-                }
-            },
-            expected_fields=["jsonrpc", "id", "result", "result.content"]
-        )
-
-        # Test 9: Call Query Tool WITHOUT ID (notification - NO response expected)
-        self.add_test_case(
-            name="Call Query Tool (Notification - No Response Expected)",
-            request={
-                "jsonrpc": "2.0",
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT 1 as test_value, 'Hello' as message",
-                        "maxRows": 10
-                    }
-                }
-            },
-            expected_fields=[],  # No response expected
-            is_notification=True,
-            should_have_response=False
-        )
-
-        # Test 10: Invalid Method (should return error)
-        self.add_test_case(
-            name="Invalid Method (Error Test)",
-            request={
-                "jsonrpc": "2.0",
-                "id": 5,
-                "method": "invalid/method",
-                "params": {}
-            },
-            expected_fields=["jsonrpc", "id", "error", "error.code", "error.message"]
-        )
-
-        # Test 11: Invalid Method WITHOUT ID (notification - NO response expected, even for errors)
-        self.add_test_case(
-            name="Invalid Method (Notification - No Response Expected)",
-            request={
-                "jsonrpc": "2.0",
-                "method": "invalid/method",
-                "params": {}
-            },
-            expected_fields=[],  # No response expected, even for errors
-            is_notification=True,
-            should_have_response=False
-        )
-
-        # Test 12: Call Tool with Empty SQL (should return error)
-        self.add_test_case(
-            name="Empty SQL Query (Error Test)",
-            request={
-                "jsonrpc": "2.0",
-                "id": 6,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "",
-                        "maxRows": 10
-                    }
-                }
-            },
-            expected_fields=["jsonrpc", "id", "error", "error.code", "error.message"]
-        )
-
-        # Test 13: Read Database Info Resource
-        self.add_test_case(
-            name="Read Database Info Resource",
-            request={
-                "jsonrpc": "2.0",
-                "id": 7,
-                "method": "resources/read",
-                "params": {
-                    "uri": "database://info"
-                }
-            },
-            expected_fields=["jsonrpc", "id", "result", "result.contents"]
-        )
-
-        # Test 14: Read Database Info Resource WITHOUT ID (notification - NO response expected)
-        self.add_test_case(
-            name="Read Database Info Resource (Notification - No Response Expected)",
-            request={
-                "jsonrpc": "2.0",
-                "method": "resources/read",
-                "params": {
-                    "uri": "database://info"
-                }
-            },
-            expected_fields=[],  # No response expected
-            is_notification=True,
-            should_have_response=False
-        )
-
-    def run_mcp_server(self, input_data: str) -> tuple[str, str, int]:
-        """Run the MCP server with input data and return stdout, stderr, return_code"""
+    def get_java_version(self) -> str:
+        """Get Java version"""
         try:
+            result = subprocess.run([self.java_path, '-version'],
+                                  capture_output=True, text=True, timeout=10)
+            if result.stderr:
+                return result.stderr.split('\n')[0]
+            return "Unknown"
+        except Exception:
+            return "Not found"
+
+    def check_prerequisites(self) -> bool:
+        """Check if all prerequisites are met"""
+        print("Checking prerequisites...")
+
+        # Check if JAR file exists
+        if not os.path.exists(self.jar_path):
+            print(f"ERROR: Server JAR not found at {self.jar_path}")
+            print("Please run 'mvn clean package' first")
+            return False
+        print(f"Server JAR found: {self.jar_path}")
+
+        # Check Java installation
+        try:
+            subprocess.run([self.java_path, '-version'],
+                         capture_output=True, timeout=10, check=True)
+            print("Java is installed and accessible")
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            print("ERROR: Java is not installed or not in PATH")
+            return False
+
+        print()
+        return True
+
+    def setup_environment(self, mode: TransportMode):
+        """Setup environment variables for the specified mode"""
+        env = os.environ.copy()
+        env.update({
+            'DB_URL': 'jdbc:h2:mem:testdb',
+            'DB_USER': 'sa',
+            'DB_PASSWORD': '',
+            'DB_DRIVER': 'org.h2.Driver'
+        })
+
+        if mode == TransportMode.HTTP:
+            env['HTTP_MODE'] = 'true'
+            env['HTTP_PORT'] = str(self.port)
+        else:
+            env.pop('HTTP_MODE', None)
+            env.pop('HTTP_PORT', None)
+
+        return env
+
+    def check_port_availability(self) -> bool:
+        """Check if the HTTP port is available"""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(('localhost', self.port))
+                return True
+        except OSError:
+            print(f"ERROR: Port {self.port} is already in use!")
+            print("Solutions:")
+            print(f"1. Use a different port: python {sys.argv[0]} {self.jar_path} --port 9090")
+            print(f"2. Stop the service using port {self.port}")
+            print("3. Find what's using the port:")
+
+            if platform.system() == "Windows":
+                print(f"   netstat -ano | findstr :{self.port}")
+            else:
+                print(f"   lsof -i :{self.port}")
+
+            return False
+
+    def start_http_server(self) -> bool:
+        """Start the HTTP server in background"""
+        try:
+            env = self.setup_environment(TransportMode.HTTP)
             cmd = [self.java_path, "-jar", self.jar_path]
 
+            self.server_process = subprocess.Popen(
+                cmd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+
+            # Wait for server to start and check for immediate failures
+            max_wait = 12
+            for i in range(max_wait):
+                # Check if process has exited (failed to start)
+                if self.server_process.poll() is not None:
+                    stdout, stderr = self.server_process.communicate()
+                    print(f"ERROR: Server process exited with code {self.server_process.returncode}")
+                    if stderr:
+                        print("Server error output:")
+                        print(stderr)
+
+                    # Check for specific error messages
+                    if "already in use" in stderr or "BindException" in stderr:
+                        print(f"ERROR: Port {self.port} is already in use!")
+
+                    return False
+
+                # Try health endpoint
+                try:
+                    response = requests.get(f"http://localhost:{self.port}/health", timeout=1)
+                    if response.status_code == 200:
+                        print(f"HTTP server started on port {self.port}")
+                        return True
+                except requests.exceptions.RequestException:
+                    pass
+
+                time.sleep(1)
+
+            print(f"ERROR: HTTP server failed to respond within {max_wait} seconds")
+            self.stop_http_server()
+            return False
+
+        except Exception as e:
+            print(f"ERROR: Failed to start HTTP server: {e}")
+            return False
+
+    def stop_http_server(self):
+        """Stop the HTTP server"""
+        if self.server_process:
+            try:
+                self.server_process.terminate()
+                self.server_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.server_process.kill()
+                self.server_process.wait()
+            except Exception as e:
+                print(f"Warning: Error stopping server: {e}")
+            finally:
+                self.server_process = None
+
+    def test_health_endpoint(self) -> bool:
+        """Test the health endpoint (HTTP mode only)"""
+        try:
+            response = requests.get(f"http://localhost:{self.port}/health", timeout=5)
+            if response.status_code == 200:
+                health_data = response.json()
+                print(f"Health check response: {health_data}")
+                return health_data.get("status") == "healthy"
+            return False
+        except Exception as e:
+            print(f"Health check failed: {e}")
+            return False
+
+    def send_http_request(self, request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Send MCP request via HTTP"""
+        try:
+            response = requests.post(
+                f"http://localhost:{self.port}/mcp",
+                json=request,
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+
+            if response.status_code == 204:
+                # Notification - no response expected
+                return None
+            elif response.status_code == 200:
+                return response.json()
+            else:
+                print(f"HTTP error: {response.status_code} - {response.text}")
+                return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"HTTP request failed: {e}")
+            return None
+
+    def send_stdio_request(self, request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Send MCP request via stdio"""
+        try:
+            input_line = json.dumps(request) + "\n"
+            env = self.setup_environment(TransportMode.STDIO)
+
+            cmd = [self.java_path, "-jar", self.jar_path]
             process = subprocess.Popen(
                 cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env=os.environ.copy()
+                env=env
             )
 
-            stdout, stderr = process.communicate(input=input_data, timeout=30)
-            return stdout, stderr, process.returncode
+            stdout, stderr = process.communicate(input=input_line, timeout=30)
 
-        except subprocess.TimeoutExpired:
-            process.kill()
-            return "", "Process timed out after 30 seconds", 1
+            if not stdout.strip():
+                return None
+
+            return json.loads(stdout.strip().split('\n')[0])
+
         except Exception as e:
-            return "", f"Failed to run process: {str(e)}", 1
+            print(f"Stdio request failed: {e}")
+            return None
+
+    def send_request(self, request: Dict[str, Any], mode: TransportMode) -> Optional[Dict[str, Any]]:
+        """Send MCP request using the specified transport mode"""
+        if mode == TransportMode.HTTP:
+            return self.send_http_request(request)
+        else:
+            return self.send_stdio_request(request)
+
+    def create_test_cases(self) -> List[TestCase]:
+        """Create comprehensive test cases"""
+        return [
+            TestCase(
+                name="Initialize Protocol",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "test-client", "version": "1.0.0"}
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "result"]
+            ),
+            TestCase(
+                name="List Tools",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/list",
+                    "params": {}
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.tools"]
+            ),
+            TestCase(
+                name="List Resources",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "resources/list",
+                    "params": {}
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.resources"]
+            ),
+            TestCase(
+                name="Call Query Tool",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "query",
+                        "arguments": {
+                            "sql": "SELECT 1 as test_value, 'Hello MCP' as message",
+                            "maxRows": 10
+                        }
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.content"]
+            ),
+            TestCase(
+                name="Read Database Info Resource",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 5,
+                    "method": "resources/read",
+                    "params": {"uri": "database://info"}
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.contents"]
+            ),
+            TestCase(
+                name="Notification Test (No Response Expected)",
+                request={
+                    "jsonrpc": "2.0",
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "test-client", "version": "1.0.0"}
+                    }
+                },
+                expected_fields=[],
+                is_notification=True,
+                should_have_response=False
+            ),
+            TestCase(
+                name="Error Test - Invalid Method",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 6,
+                    "method": "invalid/method",
+                    "params": {}
+                },
+                expected_fields=["jsonrpc", "id", "error", "error.code", "error.message"]
+            ),
+            TestCase(
+                name="Error Test - Empty SQL",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 7,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "query",
+                        "arguments": {"sql": "", "maxRows": 10}
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "error", "error.code", "error.message"]
+            ),
+            TestCase(
+                name="ID Test - Null ID",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "method": "tools/list",
+                    "params": {}
+                },
+                expected_fields=["jsonrpc", "id", "result"]
+            ),
+            TestCase(
+                name="ID Test - String ID",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": "test-string-id",
+                    "method": "tools/list",
+                    "params": {}
+                },
+                expected_fields=["jsonrpc", "id", "result"]
+            )
+        ]
 
     def validate_json_rpc(self, response: Dict[str, Any], expected_id: Any = None) -> List[str]:
         """Validate JSON-RPC 2.0 compliance"""
@@ -337,15 +439,10 @@ class MCPTester:
             if not isinstance(error, dict):
                 errors.append("Error field must be an object")
             else:
-                if "code" not in error:
-                    errors.append("Error object missing 'code' field")
-                elif not isinstance(error["code"], int):
-                    errors.append("Error code must be an integer")
-
-                if "message" not in error:
-                    errors.append("Error object missing 'message' field")
-                elif not isinstance(error["message"], str):
-                    errors.append("Error message must be a string")
+                if "code" not in error or not isinstance(error["code"], int):
+                    errors.append("Error object missing or invalid 'code' field")
+                if "message" not in error or not isinstance(error["message"], str):
+                    errors.append("Error object missing or invalid 'message' field")
 
         return errors
 
@@ -366,290 +463,295 @@ class MCPTester:
 
         return errors
 
-    def validate_mcp_specific(self, test_case: TestCase, response: Dict[str, Any]) -> List[str]:
-        """Validate MCP-specific requirements"""
-        errors = []
-
-        if test_case.name.startswith("Initialize Protocol") and "result" in response:
-            result = response["result"]
-
-            # Check required initialize response fields
-            required_fields = ["protocolVersion", "capabilities", "serverInfo"]
-            for field in required_fields:
-                if field not in result:
-                    errors.append(f"Initialize response missing '{field}'")
-
-            # Validate capabilities structure
-            if "capabilities" in result:
-                caps = result["capabilities"]
-                if not isinstance(caps, dict):
-                    errors.append("capabilities must be an object")
-
-        elif test_case.name.startswith("List Tools") and "result" in response:
-            result = response["result"]
-
-            if "tools" not in result:
-                errors.append("tools/list response missing 'tools' array")
-            elif not isinstance(result["tools"], list):
-                errors.append("'tools' must be an array")
-            else:
-                # Validate each tool
-                for i, tool in enumerate(result["tools"]):
-                    if not isinstance(tool, dict):
-                        errors.append(f"Tool {i} must be an object")
-                        continue
-
-                    required_tool_fields = ["name", "description"]
-                    for field in required_tool_fields:
-                        if field not in tool:
-                            errors.append(f"Tool {i} missing '{field}'")
-
-        elif test_case.name.startswith("Call Query Tool") and "result" in response:
-            result = response["result"]
-
-            if "content" not in result:
-                errors.append("tools/call response missing 'content'")
-            elif not isinstance(result["content"], list):
-                errors.append("'content' must be an array")
-
-        return errors
-
-    def run_test_case(self, test_case: TestCase) -> TestCase:
+    def run_test_case(self, test_case: TestCase, mode: TransportMode) -> TestCase:
         """Run a single test case and validate the response"""
         start_time = time.time()
+        result_case = TestCase(
+            name=test_case.name,
+            request=test_case.request,
+            expected_fields=test_case.expected_fields,
+            is_notification=test_case.is_notification,
+            should_have_response=test_case.should_have_response
+        )
 
         try:
-            # Prepare input
-            input_line = json.dumps(test_case.request) + "\n"
-
-            # Run server
-            stdout, stderr, return_code = self.run_mcp_server(input_line)
-
-            test_case.execution_time = time.time() - start_time
-
-            # Check if server started successfully
-            if return_code != 0:
-                test_case.result = TestResult.ERROR
-                test_case.error_message = f"Server failed to start: {stderr}"
-                return test_case
-
-            # Parse response
-            lines = stdout.strip().split('\n')
+            response = self.send_request(test_case.request, mode)
+            result_case.execution_time = time.time() - start_time
 
             # Handle notifications (should have NO response)
             if test_case.is_notification and not test_case.should_have_response:
-                if not lines or not lines[0].strip():
-                    # No response is expected and correct for notifications
-                    test_case.result = TestResult.PASS
-                    test_case.response = None
-                    return test_case
+                if response is None:
+                    result_case.result = TestResult.PASS
+                    result_case.response = None
+                    return result_case
                 else:
-                    # Response found when none expected
-                    test_case.result = TestResult.FAIL
-                    test_case.error_message = f"Unexpected response for notification: {lines[0]}"
-                    try:
-                        test_case.response = json.loads(lines[0])
-                    except:
-                        pass
-                    return test_case
+                    result_case.result = TestResult.FAIL
+                    result_case.error_message = f"Unexpected response for notification"
+                    result_case.response = response
+                    return result_case
 
             # Handle regular requests (should have response)
-            if not lines or not lines[0].strip():
-                test_case.result = TestResult.ERROR
-                test_case.error_message = "No response from server"
-                return test_case
+            if response is None:
+                result_case.result = TestResult.ERROR
+                result_case.error_message = "No response from server"
+                return result_case
 
-            try:
-                response_line = lines[0].strip()
-                response = json.loads(response_line)
-                test_case.response = response
-            except json.JSONDecodeError as e:
-                test_case.result = TestResult.ERROR
-                test_case.error_message = f"Invalid JSON response: {str(e)}"
-                return test_case
+            result_case.response = response
 
             # Validate response
             errors = []
-
-            # Get expected ID from request
             expected_id = test_case.request.get("id") if "id" in test_case.request else None
 
-            # JSON-RPC validation
             errors.extend(self.validate_json_rpc(response, expected_id))
-
-            # Expected fields validation
             errors.extend(self.validate_expected_fields(response, test_case.expected_fields))
 
-            # MCP-specific validation
-            errors.extend(self.validate_mcp_specific(test_case, response))
-
-            # Set result
             if errors:
-                test_case.result = TestResult.FAIL
-                test_case.error_message = "; ".join(errors)
+                result_case.result = TestResult.FAIL
+                result_case.error_message = "; ".join(errors)
             else:
-                test_case.result = TestResult.PASS
+                result_case.result = TestResult.PASS
 
         except Exception as e:
-            test_case.result = TestResult.ERROR
-            test_case.error_message = f"Unexpected error: {str(e)}"
-            test_case.execution_time = time.time() - start_time
+            result_case.result = TestResult.ERROR
+            result_case.error_message = f"Unexpected error: {str(e)}"
+            result_case.execution_time = time.time() - start_time
 
-        return test_case
+        return result_case
 
-    def run_all_tests(self) -> Dict[str, Any]:
-        """Run all test cases and return results summary"""
-        if not self.test_cases:
-            self.create_standard_test_cases()
+    def run_mode_tests(self, mode: TransportMode) -> ModeResults:
+        """Run all tests for a specific transport mode"""
+        print(f"\n{'='*60}")
+        print(f"TESTING {mode.value.upper()} MODE")
+        print(f"{'='*60}")
 
-        print("MCP Protocol Test Suite")
-        print("=" * 50)
-        print(f"Java Path: {self.java_path}")
-        print(f"JAR Path: {self.jar_path}")
-        print(f"Database: {os.environ.get('DB_URL', 'Not set')}")
-        print()
+        if mode == TransportMode.HTTP and not HAS_REQUESTS:
+            print("❌ Skipping HTTP tests - requests library not available")
+            print("Install with: pip install requests")
+            return ModeResults(mode, 0, 0, 0, 0, [], 0.0)
 
-        results = {
-            "total": len(self.test_cases),
-            "passed": 0,
-            "failed": 0,
-            "errors": 0,
-            "test_cases": []
-        }
+        # Pre-flight checks
+        if mode == TransportMode.HTTP:
+            if not self.check_port_availability():
+                return ModeResults(mode, 0, 0, 0, 1, [], 0.0)
 
-        for i, test_case in enumerate(self.test_cases, 1):
-            print(f"Test {i}/{len(self.test_cases)}: {test_case.name}...")
+            if not self.start_http_server():
+                return ModeResults(mode, 0, 0, 0, 1, [], 0.0)
 
-            result = self.run_test_case(test_case)
-            results["test_cases"].append(result)
-
-            # Update counters
-            if result.result == TestResult.PASS:
-                results["passed"] += 1
-                print(f"  ✅ PASS ({result.execution_time:.2f}s)")
-            elif result.result == TestResult.FAIL:
-                results["failed"] += 1
-                print(f"  ❌ FAIL ({result.execution_time:.2f}s)")
-                print(f"     Error: {result.error_message}")
+            # Test health endpoint
+            print("Testing health endpoint...")
+            if self.test_health_endpoint():
+                print("✅ Health endpoint working")
             else:
-                results["errors"] += 1
-                print(f"  🔥 ERROR ({result.execution_time:.2f}s)")
-                print(f"     Error: {result.error_message}")
+                print("❌ Health endpoint failed")
+                self.stop_http_server()
+                return ModeResults(mode, 0, 0, 0, 1, [], 0.0)
 
-            # Show response summary for successful tests
-            if result.result == TestResult.PASS:
-                if result.response is None:
-                    print(f"     Response: None (notification)")
-                elif "result" in result.response:
-                    print(f"     Response: Success")
-                elif "error" in result.response:
-                    error = result.response["error"]
-                    print(f"     Response: Error {error.get('code', 'unknown')} - {error.get('message', 'no message')}")
+        try:
+            test_cases = self.create_test_cases()
+            results = []
+            passed = failed = errors = 0
 
-            # Show ID handling for debugging
-            if result.response:
-                request_id = test_case.request.get("id") if "id" in test_case.request else "NOT_PRESENT"
-                response_id = result.response.get("id") if "id" in result.response else "NOT_PRESENT"
-                print(f"     ID: Request={repr(request_id)}, Response={repr(response_id)}")
-            elif test_case.is_notification:
-                print(f"     ID: Notification (no response expected)")
+            print(f"\nRunning {len(test_cases)} test cases...")
+            print("-" * 40)
 
-            print()
+            for i, test_case in enumerate(test_cases, 1):
+                print(f"Test {i:2d}: {test_case.name}...", end=" ")
 
-        return results
+                result = self.run_test_case(test_case, mode)
+                results.append(result)
 
-    def print_summary(self, results: Dict[str, Any]):
-        """Print test results summary"""
-        print("Test Results Summary")
-        print("=" * 50)
-        print(f"Total Tests: {results['total']}")
-        print(f"✅ Passed: {results['passed']}")
-        print(f"❌ Failed: {results['failed']}")
-        print(f"🔥 Errors: {results['errors']}")
+                if result.result == TestResult.PASS:
+                    passed += 1
+                    print(f"✅ PASS ({result.execution_time:.2f}s)")
+                elif result.result == TestResult.FAIL:
+                    failed += 1
+                    print(f"❌ FAIL ({result.execution_time:.2f}s)")
+                    print(f"    Error: {result.error_message}")
+                else:
+                    errors += 1
+                    print(f"🔥 ERROR ({result.execution_time:.2f}s)")
+                    print(f"    Error: {result.error_message}")
 
-        success_rate = (results['passed'] / results['total']) * 100 if results['total'] > 0 else 0
-        print(f"Success Rate: {success_rate:.1f}%")
+            success_rate = (passed / len(test_cases)) * 100 if test_cases else 0
+            return ModeResults(mode, len(test_cases), passed, failed, errors, results, success_rate)
 
-        if results['failed'] > 0 or results['errors'] > 0:
-            print("\nFailed/Error Test Details:")
-            print("-" * 30)
-            for test_case in results['test_cases']:
-                if test_case.result != TestResult.PASS:
-                    print(f"❌ {test_case.name}: {test_case.error_message}")
+        finally:
+            if mode == TransportMode.HTTP:
+                self.stop_http_server()
 
-        # Show specific information about notification handling tests
-        print("\nNotification Handling Test Results:")
+    def print_mode_summary(self, results: ModeResults):
+        """Print summary for a specific mode"""
+        print(f"\n{results.mode.value.upper()} MODE SUMMARY:")
         print("-" * 30)
-        for test_case in results['test_cases']:
-            if test_case.is_notification:
-                status = "✅" if test_case.result == TestResult.PASS else "❌"
-                print(f"{status} {test_case.name}")
-                if test_case.response is not None:
-                    print(f"    ERROR: Unexpected response for notification")
+        print(f"Total Tests: {results.total}")
+        print(f"✅ Passed: {results.passed}")
+        print(f"❌ Failed: {results.failed}")
+        print(f"🔥 Errors: {results.errors}")
+        print(f"Success Rate: {results.success_rate:.1f}%")
 
+    def print_overall_summary(self, stdio_results: ModeResults, http_results: ModeResults):
+        """Print overall test summary and comparison"""
+        print(f"\n{'='*70}")
+        print("OVERALL SUMMARY")
+        print(f"{'='*70}")
+
+        # Mode comparison table
+        print(f"{'Mode':<8} {'Total':<6} {'Passed':<7} {'Failed':<7} {'Errors':<7} {'Success Rate':<12}")
+        print("-" * 60)
+        print(f"{'STDIO':<8} {stdio_results.total:<6} {stdio_results.passed:<7} {stdio_results.failed:<7} {stdio_results.errors:<7} {stdio_results.success_rate:<11.1f}%")
+
+        if http_results.total > 0:
+            print(f"{'HTTP':<8} {http_results.total:<6} {http_results.passed:<7} {http_results.failed:<7} {http_results.errors:<7} {http_results.success_rate:<11.1f}%")
+        else:
+            print(f"{'HTTP':<8} {'SKIPPED (missing requests library)'}")
+
+        # Overall status
         print()
+        stdio_ok = stdio_results.success_rate == 100.0
+        http_ok = http_results.total == 0 or http_results.success_rate == 100.0
 
-    def save_detailed_report(self, results: Dict[str, Any], filename: str = "mcp_test_report.json"):
-        """Save detailed test results to JSON file"""
-        # Convert test cases to serializable format
-        serializable_results = {
-            "total": results["total"],
-            "passed": results["passed"],
-            "failed": results["failed"],
-            "errors": results["errors"],
-            "test_cases": []
-        }
+        if stdio_ok and http_ok:
+            print("🎉 ALL TESTS PASSED! Both transport modes are working correctly.")
+        elif stdio_ok and http_results.total == 0:
+            print("✅ STDIO mode working. HTTP tests skipped (install 'requests' to test HTTP mode).")
+        elif stdio_ok:
+            print("⚠️  STDIO mode working, but HTTP mode has issues.")
+        elif http_ok and http_results.total > 0:
+            print("⚠️  HTTP mode working, but STDIO mode has issues.")
+        else:
+            print("❌ BOTH modes have issues that need to be addressed.")
 
-        for test_case in results["test_cases"]:
-            serializable_results["test_cases"].append({
-                "name": test_case.name,
-                "result": test_case.result.value,
-                "execution_time": test_case.execution_time,
-                "error_message": test_case.error_message,
-                "request": test_case.request,
-                "response": test_case.response,
-                "expected_fields": test_case.expected_fields,
-                "is_notification": test_case.is_notification,
-                "should_have_response": test_case.should_have_response
-            })
+        # Show detailed failures
+        all_failures = []
+        for result in stdio_results.test_cases + http_results.test_cases:
+            if result.result != TestResult.PASS:
+                all_failures.append((result.name, result.error_message))
 
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(serializable_results, f, indent=2, ensure_ascii=False)
+        if all_failures:
+            print(f"\nFailed Test Details:")
+            print("-" * 30)
+            for name, error in all_failures:
+                print(f"❌ {name}: {error}")
 
-        print(f"Detailed report saved to: {filename}")
+    def run_all_tests(self, mode: TransportMode = TransportMode.BOTH) -> Tuple[ModeResults, ModeResults]:
+        """Run tests for specified mode(s)"""
+        self.print_header()
+
+        if not self.check_prerequisites():
+            return ModeResults(TransportMode.STDIO, 0, 0, 0, 1, [], 0.0), ModeResults(TransportMode.HTTP, 0, 0, 0, 1, [], 0.0)
+
+        stdio_results = ModeResults(TransportMode.STDIO, 0, 0, 0, 0, [], 0.0)
+        http_results = ModeResults(TransportMode.HTTP, 0, 0, 0, 0, [], 0.0)
+
+        # Run tests based on mode selection
+        if mode in [TransportMode.STDIO, TransportMode.BOTH]:
+            stdio_results = self.run_mode_tests(TransportMode.STDIO)
+            self.print_mode_summary(stdio_results)
+
+        if mode in [TransportMode.HTTP, TransportMode.BOTH]:
+            http_results = self.run_mode_tests(TransportMode.HTTP)
+            self.print_mode_summary(http_results)
+
+        if mode == TransportMode.BOTH:
+            self.print_overall_summary(stdio_results, http_results)
+
+        return stdio_results, http_results
 
 def main():
-    """Main function"""
+    """Main function with comprehensive argument parsing"""
     if len(sys.argv) < 2:
-        print("Usage: python test-mcp-protocol.py <path_to_jar> [java_path]")
-        print("Example: python test-mcp-protocol.py C:/Users/skanga/IdeaProjects/dbmcp/target/dbmcp-1.0.0.jar")
-        print("Example: python test-mcp-protocol.py C:/Users/skanga/IdeaProjects/dbmcp/target/dbmcp-1.0.0.jar c:/java/jdk-17.0.13/bin/java.exe")
+        print("Usage: python unified-mcp-test.py <jar_path> [options]")
+        print()
+        print("Options:")
+        print("  --mode <stdio|http|both>     Test mode (default: both)")
+        print("  --java <path>                Java executable path (default: java)")
+        print("  --port <number>              HTTP port for testing (default: 8080)")
+        print("  --help                       Show this help message")
+        print()
+        print("Examples:")
+        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar")
+        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar --mode stdio")
+        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar --mode http --port 9090")
+        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar --java /path/to/java")
         sys.exit(1)
 
+    # Parse arguments
     jar_path = sys.argv[1]
-    java_path = sys.argv[2] if len(sys.argv) > 2 else "java"
+    mode = TransportMode.BOTH
+    java_path = "java"
+    port = 8080
 
-    # Check if JAR file exists
+    i = 2
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == "--help":
+            main()  # This will print help and exit
+        elif arg == "--mode" and i + 1 < len(sys.argv):
+            try:
+                mode_str = sys.argv[i + 1].lower()
+                mode = TransportMode(mode_str) if mode_str != "both" else TransportMode.BOTH
+            except ValueError:
+                print(f"Invalid mode: {sys.argv[i + 1]}. Use stdio, http, or both")
+                sys.exit(1)
+            i += 2
+        elif arg == "--java" and i + 1 < len(sys.argv):
+            java_path = sys.argv[i + 1]
+            i += 2
+        elif arg == "--port" and i + 1 < len(sys.argv):
+            try:
+                port = int(sys.argv[i + 1])
+            except ValueError:
+                print(f"Invalid port: {sys.argv[i + 1]}")
+                sys.exit(1)
+            i += 2
+        else:
+            print(f"Unknown argument: {arg}")
+            sys.exit(1)
+
+    # Validate JAR file
     if not os.path.exists(jar_path):
         print(f"Error: JAR file not found: {jar_path}")
         sys.exit(1)
 
+    # Check for requests library if HTTP testing requested
+    if mode in [TransportMode.HTTP, TransportMode.BOTH] and not HAS_REQUESTS:
+        print("Warning: HTTP testing requires 'requests' library")
+        print("Install with: pip install requests")
+        if mode == TransportMode.HTTP:
+            print("Cannot run HTTP-only tests without requests library")
+            sys.exit(1)
+
     # Create tester and run tests
-    tester = MCPTester(jar_path=jar_path, java_path=java_path)
-    results = tester.run_all_tests()
+    tester = UnifiedMCPTester(jar_path=jar_path, java_path=java_path, port=port)
 
-    # Print summary
-    tester.print_summary(results)
-
-    # Save detailed report
-    tester.save_detailed_report(results)
-
-    # Exit with error code if any tests failed
-    if results['failed'] > 0 or results['errors'] > 0:
+    # Handle Ctrl+C gracefully
+    def signal_handler(sig, frame):
+        print("\n\nTest interrupted by user")
+        tester.stop_http_server()
         sys.exit(1)
-    else:
-        print("🎉 All tests passed!")
-        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    try:
+        stdio_results, http_results = tester.run_all_tests(mode)
+
+        # Determine exit code
+        stdio_ok = stdio_results.total == 0 or stdio_results.success_rate == 100.0
+        http_ok = http_results.total == 0 or http_results.success_rate == 100.0
+
+        if stdio_ok and http_ok:
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+    except KeyboardInterrupt:
+        print("\n\nTest interrupted by user")
+        tester.stop_http_server()
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n\nUnexpected error: {e}")
+        tester.stop_http_server()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

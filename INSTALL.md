@@ -142,14 +142,26 @@ export DB_PASSWORD="password"
 export DB_DRIVER="com.microsoft.sqlserver.jdbc.SQLServerDriver"
 ```
 
-## ▶️ Step 3: Start the MCP Server
+## ▶️ Step 3: Choose Your Transport Mode and Start the Server
 
-### Method 1: Using Environment Variables
+The DBMCP server supports two transport modes:
+
+### **stdio Mode** - For Claude Desktop Integration (Default)
+Standard MCP communication over stdin/stdout for Claude Desktop.
+
+### **HTTP Mode** - For Web Applications and Testing
+HTTP REST API for web applications, remote access, and easier testing.
+
+---
+
+### 🖥️ stdio Mode (Claude Desktop)
+
+#### Method 1: Using Environment Variables
 ```bash
 java -jar target/dbmcp-1.0.0.jar
 ```
 
-### Method 2: Using Java System Properties
+#### Method 2: Using Java System Properties
 ```bash
 java -Ddb.url="jdbc:h2:mem:testdb" \
      -Ddb.user="sa" \
@@ -158,7 +170,7 @@ java -Ddb.url="jdbc:h2:mem:testdb" \
      -jar target/dbmcp-1.0.0.jar
 ```
 
-### Method 3: Using Command Line Arguments
+#### Method 3: Using Command Line Arguments
 ```bash
 java -jar target/dbmcp-1.0.0.jar \
      --db_url="jdbc:h2:mem:testdb" \
@@ -167,17 +179,59 @@ java -jar target/dbmcp-1.0.0.jar \
      --db_driver="org.h2.Driver"
 ```
 
-### Expected Output
-When the server starts successfully, you should see:
+#### Expected Output (stdio mode)
 ```
-[main] INFO com.skanga.mcp.McpServer - Starting Database MCP Server...
+[main] INFO com.skanga.mcp.McpServer - Starting Database MCP Server in stdio mode...
 ```
 
 The server is now waiting for JSON-RPC requests on stdin.
 
+---
+
+### 🌐 HTTP Mode (Web Applications)
+
+#### Method 1: Using Environment Variables
+```bash
+export HTTP_MODE="true"
+export HTTP_PORT="8080"  # Optional, defaults to 8080
+java -jar target/dbmcp-1.0.0.jar
+```
+
+#### Method 2: Using Command Line Arguments
+```bash
+# Default port 8080
+java -jar target/dbmcp-1.0.0.jar --http_mode=true
+
+# Custom port
+java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
+```
+
+#### Method 3: Using Java System Properties
+```bash
+java -Dhttp.mode=true \
+     -Dhttp.port=8080 \
+     -Ddb.url="jdbc:h2:mem:testdb" \
+     -jar target/dbmcp-1.0.0.jar
+```
+
+#### Expected Output (HTTP mode)
+```
+[main] INFO com.skanga.mcp.McpServer - Starting Database MCP Server in HTTP mode on port 8080...
+[main] INFO com.skanga.mcp.McpServer - Database MCP Server HTTP mode started on port 8080
+[main] INFO com.skanga.mcp.McpServer - MCP endpoint: http://localhost:8080/mcp
+[main] INFO com.skanga.mcp.McpServer - Health check: http://localhost:8080/health
+```
+
+#### HTTP Endpoints
+- **`POST /mcp`** - MCP JSON-RPC requests
+- **`GET /health`** - Health check and server status
+- **`OPTIONS /mcp`** - CORS preflight support
+
 ## 🧪 Step 4: Test the Server
 
-### Quick Test with H2
+### Test stdio Mode
+
+#### Quick Test with H2
 ```bash
 # In a new terminal, create some test data
 echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test-client", "version": "1.0.0"}}}' | java -jar target/dbmcp-1.0.0.jar
@@ -192,10 +246,59 @@ echo '{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "qu
 echo '{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "query", "arguments": {"sql": "SELECT * FROM users ORDER BY id"}}}' | java -jar target/dbmcp-1.0.0.jar
 ```
 
-### Automated Testing
-Use the provided test script:
+### Test HTTP Mode
+
+Start the server in HTTP mode first:
 ```bash
-python test-mcp-server.py
+java -jar target/dbmcp-1.0.0.jar --http_mode=true
+```
+
+Then in another terminal:
+
+#### Health Check
+```bash
+curl http://localhost:8080/health
+```
+
+#### Initialize Protocol
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {"name": "http-client", "version": "1.0.0"}
+    }
+  }'
+```
+
+#### List Tools
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+#### Execute Query
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "query",
+      "arguments": {
+        "sql": "SELECT 1 as test_value, '\''Hello World'\'' as message",
+        "maxRows": 10
+      }
+    }
+  }'
 ```
 
 ## 🔧 Step 5: Configure with Claude Desktop
@@ -315,6 +418,90 @@ python test-mcp-server.py
 4. **Security**: Environment variables are encrypted by the OS
 5. **Restart Required**: Restart Claude Desktop after configuration changes
 
+## 🔧 Step 5B: Integrate with Web Applications (HTTP mode)
+
+### JavaScript/Node.js Integration
+```javascript
+// Example: Query database from a web application
+async function queryDatabase(sql, maxRows = 1000) {
+  const response = await fetch('http://localhost:8080/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'tools/call',
+      params: {
+        name: 'query',
+        arguments: { sql, maxRows }
+      }
+    })
+  });
+  
+  return await response.json();
+}
+
+// Usage
+const result = await queryDatabase('SELECT COUNT(*) FROM users');
+console.log(result);
+```
+
+### Python Integration
+```python
+import requests
+
+def query_database(sql, max_rows=1000):
+    response = requests.post('http://localhost:8080/mcp', json={
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {
+            'name': 'query',
+            'arguments': {
+                'sql': sql,
+                'maxRows': max_rows
+            }
+        }
+    })
+    return response.json()
+
+# Usage
+result = query_database('SELECT * FROM users LIMIT 10')
+print(result)
+```
+
+### cURL Examples
+```bash
+# Health check
+curl http://localhost:8080/health
+
+# List available tools
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Execute a query
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "query",
+      "arguments": {
+        "sql": "SELECT COUNT(*) as user_count FROM users",
+        "maxRows": 1
+      }
+    }
+  }'
+
+# List database resources
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"resources/list","params":{}}'
+```
+
 ## 🚀 Step 6: Using the Database MCP Server
 
 ### Verify Connection
@@ -331,7 +518,80 @@ After restarting Claude Desktop:
 "Create a chart showing monthly sales from the orders table"
 ```
 
+### For Web Applications (HTTP mode)
+
+#### Health Monitoring
+Monitor server status:
+```bash
+curl http://localhost:8080/health
+```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "server": "Database MCP Server",
+  "timestamp": 1703123456789,
+  "database": "connected"
+}
+```
+
+#### API Integration Examples
+
+**Dashboard Application:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Database Dashboard</title>
+</head>
+<body>
+    <script>
+    async function loadUserCount() {
+        const response = await fetch('http://localhost:8080/mcp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'tools/call',
+                params: {
+                    name: 'query',
+                    arguments: {
+                        sql: 'SELECT COUNT(*) as count FROM users',
+                        maxRows: 1
+                    }
+                }
+            })
+        });
+        
+        const result = await response.json();
+        document.getElementById('userCount').textContent = 
+            result.result.content[0].text;
+    }
+    
+    loadUserCount();
+    </script>
+    
+    <h1>User Count: <span id="userCount">Loading...</span></h1>
+</body>
+</html>
+```
+
 ## 🛠️ Advanced Configuration
+
+### Transport Mode Selection
+```bash
+# Environment variable approach
+export HTTP_MODE="true"      # Enable HTTP mode
+export HTTP_PORT="8080"      # Set HTTP port
+
+# Command line approach
+java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
+
+# System properties approach
+java -Dhttp.mode=true -Dhttp.port=8080 -jar target/dbmcp-1.0.0.jar
+```
 
 ### Connection Pool Settings
 Set environment variables for fine-tuning:
@@ -361,15 +621,19 @@ export MAX_ROWS_LIMIT="1000"
 Enable debug logging for troubleshooting:
 
 ```bash
+# stdio mode
 java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
 ```
 
-### Verbose Output
-For detailed connection information:
-
-```bash
-java -Dlogging.level.com.skanga.database.mcp=TRACE -jar target/dbmcp-1.0.0.jar
+# HTTP mode
+java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar --http_mode=true
 ```
+
+### Configuration Priority Order
+1. **Command line arguments**: `--http_mode=true`, `--http_port=8080`
+2. **Environment variables**: `HTTP_MODE`, `HTTP_PORT`
+3. **System properties**: `-Dhttp.mode=true`, `-Dhttp.port=8080`
+4. **Default values**: stdio mode, port 8080
 
 ## 🔍 Troubleshooting
 
@@ -385,11 +649,18 @@ java -Dlogging.level.com.skanga.database.mcp=TRACE -jar target/dbmcp-1.0.0.jar
 - Ensure database user has necessary permissions
 - Check firewall settings
 
-#### Server starts but doesn't respond
+#### Server starts but doesn't respond (stdio mode)
 **Solutions**:
 - Verify JSON-RPC request format
 - Check server logs for errors
 - Ensure proper stdin/stdout communication
+
+#### HTTP server doesn't start
+**Solutions**:
+- Check if port is already in use: `netstat -an | grep 8080`
+- Try different port: `--http_port=9090`
+- Check for permission issues on the port
+- Verify firewall settings
 
 #### Claude Desktop doesn't show the server
 **Solutions**:
@@ -398,19 +669,56 @@ java -Dlogging.level.com.skanga.database.mcp=TRACE -jar target/dbmcp-1.0.0.jar
 - Verify Java is accessible
 - Restart Claude Desktop
 
+#### HTTP requests fail with CORS errors
+**Solutions**:
+- Server includes CORS headers by default
+- For browser testing, ensure you're making requests from `http://localhost`
+- Check browser developer tools for specific CORS errors
+
+### Mode-Specific Troubleshooting
+
+#### stdio Mode Issues
+```bash
+# Test JSON-RPC communication
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | java -jar target/dbmcp-1.0.0.jar
+
+# Debug mode for detailed logging
+java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
+```
+
+#### HTTP Mode Issues
+```bash
+# Test server startup
+java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar --http_mode=true
+
+# Test health endpoint
+curl -v http://localhost:8080/health
+
+# Test MCP endpoint
+curl -v -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Check what's running on the port
+netstat -an | grep 8080
+```
+
 ### Validation Commands
 ```bash
 # Test Java version
 java -version
 
-# Validate JSON configuration
+# Validate JSON configuration (Claude Desktop)
 cat claude_desktop_config.json | python -m json.tool
 
-# Test database connection manually
+# Test database connection manually (stdio)
 java -jar target/dbmcp-1.0.0.jar < test_query.json
 
-# Check server startup
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
+# Test database connection manually (HTTP)
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+
 ```
 
 ## 📚 Additional Resources
@@ -419,14 +727,39 @@ java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
 - [Claude Desktop Documentation](https://support.anthropic.com)
 - [JDBC Documentation](https://docs.oracle.com/javase/tutorial/jdbc/)
 - [Maven Documentation](https://maven.apache.org/guides/getting-started/)
+- [HTTP/REST API Best Practices](https://restfulapi.net/)
 
 ## 🎯 Next Steps
 
 Once installed, you can:
+
+### With Claude Desktop (stdio mode):
 - Query your database using natural language through Claude
 - Generate SQL queries with Claude's help
 - Create data visualizations and charts
 - Explore database schemas and relationships
 - Build reports and analytics dashboards
+
+### With Web Applications (HTTP mode):
+- Integrate database queries into web applications
+- Build custom dashboards and analytics tools
+- Create APIs that leverage the MCP protocol
+- Automate database testing and validation
+- Monitor database health and performance
+
+### Choosing the Right Mode:
+
+**Use stdio mode when:**
+- Integrating with Claude Desktop
+- Building conversational database interfaces
+- Working with natural language queries
+- Creating interactive data exploration experiences
+
+**Use HTTP mode when:**
+- Building web applications or APIs
+- Creating custom dashboards
+- Integrating with existing web infrastructure
+- Automating database operations
+- Testing and development workflows
 
 For detailed usage examples and advanced features, see the README.md file.
