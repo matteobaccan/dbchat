@@ -1,6 +1,6 @@
-# Database MCP Server - Powerful Tool Suggestions
+# Database MCP Server - Add more tools
 
-## 🛠️ Essential Database Tools to Add
+## 🛠️ Database Tools to Add
 
 ### 1. **Query Explain Tool** - Performance Analysis
 **Purpose**: Analyze query execution plans to optimize performance
@@ -305,25 +305,25 @@
 
 ## 🚀 Implementation Priority
 
-### **Phase 1: Essential Tools (Immediate Impact)**
+### **Phase 1:**
 1. **Query Explain** - Critical for performance
 2. **Data Export** - Frequently needed
 3. **Data Profiler** - Data quality insights
 
-### **Phase 2: Advanced Analytics**
+### **Phase 2:**
 4. **Index Analyzer** - Performance optimization
 5. **Schema Diff** - Change management
 6. **SQL Generator** - User productivity
 
-### **Phase 3: Operations & Maintenance**
+### **Phase 3:**
 7. **Data Import** - ETL capabilities
 8. **Database Monitor** - Health monitoring
 9. **Backup Tool** - Data protection
 10. **Data Validation** - Quality assurance
 
-## 💡 Tool Implementation Template
+## 💡 Tool Implementation
 
-For each tool, you'll need to:
+For each tool, we need to:
 
 ### 1. **Add Tool Definition** (in `handleListTools()`)
 ```java
@@ -397,4 +397,4 @@ public ToolResult executeExplainQuery(JsonNode arguments) throws SQLException {
 3. `generate_sql` - Create cleansing queries
 4. `export_data` - Extract cleaned data
 
-These tools transform the MCP server from a basic query interface into a comprehensive database management and analysis platform, making it incredibly powerful for database administrators, developers, and analysts.
+These tools will transform the MCP server from a basic query interface into a comprehensive database management and analysis platform, making it incredibly powerful for database administrators, developers, and analysts.

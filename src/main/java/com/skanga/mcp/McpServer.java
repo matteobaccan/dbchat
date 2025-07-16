@@ -39,9 +39,13 @@ public class McpServer {
     protected JsonNode handleRequest(JsonNode requestNode) {
         String requestMethod = requestNode.path("method").asText();
         JsonNode requestParams = requestNode.path("params");
-        Object requestId = requestNode.has("id") ? requestNode.get("id") : null;
         
-        logger.debug("Handling request: method={}, id={}", requestMethod, requestId);
+        // Check if this is a notification (no id field at all)
+        boolean isNotification = !requestNode.has("id");
+        Object requestId = isNotification ? null : requestNode.get("id");
+
+        logger.debug("Handling request: method={}, id={}, isNotification={}",
+                     requestMethod, requestId, isNotification);
         
         try {
             JsonNode resultNode = switch (requestMethod) {
@@ -53,16 +57,31 @@ public class McpServer {
                 default -> throw new IllegalArgumentException("Method not found: " + requestMethod);
             };
 
+            // For notifications, return null to indicate no response should be sent
+            if (isNotification) {
+                return null;
+            }
+
             return createSuccessResponse(resultNode, requestId);
 
         } catch (IllegalArgumentException e) {
             logger.warn("Invalid request: {}", e.getMessage());
+            // For notifications, return null even for errors
+            if (isNotification) {
+                return null;
+            }
             return createErrorResponse("invalid_request", e.getMessage(), requestId);
         } catch (SQLException e) {
             logger.error("Database error: {}", e.getMessage(), e);
+            if (isNotification) {
+                return null;
+            }
             return createErrorResponse("database_error", "Database error: " + e.getMessage(), requestId);
         } catch (Exception e) {
             logger.error("Unexpected error handling request", e);
+            if (isNotification) {
+                return null;
+            }
             return createErrorResponse("internal_error", "Internal error: " + e.getMessage(), requestId);
         }
     }
@@ -91,9 +110,8 @@ public class McpServer {
         
         ObjectNode sqlProperty = objectMapper.createObjectNode();
         sqlProperty.put("type", "string");
-        sqlProperty.put("description", "SQL query to execute");
-        queryProperties.set("sql", sqlProperty);
-        
+        sqlProperty.put("description", "The SQL query to execute. IMPORTANT: Do not include any comments (-- or /* */) in SQL queries as they are blocked for security reasons. Use only plain SQL statements without explanatory comments.");
+
         ObjectNode maxRowsProperty = objectMapper.createObjectNode();
         maxRowsProperty.put("type", "integer");
         maxRowsProperty.put("description", "Maximum number of rows to return (default: 1000)");
@@ -181,12 +199,29 @@ public class McpServer {
                 try {
                     JsonNode requestNode = objectMapper.readTree(currLine);
                     JsonNode responseNode = handleRequest(requestNode);
-                    printWriter.println(objectMapper.writeValueAsString(responseNode));
+
+                    // Only send a response if it's not a notification
+                    if (responseNode != null) {
+                        printWriter.println(objectMapper.writeValueAsString(responseNode));
+                    }
                 } catch (Exception e) {
                     logger.error("Error processing request: {}", currLine, e);
-                    JsonNode errorResponse = createErrorResponse("internal_error",
-                        "Internal server error: " + e.getMessage(), null);
-                    printWriter.println(objectMapper.writeValueAsString(errorResponse));
+
+                    // Try to determine if this was a notification
+                    boolean isNotification = false;
+                    try {
+                        JsonNode requestNode = objectMapper.readTree(currLine);
+                        isNotification = !requestNode.has("id");
+                    } catch (Exception parseException) {
+                        // If we can't parse the request, assume it's not a notification
+                        // and send an error response
+                    }
+
+                    if (!isNotification) {
+                        JsonNode errorResponse = createErrorResponse("internal_error",
+                            "Internal server error: " + e.getMessage(), null);
+                        printWriter.println(objectMapper.writeValueAsString(errorResponse));
+                    }
                 }
             }
         }
@@ -250,7 +285,7 @@ public class McpServer {
     
     private Map<String, Object> createServerInfo() {
         Map<String, Object> infoMap = new HashMap<>();
-        infoMap.put("name", "Database MCP Server");
+        infoMap.put("name", "DBMCP - Database MCP Server");
         infoMap.put("version", "1.0.0");
         infoMap.put("description", "Generic MCP server for database operations");
         return infoMap;
@@ -265,24 +300,17 @@ public class McpServer {
     }
 
     private static void setRespId(Object requestId, ObjectNode responseNode) {
-        // If requestId is null, don't set the id field at all
+        // Always set the ID field to exactly match what was in the request
         if (requestId == null) {
-            return;
-        }
-        // Only set the ID if it's not null and not undefined
-        if (requestId instanceof String) {
-            String idStr = (String) requestId;
-            if (!idStr.isEmpty()) {
-                responseNode.put("id", idStr);
-            }
+            responseNode.putNull("id");
+        } else if (requestId instanceof String) {
+            responseNode.put("id", (String) requestId);
         } else if (requestId instanceof Number) {
             responseNode.put("id", ((Number) requestId).intValue());
         } else {
-            // For other types, convert to tree but check if it's not null
+            // For other types, convert to tree
             JsonNode idNode = objectMapper.valueToTree(requestId);
-            if (idNode != null && !idNode.isNull()) {
-                responseNode.set("id", idNode);
-            }
+            responseNode.set("id", idNode);
         }
     }
 

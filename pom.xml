@@ -502,9 +502,7 @@
                 </plugins>
             </build>
         </profile>
-
     </profiles>
-
 
     <build>
         <plugins>
@@ -515,7 +513,6 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
-                    <compilerArgs>--enable-preview</compilerArgs>
                 </configuration>
             </plugin>
 
@@ -611,7 +608,6 @@
             <url>https://github.com/skanga</url>
         </developer>
     </developers>
-
 
     <scm>
         <connection>scm:git:https://github.com/skanga/dbmcp.git</connection>

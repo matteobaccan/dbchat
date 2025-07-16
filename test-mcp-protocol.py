@@ -23,6 +23,8 @@ class TestCase:
     name: str
     request: Dict[str, Any]
     expected_fields: List[str]
+    is_notification: bool = False
+    should_have_response: bool = True
     result: TestResult = TestResult.ERROR
     response: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
@@ -42,9 +44,16 @@ class MCPTester:
         os.environ['DB_PASSWORD'] = ''
         os.environ['DB_DRIVER'] = 'org.h2.Driver'
 
-    def add_test_case(self, name: str, request: Dict[str, Any], expected_fields: List[str]):
+    def add_test_case(self, name: str, request: Dict[str, Any], expected_fields: List[str],
+                     is_notification: bool = False, should_have_response: bool = True):
         """Add a test case to the test suite"""
-        test_case = TestCase(name=name, request=request, expected_fields=expected_fields)
+        test_case = TestCase(
+            name=name,
+            request=request,
+            expected_fields=expected_fields,
+            is_notification=is_notification,
+            should_have_response=should_have_response
+        )
         self.test_cases.append(test_case)
 
     def create_standard_test_cases(self):
@@ -69,9 +78,9 @@ class MCPTester:
             expected_fields=["jsonrpc", "id", "result"]
         )
 
-        # Test 2: Initialize WITHOUT ID (notification style - this is the key test for your bug)
+        # Test 2: Initialize WITHOUT ID (notification - NO response expected)
         self.add_test_case(
-            name="Initialize Protocol (No ID - Notification Style)",
+            name="Initialize Protocol (Notification - No Response Expected)",
             request={
                 "jsonrpc": "2.0",
                 "method": "initialize",
@@ -84,10 +93,50 @@ class MCPTester:
                     }
                 }
             },
-            expected_fields=["jsonrpc", "result"]  # Note: NO "id" expected in response
+            expected_fields=[],  # No response expected
+            is_notification=True,
+            should_have_response=False
         )
 
-        # Test 3: List Tools
+        # Test 3: ID with empty string (should echo back empty string)
+        self.add_test_case(
+            name="Initialize Protocol (Empty String ID)",
+            request={
+                "jsonrpc": "2.0",
+                "id": "",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {
+                        "name": "test-client",
+                        "version": "1.0.0"
+                    }
+                }
+            },
+            expected_fields=["jsonrpc", "id", "result"]
+        )
+
+        # Test 4: ID with null (should echo back null)
+        self.add_test_case(
+            name="Initialize Protocol (Null ID)",
+            request={
+                "jsonrpc": "2.0",
+                "id": None,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {
+                        "name": "test-client",
+                        "version": "1.0.0"
+                    }
+                }
+            },
+            expected_fields=["jsonrpc", "id", "result"]
+        )
+
+        # Test 5: List Tools
         self.add_test_case(
             name="List Tools",
             request={
@@ -99,18 +148,20 @@ class MCPTester:
             expected_fields=["jsonrpc", "id", "result", "result.tools"]
         )
 
-        # Test 4: List Tools WITHOUT ID (notification style)
+        # Test 6: List Tools WITHOUT ID (notification - NO response expected)
         self.add_test_case(
-            name="List Tools (No ID - Notification Style)",
+            name="List Tools (Notification - No Response Expected)",
             request={
                 "jsonrpc": "2.0",
                 "method": "tools/list",
                 "params": {}
             },
-            expected_fields=["jsonrpc", "result", "result.tools"]  # Note: NO "id" expected
+            expected_fields=[],  # No response expected
+            is_notification=True,
+            should_have_response=False
         )
 
-        # Test 5: List Resources
+        # Test 7: List Resources
         self.add_test_case(
             name="List Resources",
             request={
@@ -122,7 +173,7 @@ class MCPTester:
             expected_fields=["jsonrpc", "id", "result", "result.resources"]
         )
 
-        # Test 6: Call Query Tool
+        # Test 8: Call Query Tool
         self.add_test_case(
             name="Call Query Tool",
             request={
@@ -140,9 +191,9 @@ class MCPTester:
             expected_fields=["jsonrpc", "id", "result", "result.content"]
         )
 
-        # Test 7: Call Query Tool WITHOUT ID (notification style)
+        # Test 9: Call Query Tool WITHOUT ID (notification - NO response expected)
         self.add_test_case(
-            name="Call Query Tool (No ID - Notification Style)",
+            name="Call Query Tool (Notification - No Response Expected)",
             request={
                 "jsonrpc": "2.0",
                 "method": "tools/call",
@@ -154,10 +205,12 @@ class MCPTester:
                     }
                 }
             },
-            expected_fields=["jsonrpc", "result", "result.content"]  # Note: NO "id" expected
+            expected_fields=[],  # No response expected
+            is_notification=True,
+            should_have_response=False
         )
 
-        # Test 8: Invalid Method (should return error)
+        # Test 10: Invalid Method (should return error)
         self.add_test_case(
             name="Invalid Method (Error Test)",
             request={
@@ -169,18 +222,20 @@ class MCPTester:
             expected_fields=["jsonrpc", "id", "error", "error.code", "error.message"]
         )
 
-        # Test 9: Invalid Method WITHOUT ID (notification style error)
+        # Test 11: Invalid Method WITHOUT ID (notification - NO response expected, even for errors)
         self.add_test_case(
-            name="Invalid Method (No ID - Notification Style Error)",
+            name="Invalid Method (Notification - No Response Expected)",
             request={
                 "jsonrpc": "2.0",
                 "method": "invalid/method",
                 "params": {}
             },
-            expected_fields=["jsonrpc", "error", "error.code", "error.message"]  # Note: NO "id" expected
+            expected_fields=[],  # No response expected, even for errors
+            is_notification=True,
+            should_have_response=False
         )
 
-        # Test 10: Call Tool with Empty SQL (should return error)
+        # Test 12: Call Tool with Empty SQL (should return error)
         self.add_test_case(
             name="Empty SQL Query (Error Test)",
             request={
@@ -198,7 +253,7 @@ class MCPTester:
             expected_fields=["jsonrpc", "id", "error", "error.code", "error.message"]
         )
 
-        # Test 11: Read Database Info Resource
+        # Test 13: Read Database Info Resource
         self.add_test_case(
             name="Read Database Info Resource",
             request={
@@ -212,9 +267,9 @@ class MCPTester:
             expected_fields=["jsonrpc", "id", "result", "result.contents"]
         )
 
-        # Test 12: Read Database Info Resource WITHOUT ID
+        # Test 14: Read Database Info Resource WITHOUT ID (notification - NO response expected)
         self.add_test_case(
-            name="Read Database Info Resource (No ID - Notification Style)",
+            name="Read Database Info Resource (Notification - No Response Expected)",
             request={
                 "jsonrpc": "2.0",
                 "method": "resources/read",
@@ -222,7 +277,9 @@ class MCPTester:
                     "uri": "database://info"
                 }
             },
-            expected_fields=["jsonrpc", "result", "result.contents"]  # Note: NO "id" expected
+            expected_fields=[],  # No response expected
+            is_notification=True,
+            should_have_response=False
         )
 
     def run_mcp_server(self, input_data: str) -> tuple[str, str, int]:
@@ -248,7 +305,7 @@ class MCPTester:
         except Exception as e:
             return "", f"Failed to run process: {str(e)}", 1
 
-    def validate_json_rpc(self, response: Dict[str, Any], expect_id: bool = True) -> List[str]:
+    def validate_json_rpc(self, response: Dict[str, Any], expected_id: Any = None) -> List[str]:
         """Validate JSON-RPC 2.0 compliance"""
         errors = []
 
@@ -256,20 +313,14 @@ class MCPTester:
         if response.get("jsonrpc") != "2.0":
             errors.append("Missing or invalid 'jsonrpc' field")
 
-        # Check ID field based on expectation
-        has_id = "id" in response
-        if expect_id and not has_id:
-            errors.append("Missing 'id' field")
-        elif not expect_id and has_id:
-            errors.append("Unexpected 'id' field in notification response")
-
-        # Validate ID field if present
-        if has_id:
-            id_value = response.get("id")
-            if id_value is None:
-                errors.append("ID field cannot be null")
-            elif isinstance(id_value, str) and id_value == "":
-                errors.append("ID field cannot be empty string")
+        # Validate ID field - must exactly match what was sent
+        if "id" in response:
+            actual_id = response["id"]
+            if expected_id != actual_id:
+                errors.append(f"ID mismatch: expected {repr(expected_id)}, got {repr(actual_id)}")
+        else:
+            if expected_id is not None:
+                errors.append(f"Missing 'id' field, expected {repr(expected_id)}")
 
         # Must have either result or error, but not both
         has_result = "result" in response
@@ -384,6 +435,25 @@ class MCPTester:
 
             # Parse response
             lines = stdout.strip().split('\n')
+
+            # Handle notifications (should have NO response)
+            if test_case.is_notification and not test_case.should_have_response:
+                if not lines or not lines[0].strip():
+                    # No response is expected and correct for notifications
+                    test_case.result = TestResult.PASS
+                    test_case.response = None
+                    return test_case
+                else:
+                    # Response found when none expected
+                    test_case.result = TestResult.FAIL
+                    test_case.error_message = f"Unexpected response for notification: {lines[0]}"
+                    try:
+                        test_case.response = json.loads(lines[0])
+                    except:
+                        pass
+                    return test_case
+
+            # Handle regular requests (should have response)
             if not lines or not lines[0].strip():
                 test_case.result = TestResult.ERROR
                 test_case.error_message = "No response from server"
@@ -401,25 +471,17 @@ class MCPTester:
             # Validate response
             errors = []
 
-            # Determine if we expect an ID based on the test case
-            expect_id = "id" in test_case.request
+            # Get expected ID from request
+            expected_id = test_case.request.get("id") if "id" in test_case.request else None
 
-            # JSON-RPC validation (with ID expectation)
-            errors.extend(self.validate_json_rpc(response, expect_id))
+            # JSON-RPC validation
+            errors.extend(self.validate_json_rpc(response, expected_id))
 
             # Expected fields validation
             errors.extend(self.validate_expected_fields(response, test_case.expected_fields))
 
             # MCP-specific validation
             errors.extend(self.validate_mcp_specific(test_case, response))
-
-            # Additional validation: Check for undefined/null ID values
-            if "id" in response:
-                id_value = response["id"]
-                if id_value is None:
-                    errors.append("Response ID cannot be null")
-                elif isinstance(id_value, str) and id_value.strip() == "":
-                    errors.append("Response ID cannot be empty string")
 
             # Set result
             if errors:
@@ -475,8 +537,10 @@ class MCPTester:
                 print(f"     Error: {result.error_message}")
 
             # Show response summary for successful tests
-            if result.result == TestResult.PASS and result.response:
-                if "result" in result.response:
+            if result.result == TestResult.PASS:
+                if result.response is None:
+                    print(f"     Response: None (notification)")
+                elif "result" in result.response:
                     print(f"     Response: Success")
                 elif "error" in result.response:
                     error = result.response["error"]
@@ -484,16 +548,11 @@ class MCPTester:
 
             # Show ID handling for debugging
             if result.response:
-                has_id = "id" in result.response
-                expects_id = "id" in test_case.request
-                if expects_id and has_id:
-                    print(f"     ID: {result.response['id']} (expected)")
-                elif not expects_id and not has_id:
-                    print(f"     ID: None (expected for notification)")
-                elif expects_id and not has_id:
-                    print(f"     ID: Missing (ERROR - expected)")
-                elif not expects_id and has_id:
-                    print(f"     ID: {result.response['id']} (ERROR - unexpected)")
+                request_id = test_case.request.get("id") if "id" in test_case.request else "NOT_PRESENT"
+                response_id = result.response.get("id") if "id" in result.response else "NOT_PRESENT"
+                print(f"     ID: Request={repr(request_id)}, Response={repr(response_id)}")
+            elif test_case.is_notification:
+                print(f"     ID: Notification (no response expected)")
 
             print()
 
@@ -518,15 +577,15 @@ class MCPTester:
                 if test_case.result != TestResult.PASS:
                     print(f"❌ {test_case.name}: {test_case.error_message}")
 
-        # Show specific information about ID handling tests
-        print("\nID Handling Test Results:")
+        # Show specific information about notification handling tests
+        print("\nNotification Handling Test Results:")
         print("-" * 30)
         for test_case in results['test_cases']:
-            if "No ID" in test_case.name:
+            if test_case.is_notification:
                 status = "✅" if test_case.result == TestResult.PASS else "❌"
                 print(f"{status} {test_case.name}")
-                if test_case.response and "id" in test_case.response:
-                    print(f"    WARNING: Unexpected ID in response: {test_case.response['id']}")
+                if test_case.response is not None:
+                    print(f"    ERROR: Unexpected response for notification")
 
         print()
 
@@ -549,7 +608,9 @@ class MCPTester:
                 "error_message": test_case.error_message,
                 "request": test_case.request,
                 "response": test_case.response,
-                "expected_fields": test_case.expected_fields
+                "expected_fields": test_case.expected_fields,
+                "is_notification": test_case.is_notification,
+                "should_have_response": test_case.should_have_response
             })
 
         with open(filename, 'w', encoding='utf-8') as f:
