@@ -21,8 +21,8 @@ A generic MCP (Model Context Protocol) server for database operations using Java
 - **H2** - In-memory and file-based database
 - **SQLite** - Lightweight file-based database
 - **PostgreSQL** - Advanced open-source database
-- **CSV File** - Query any directory or ZIP file containing   [RFC 4180](https://tools.ietf.org/html/rfc4180).
-  compliant CSV or DBF files to be accessed as though it were a database containing tables.
+- **CSV File** - Query any directory or ZIP file containing [RFC 4180](https://tools.ietf.org/html/rfc4180)
+  compliant CSV or DBF files (needs extra config) to be accessed as though it were a database containing tables.
 
 ### Standard Databases (via `standard-databases` profile)
 - **MySQL** - Popular open-source database
