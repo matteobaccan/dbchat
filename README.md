@@ -53,14 +53,14 @@ An MCP (Model Context Protocol) server for database operations using Java, Maven
 
 ## 🚀 Transport Modes
 
-### stdio Mode (Default)
+### stdio mode (Default)
 Standard MCP communication over stdin/stdout for Claude Desktop integration.
 
 ```bash
 java -jar target/dbmcp-1.0.0.jar
 ```
 
-### HTTP Mode
+### HTTP mode
 HTTP REST API for web applications, testing, and remote access.
 
 ```bash
@@ -122,11 +122,12 @@ mvn clean package -P standard-databases,enterprise-databases
 
 ### 2. Configure Database Connection
 ```bash
-# Environment variables
+# Use environment variables
 export DB_URL="jdbc:mysql://localhost:3306/mydb"
 export DB_USER="username"
 export DB_PASSWORD="password"
 export DB_DRIVER="com.mysql.cj.jdbc.Driver"
+java -jar target/dbmcp-1.0.0.jar
 
 # Or use system properties
 java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
@@ -134,6 +135,13 @@ java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
      -Ddb.password="password" \
      -Ddb.driver="com.mysql.cj.jdbc.Driver" \
      -jar target/dbmcp-1.0.0.jar
+
+# Or use command line arguments
+java -jar target/dbmcp-1.0.0.jar \
+     --db_url="jdbc:mysql://localhost:3306/mydb" \
+     --db_user="username" \
+     --db_password="password" \
+     --db_driver="com.mysql.cj.jdbc.Driver"
 ```
 
 ### 3. Run the Server
