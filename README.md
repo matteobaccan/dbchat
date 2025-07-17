@@ -4,12 +4,12 @@ An MCP (Model Context Protocol) server for database operations using Java, Maven
 
 ## 🌟 Features
 
-- **Natural language interface**: Ask your databases a question in Enhlish. Have a conversation with your tables.
+- **Natural language interface**: Ask your databases a question in English. Have a conversation with your tables.
 - **Multi-database support**: Works with any JDBC-compatible database
-- **Data visualization**: Generate charts and graphs from database data
+- **Data visualization**: Generate charts, graphs and ER diagrams from database data
 - **Dual transport modes**: stdio (standard) and HTTP modes for flexible deployment
 - **MCP Protocol compliant**: Implements listResources, readResource, listTools, and callTool
-- **Query execution**: Execute SQL queries with well formatted, tabular results
+- **Query execution**: Executes SQL queries with well formatted, tabular results
 - **Resource discovery**: Browse database structure (tables, views, schemas)
 - **Metadata access**: Detailed information about database objects
 - **Connection pooling**: HikariCP-based connection management
