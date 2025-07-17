@@ -15,27 +15,38 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 @EnabledIf("isDockerAvailable")
-
 class McpServerContainerTest {
     static boolean isDockerAvailable() {
-        return DockerClientFactory.instance().isDockerAvailable();
+        try {
+            return DockerClientFactory.instance().isDockerAvailable();
+        } catch (Exception e) {
+            return false;
+        }
     }
+
     @Container
     static MySQLContainer<?> mysqlContainer = new MySQLContainer<>("mysql:8.0")
             .withDatabaseName("testdb")
             .withUsername("test")
-            .withPassword("test");
+            .withPassword("test")
+            .withStartupTimeout(Duration.ofMinutes(2))
+            .withConnectTimeoutSeconds(60)
+            .withReuse(false);
 
     @Container
     static PostgreSQLContainer<?> postgresContainer = new PostgreSQLContainer<>("postgres:15")
             .withDatabaseName("testdb")
             .withUsername("test")
-            .withPassword("test");
+            .withPassword("test")
+            .withStartupTimeout(Duration.ofMinutes(2))
+            .withConnectTimeoutSeconds(60)
+            .withReuse(false);
 
     private ObjectMapper objectMapper;
 
@@ -47,8 +58,13 @@ class McpServerContainerTest {
     @Test
     @DisplayName("Should work end-to-end with MySQL")
     void shouldWorkEndToEndWithMySQL() throws Exception {
-        // Given
-        mysqlContainer.start();
+        // Ensure container is started and ready
+        if (!mysqlContainer.isRunning()) {
+            mysqlContainer.start();
+        }
+
+        // Wait for container to be fully ready
+        Thread.sleep(2000);
         
         ConfigParams config = ConfigParams.defaultConfig(
             mysqlContainer.getJdbcUrl(),
@@ -165,8 +181,13 @@ class McpServerContainerTest {
     @Test
     @DisplayName("Should work end-to-end with PostgreSQL")
     void shouldWorkEndToEndWithPostgreSQL() throws Exception {
-        // Given
-        postgresContainer.start();
+        // Ensure container is started and ready
+        if (!postgresContainer.isRunning()) {
+            postgresContainer.start();
+        }
+
+        // Wait for container to be fully ready
+        Thread.sleep(2000);
         
         ConfigParams config = ConfigParams.defaultConfig(
             postgresContainer.getJdbcUrl(),
@@ -337,20 +358,44 @@ class McpServerContainerTest {
     }
 
     private void setupMySQLTestData(ConfigParams config) throws Exception {
-        try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
-             Statement stmt = conn.createStatement()) {
-            
-            stmt.execute("CREATE TABLE test_users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255) NOT NULL, email VARCHAR(255))");
-            stmt.execute("INSERT INTO test_users (name, email) VALUES ('John Doe', 'john@example.com'), ('Jane Smith', 'jane@example.com')");
+        // Retry connection setup with exponential backoff
+        int maxRetries = 3;
+        int retryDelay = 1000; // 1 second
+
+        for (int i = 0; i < maxRetries; i++) {
+            try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
+                 Statement stmt = conn.createStatement()) {
+
+                stmt.execute("CREATE TABLE test_users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255) NOT NULL, email VARCHAR(255))");
+                stmt.execute("INSERT INTO test_users (name, email) VALUES ('John Doe', 'john@example.com'), ('Jane Smith', 'jane@example.com')");
+                return; // Success, exit retry loop
+            } catch (Exception e) {
+                if (i == maxRetries - 1) {
+                    throw e; // Last retry, rethrow exception
+                }
+                Thread.sleep(retryDelay * (i + 1)); // Exponential backoff
+            }
         }
     }
 
     private void setupPostgreSQLTestData(ConfigParams config) throws Exception {
-        try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
-             Statement stmt = conn.createStatement()) {
-            
-            stmt.execute("CREATE TABLE test_users (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255))");
-            stmt.execute("INSERT INTO test_users (name, email) VALUES ('John Doe', 'john@example.com'), ('Jane Smith', 'jane@example.com')");
+        // Retry connection setup with exponential backoff
+        int maxRetries = 3;
+        int retryDelay = 1000; // 1 second
+
+        for (int i = 0; i < maxRetries; i++) {
+            try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
+                 Statement stmt = conn.createStatement()) {
+
+                stmt.execute("CREATE TABLE test_users (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255))");
+                stmt.execute("INSERT INTO test_users (name, email) VALUES ('John Doe', 'john@example.com'), ('Jane Smith', 'jane@example.com')");
+                return; // Success, exit retry loop
+            } catch (Exception e) {
+                if (i == maxRetries - 1) {
+                    throw e; // Last retry, rethrow exception
+                }
+                Thread.sleep(retryDelay * (i + 1)); // Exponential backoff
+            }
         }
     }
 
