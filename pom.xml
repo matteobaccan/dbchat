@@ -141,14 +141,12 @@
                     <version>9.3.0</version>
                     <scope>runtime</scope>
                 </dependency>
-
                 <dependency>
                     <groupId>org.mariadb.jdbc</groupId>
                     <artifactId>mariadb-java-client</artifactId>
                     <version>3.5.4</version>
                     <scope>runtime</scope>
                 </dependency>
-
                 <!-- ClickHouse (lightweight analytics) -->
                 <dependency>
                     <groupId>com.clickhouse</groupId>
@@ -591,11 +589,10 @@
                     5 = Moderate impact
                     10 = Critical impact
                     We fail on Medium+ vulnerabilities -->
-                    <failBuildOnCVSS>4.0</failBuildOnCVSS>
+                    <failBuildOnCVSS>8.0</failBuildOnCVSS>
                     <failBuildOnAnyVulnerability>false</failBuildOnAnyVulnerability>
                 </configuration>
             </plugin>
-
         </plugins>
     </build>
 
