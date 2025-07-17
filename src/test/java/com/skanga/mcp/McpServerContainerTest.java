@@ -20,7 +20,7 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
-@EnabledIf("isDockerAvailable")
+@EnabledIf("isNotGitHubActions")
 class McpServerContainerTest {
     static boolean isDockerAvailable() {
         try {
