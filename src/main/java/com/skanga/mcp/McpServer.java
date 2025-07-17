@@ -30,11 +30,16 @@ public class McpServer {
     private static final Logger logger = LoggerFactory.getLogger(McpServer.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final DatabaseService databaseService;
+    final DatabaseService databaseService;
     private final Map<String, Object> serverInfo;
 
     public McpServer(ConfigParams configParams) {
         this.databaseService = createDatabaseService(configParams);
+        this.serverInfo = createServerInfo();
+    }
+
+    public McpServer(DatabaseService databaseService) {
+        this.databaseService = databaseService;
         this.serverInfo = createServerInfo();
     }
 
@@ -352,7 +357,7 @@ public class McpServer {
         return resultNode;
     }
     
-    private JsonNode handleCallTool(JsonNode paramsNode) throws SQLException {
+    JsonNode handleCallTool(JsonNode paramsNode) throws SQLException {
         String toolName = paramsNode.path("name").asText();
         JsonNode arguments = paramsNode.path("arguments");
 
@@ -362,23 +367,27 @@ public class McpServer {
         };
     }
     
-    private JsonNode executeQuery(JsonNode argsNode) throws SQLException {
-        String sqlNode = argsNode.path("sql").asText();
+    JsonNode executeQuery(JsonNode argsNode) throws SQLException {
+        JsonNode sqlNode = argsNode.path("sql");
+        if (sqlNode.isNull() || sqlNode.isMissingNode()) {
+            throw new IllegalArgumentException("SQL query cannot be null");
+        }
+        String sqlText = sqlNode.asText();
         int maxRows = argsNode.path("maxRows").asInt(1000);
         
-        if (sqlNode == null || sqlNode.trim().isEmpty()) {
+        if (sqlText == null || sqlText.trim().isEmpty()) {
             throw new IllegalArgumentException("SQL query cannot be empty");
         }
 
         // length check to prevent extremely long queries
         int maxSqlLen = databaseService.getDatabaseConfig().maxSqlLength();
-        if (sqlNode.length() > maxSqlLen) {
+        if (sqlText.length() > maxSqlLen) {
             throw new IllegalArgumentException("SQL query too long (max " + maxSqlLen + " characters)");
         }
 
         logger.info("Executing query: {}", sqlNode);
         
-        QueryResult resultNode = databaseService.executeQuery(sqlNode, maxRows);
+        QueryResult resultNode = databaseService.executeQuery(sqlText, maxRows);
         
         ObjectNode responseNode = objectMapper.createObjectNode();
         ArrayNode contentNode = objectMapper.createArrayNode();
@@ -425,7 +434,7 @@ public class McpServer {
         return resultNode;
     }
     
-    private JsonNode handleReadResource(JsonNode paramsNode) throws SQLException {
+    JsonNode handleReadResource(JsonNode paramsNode) throws SQLException {
         String uri = paramsNode.path("uri").asText();
 
         DatabaseResource databaseResource = databaseService.readResource(uri);
@@ -492,7 +501,7 @@ public class McpServer {
         }
     }
 
-    private JsonNode createErrorResponse(String code, String message, Object requestId) {
+    JsonNode createErrorResponse(String code, String message, Object requestId) {
         ObjectNode responseNode = objectMapper.createObjectNode();
         responseNode.put("jsonrpc", "2.0");
         
@@ -517,7 +526,7 @@ public class McpServer {
         };
     }
 
-    private String formatResultsAsTable(QueryResult queryResult) {
+    String formatResultsAsTable(QueryResult queryResult) {
         if (queryResult.isEmpty()) {
             return "No data";
         }
@@ -577,7 +586,7 @@ public class McpServer {
     Default: internal hard-coded values
     Keys are case-insensitive for args but uppercase for environment variables (as per convention).
     */
-    private static ConfigParams loadConfiguration(String[] args) {
+    static ConfigParams loadConfiguration(String[] args) {
         Map<String, String> cliArgs = parseArgs(args);
         // Load from environment variables  system properties
         String dbUrl = getConfigValue("DB_URL", "jdbc:h2:mem:testdb", cliArgs);
@@ -606,19 +615,19 @@ public class McpServer {
                 Integer.parseInt(leakDetectionThresholdMs));
     }
 
-    private static boolean isHttpMode(String[] args) {
+    static boolean isHttpMode(String[] args) {
         Map<String, String> cliArgs = parseArgs(args);
         String httpMode = getConfigValue("HTTP_MODE", "false", cliArgs);
         return Boolean.parseBoolean(httpMode);
     }
 
-    private static int getHttpPort(String[] args) {
+    static int getHttpPort(String[] args) {
         Map<String, String> cliArgs = parseArgs(args);
         String httpPort = getConfigValue("HTTP_PORT", "8080", cliArgs);
         return Integer.parseInt(httpPort);
     }
 
-    private static Map<String, String> parseArgs(String[] args) {
+    static Map<String, String> parseArgs(String[] args) {
         Map<String, String> argsMap = new HashMap<>();
         for (String currArg : args) {
             if (currArg.startsWith("--")) {

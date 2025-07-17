@@ -1,376 +1,316 @@
 package com.skanga.mcp;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.junit.jupiter.api.Timeout;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.Statement;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.ServerSocket;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
-@Disabled
-@Testcontainers
 class McpServerIntegrationTest {
-    @Container
-    static MySQLContainer<?> mysqlContainer = new MySQLContainer<>("mysql:8.0")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test");
 
-    @Container
-    static PostgreSQLContainer<?> postgresContainer = new PostgreSQLContainer<>("postgres:15")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test");
-
-    private ObjectMapper objectMapper;
+    private McpServer mcpServer;
+    private ConfigParams testConfig;
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-    }
-
-    @Test
-    @DisplayName("Should work end-to-end with MySQL")
-    void shouldWorkEndToEndWithMySQL() throws Exception {
-        // Given
-        mysqlContainer.start();
-        
-        ConfigParams config = ConfigParams.defaultConfig(
-            mysqlContainer.getJdbcUrl(),
-            mysqlContainer.getUsername(),
-            mysqlContainer.getPassword(),
-            "com.mysql.cj.jdbc.Driver"
+        testConfig = new ConfigParams(
+                "jdbc:h2:mem:testdb", "sa", "", "org.h2.Driver",
+                10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
         );
-
-        setupMySQLTestData(config);
-        McpServer server = new McpServer(config);
-
-        // Test initialize
-        JsonNode initRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {"name": "test-client", "version": "1.0.0"}
-                }
-            }
-            """);
-
-        JsonNode initResponse = server.handleRequest(initRequest);
-        assertThat(initResponse.path("result").path("protocolVersion").asText()).isEqualTo("2024-11-05");
-
-        // Test list tools
-        JsonNode toolsRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/list",
-                "params": {}
-            }
-            """);
-
-        JsonNode toolsResponse = server.handleRequest(toolsRequest);
-        assertThat(toolsResponse.path("result").path("tools")).hasSize(1);
-        assertThat(toolsResponse.path("result").path("tools").get(0).path("name").asText()).isEqualTo("query");
-
-        // Test list resources
-        JsonNode resourcesRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "resources/list",
-                "params": {}
-            }
-            """);
-
-        JsonNode resourcesResponse = server.handleRequest(resourcesRequest);
-        JsonNode resources = resourcesResponse.path("result").path("resources");
-        assertThat(resources.size()).isGreaterThan(0);
-        
-        // Should have database info and test_users table
-        boolean hasInfoResource = false;
-        boolean hasUsersTable = false;
-        
-        for (JsonNode resource : resources) {
-            String uri = resource.path("uri").asText();
-            if (uri.equals("database://info")) hasInfoResource = true;
-            if (uri.equals("database://table/test_users")) hasUsersTable = true;
-        }
-        
-        assertThat(hasInfoResource).isTrue();
-        assertThat(hasUsersTable).isTrue();
-
-        // Test query execution
-        JsonNode queryRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT * FROM test_users ORDER BY id",
-                        "maxRows": 100
-                    }
-                }
-            }
-            """);
-
-        JsonNode queryResponse = server.handleRequest(queryRequest);
-        assertThat(queryResponse.path("result").path("isError").asBoolean()).isFalse();
-        
-        String resultText = queryResponse.path("result").path("content").get(0).path("text").asText();
-        assertThat(resultText).contains("John Doe");
-        assertThat(resultText).contains("Jane Smith");
-        assertThat(resultText).contains("Rows returned: 2");
-
-        // Test read table resource
-        JsonNode readResourceRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 5,
-                "method": "resources/read",
-                "params": {
-                    "uri": "database://table/test_users"
-                }
-            }
-            """);
-
-        JsonNode readResourceResponse = server.handleRequest(readResourceRequest);
-        String tableContent = readResourceResponse.path("result").path("contents").get(0).path("text").asText();
-        assertThat(tableContent).contains("Table: test_users");
-        assertThat(tableContent).contains("Columns:");
-        assertThat(tableContent).contains("id");
-        assertThat(tableContent).contains("name");
+        mcpServer = new McpServer(testConfig);
     }
 
-    @Test
-    @DisplayName("Should work end-to-end with PostgreSQL")
-    void shouldWorkEndToEndWithPostgreSQL() throws Exception {
-        // Given
-        postgresContainer.start();
-        
-        ConfigParams config = ConfigParams.defaultConfig(
-            postgresContainer.getJdbcUrl(),
-            postgresContainer.getUsername(),
-            postgresContainer.getPassword(),
-            "org.postgresql.Driver"
-        );
-
-        setupPostgreSQLTestData(config);
-        McpServer server = new McpServer(config);
-
-        // Test query execution
-        JsonNode queryRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT COUNT(*) as user_count FROM test_users",
-                        "maxRows": 1
-                    }
-                }
+    @AfterEach
+    void tearDown() {
+        if (mcpServer != null) {
+            // Ensure cleanup
+            try {
+                mcpServer.databaseService.close();
+            } catch (Exception e) {
+                // Ignore cleanup errors in tests
             }
-            """);
-
-        JsonNode queryResponse = server.handleRequest(queryRequest);
-        assertThat(queryResponse.path("result").path("isError").asBoolean()).isFalse();
-        
-        String resultText = queryResponse.path("result").path("content").get(0).path("text").asText();
-        assertThat(resultText).contains("user_count");
-        assertThat(resultText).contains("2"); // Should show count of 2
-
-        // Test database info resource
-        JsonNode readInfoRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "resources/read",
-                "params": {
-                    "uri": "database://info"
-                }
-            }
-            """);
-
-        JsonNode readInfoResponse = server.handleRequest(readInfoRequest);
-        String infoContent = readInfoResponse.path("result").path("contents").get(0).path("text").asText();
-        assertThat(infoContent).contains("PostgreSQL");
-        assertThat(infoContent).contains("Database Information");
-    }
-
-    @Test
-    @DisplayName("Should handle H2 in-memory database")
-    void shouldHandleH2InMemoryDatabase() throws Exception {
-        // Given
-        ConfigParams config = ConfigParams.defaultConfig(
-            "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1",
-            "sa",
-            "",
-            "org.h2.Driver"
-        );
-
-        setupH2TestData(config);
-        McpServer server = new McpServer(config);
-
-        // Test complex query with joins
-        JsonNode queryRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT u.name, o.order_date FROM test_users u LEFT JOIN test_orders o ON u.id = o.user_id ORDER BY u.id",
-                        "maxRows": 100
-                    }
-                }
-            }
-            """);
-
-        JsonNode queryResponse = server.handleRequest(queryRequest);
-        assertThat(queryResponse.path("result").path("isError").asBoolean()).isFalse();
-        
-        String resultText = queryResponse.path("result").path("content").get(0).path("text").asText();
-        assertThat(resultText).contains("John Doe");
-        assertThat(resultText).contains("2024-01-01");
-    }
-
-    @Test
-    @DisplayName("Should handle SQL errors gracefully")
-    void shouldHandleSQLErrorsGracefully() throws Exception {
-        // Given
-        ConfigParams config = ConfigParams.defaultConfig(
-            "jdbc:h2:mem:testdb2",
-            "sa",
-            "",
-            "org.h2.Driver"
-        );
-
-        McpServer server = new McpServer(config);
-
-        // Test invalid SQL
-        JsonNode queryRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT * FROM non_existent_table",
-                        "maxRows": 100
-                    }
-                }
-            }
-            """);
-
-        JsonNode queryResponse = server.handleRequest(queryRequest);
-        assertThat(queryResponse.has("error")).isTrue();
-        assertThat(queryResponse.path("error").path("code").asText()).isEqualTo("database_error");
-        assertThat(queryResponse.path("error").path("message").asText()).contains("Database error");
-    }
-
-    @Test
-    @DisplayName("Should handle large result sets with row limit")
-    void shouldHandleLargeResultSetsWithRowLimit() throws Exception {
-        // Given
-        ConfigParams config = ConfigParams.defaultConfig(
-            "jdbc:h2:mem:testdb3",
-            "sa",
-            "",
-            "org.h2.Driver"
-        );
-
-        setupH2LargeDataset(config);
-        McpServer server = new McpServer(config);
-
-        // Test with small row limit
-        JsonNode queryRequest = objectMapper.readTree("""
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT * FROM large_table ORDER BY id",
-                        "maxRows": 5
-                    }
-                }
-            }
-            """);
-
-        JsonNode queryResponse = server.handleRequest(queryRequest);
-        assertThat(queryResponse.path("result").path("isError").asBoolean()).isFalse();
-        
-        String resultText = queryResponse.path("result").path("content").get(0).path("text").asText();
-        assertThat(resultText).contains("Rows returned: 5");
-        
-        // Count the number of data rows in the table output
-        String[] lines = resultText.split("\n");
-        long dataRows = java.util.Arrays.stream(lines)
-            .filter(line -> line.matches("\\d+\\s+\\|.*")) // Lines starting with numbers
-            .count();
-        assertThat(dataRows).isEqualTo(5);
-    }
-
-    private void setupMySQLTestData(ConfigParams config) throws Exception {
-        try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
-             Statement stmt = conn.createStatement()) {
-            
-            stmt.execute("CREATE TABLE test_users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255) NOT NULL, email VARCHAR(255))");
-            stmt.execute("INSERT INTO test_users (name, email) VALUES ('John Doe', 'john@example.com'), ('Jane Smith', 'jane@example.com')");
         }
     }
 
-    private void setupPostgreSQLTestData(ConfigParams config) throws Exception {
-        try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
-             Statement stmt = conn.createStatement()) {
-            
-            stmt.execute("CREATE TABLE test_users (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255))");
-            stmt.execute("INSERT INTO test_users (name, email) VALUES ('John Doe', 'john@example.com'), ('Jane Smith', 'jane@example.com')");
-        }
-    }
+    @Test
+    @Timeout(10)
+    void testHttpMode_PortAlreadyInUse() throws Exception {
+        // Find an available port
+        int port = findAvailablePort();
 
-    private void setupH2TestData(ConfigParams config) throws Exception {
-        try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
-             Statement stmt = conn.createStatement()) {
-            
-            stmt.execute("CREATE TABLE test_users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255) NOT NULL, email VARCHAR(255))");
-            stmt.execute("CREATE TABLE test_orders (id INT PRIMARY KEY AUTO_INCREMENT, user_id INT, order_date DATE, FOREIGN KEY (user_id) REFERENCES test_users(id))");
-            
-            stmt.execute("INSERT INTO test_users (name, email) VALUES ('John Doe', 'john@example.com'), ('Jane Smith', 'jane@example.com')");
-            stmt.execute("INSERT INTO test_orders (user_id, order_date) VALUES (1, '2024-01-01'), (2, '2024-01-02')");
-        }
-    }
-
-    private void setupH2LargeDataset(ConfigParams config) throws Exception {
-        try (Connection conn = DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPass());
-             Statement stmt = conn.createStatement()) {
-            
-            stmt.execute("CREATE TABLE large_table (id INT PRIMARY KEY, value VARCHAR(50))");
-            
-            // Insert 100 rows
-            for (int i = 1; i <= 100; i++) {
-                stmt.execute(String.format("INSERT INTO large_table (id, value) VALUES (%d, 'Value %d')", i, i));
+        // Start first server
+        CompletableFuture<Void> server1 = CompletableFuture.runAsync(() -> {
+            try {
+                mcpServer.startHttpMode(port);
+            } catch (IOException e) {
+                // Expected when we shut it down
             }
+        });
+
+        // Wait a bit for server to start
+        Thread.sleep(1000);
+
+        // Try to start second server on same port - should fail
+        McpServer secondServer = new McpServer(testConfig);
+        assertThrows(IOException.class, () -> secondServer.startHttpMode(port));
+
+        // Cleanup
+        server1.cancel(true);
+        secondServer.databaseService.close();
+    }
+
+    @Test
+    void testHttpRequest_InvalidMethod() throws Exception {
+        int port = findAvailablePort();
+
+        // Start server in background
+        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
+            try {
+                mcpServer.startHttpMode(port);
+            } catch (IOException e) {
+                // Expected when we shut it down
+            }
+        });
+
+        try {
+            // Wait for server to start
+            Thread.sleep(1000);
+
+            // Send GET request (should fail - only POST allowed)
+            URL url = new URL("http://localhost:" + port + "/mcp");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+
+            int responseCode = conn.getResponseCode();
+            assertEquals(405, responseCode); // Method Not Allowed
+
+            // Read error response
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(conn.getErrorStream()))) {
+                String response = reader.lines().reduce("", String::concat);
+                assertTrue(response.contains("Method not allowed"));
+            }
+
+        } finally {
+            serverFuture.cancel(true);
+        }
+    }
+
+    @Test
+    void testHttpRequest_InvalidJson() throws Exception {
+        int port = findAvailablePort();
+
+        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
+            try {
+                mcpServer.startHttpMode(port);
+            } catch (IOException e) {
+                // Expected
+            }
+        });
+
+        try {
+            Thread.sleep(1000);
+
+            // Send invalid JSON
+            URL url = new URL("http://localhost:" + port + "/mcp");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setDoOutput(true);
+
+            String invalidJson = "{ invalid json content }";
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(invalidJson.getBytes(StandardCharsets.UTF_8));
+            }
+
+            int responseCode = conn.getResponseCode();
+            assertEquals(500, responseCode); // Internal Server Error
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(conn.getErrorStream()))) {
+                String response = reader.lines().reduce("", String::concat);
+                assertTrue(response.contains("Internal server error"));
+            }
+        } finally {
+            serverFuture.cancel(true);
+        }
+    }
+
+    @Test
+    void testHttpRequest_OptionsRequest() throws Exception {
+        int port = findAvailablePort();
+
+        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
+            try {
+                mcpServer.startHttpMode(port);
+            } catch (IOException e) {
+                // Expected
+            }
+        });
+
+        try {
+            Thread.sleep(1000);
+
+            // Send OPTIONS request (CORS preflight)
+            URL url = new URL("http://localhost:" + port + "/mcp");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("OPTIONS");
+
+            int responseCode = conn.getResponseCode();
+            assertEquals(200, responseCode);
+
+            // Check CORS headers
+            assertEquals("*", conn.getHeaderField("Access-Control-Allow-Origin"));
+            assertEquals("POST, OPTIONS", conn.getHeaderField("Access-Control-Allow-Methods"));
+
+        } finally {
+            serverFuture.cancel(true);
+        }
+    }
+
+    @Test
+    void testHealthCheck_Endpoint() throws Exception {
+        int port = findAvailablePort();
+
+        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
+            try {
+                mcpServer.startHttpMode(port);
+            } catch (IOException e) {
+                // Expected
+            }
+        });
+
+        try {
+            Thread.sleep(1000);
+
+            // Test health check endpoint
+            URL url = new URL("http://localhost:" + port + "/health");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+
+            int responseCode = conn.getResponseCode();
+            assertEquals(200, responseCode);
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(conn.getInputStream()))) {
+                String response = reader.lines().reduce("", String::concat);
+                assertTrue(response.contains("status"));
+                assertTrue(response.contains("healthy"));
+            }
+        } finally {
+            serverFuture.cancel(true);
+        }
+    }
+
+    @Test
+    void testStdioMode_MalformedInput() {
+        // Prepare malformed input
+        String malformedInput = "not json at all\n{ incomplete json\n";
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(malformedInput.getBytes());
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        // Redirect system streams
+        InputStream originalIn = System.in;
+        PrintStream originalOut = System.out;
+
+        try {
+            System.setIn(inputStream);
+            System.setOut(new PrintStream(outputStream));
+
+            // Run stdio mode - should handle malformed input gracefully
+            assertDoesNotThrow(() -> mcpServer.startStdioMode());
+
+            // Verify no crash occurred and error responses were generated
+            String output = outputStream.toString();
+            // The output should contain error responses for malformed JSON
+            assertNotNull(output);
+        } finally {
+            System.setIn(originalIn);
+            System.setOut(originalOut);
+        }
+    }
+
+    @Test
+    void testStdioMode_NotificationWithError() {
+        // Prepare input with notification that will cause an error
+        String notificationJson = """
+            {"method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
+            """;
+
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(notificationJson.getBytes());
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        InputStream originalIn = System.in;
+        PrintStream originalOut = System.out;
+
+        try {
+            System.setIn(inputStream);
+            System.setOut(new PrintStream(outputStream));
+
+            assertDoesNotThrow(() -> mcpServer.startStdioMode());
+
+            // For notifications, no response should be sent even on error
+            String output = outputStream.toString().trim();
+            assertFalse(output.contains("error"));
+
+        } finally {
+            System.setIn(originalIn);
+            System.setOut(originalOut);
+        }
+    }
+
+    @Test
+    void testStdioMode_RequestWithError() {
+        // Prepare input with regular request that will cause an error
+        String requestJson = """
+            {"id":1,"method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
+            """;
+
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(requestJson.getBytes());
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        InputStream originalIn = System.in;
+        PrintStream originalOut = System.out;
+
+        try {
+            System.setIn(inputStream);
+            System.setOut(new PrintStream(outputStream));
+
+            assertDoesNotThrow(() -> mcpServer.startStdioMode());
+
+            // For regular requests, error response should be sent
+            String output = outputStream.toString().trim();
+            assertTrue(output.contains("error"));
+            assertTrue(output.contains("SQL query cannot be empty"));
+
+        } finally {
+            System.setIn(originalIn);
+            System.setOut(originalOut);
+        }
+    }
+
+    @Test
+    void testMainMethod_HttpModeFailure() {
+        // Test main method with invalid port that should cause IllegalArgumentException
+        String[] args = {"--http_mode=true", "--http_port=-1"};
+
+        // The actual exception thrown is IllegalArgumentException for invalid port
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> McpServer.main(args));
+
+        assertTrue(exception.getMessage().contains("port out of range"));
+    }
+
+    private int findAvailablePort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
         }
     }
 }

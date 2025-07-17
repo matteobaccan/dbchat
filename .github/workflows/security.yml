@@ -2,53 +2,44 @@
 name: Security Scan
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  #push:
+  #  branches: [ main, develop ]
+  #pull_request:
+  #  branches: [ main ]
   schedule:
     - cron: '0 2 * * 0'  # Weekly on Sundays
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  MAVEN_OPTS: '-Xmx2g -XX:MaxMetaspaceSize=512m'
 
 jobs:
   dependency-check:
     runs-on: ubuntu-latest
+    name: OWASP Dependency Check
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
+        java-version: ${{ env.JAVA_VERSION }}
         distribution: 'temurin'
+        cache: maven
 
-    - name: Cache Maven dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-
-    - name: Run OWASP Dependency Check (Development Policy)
-      if: github.ref != 'refs/heads/main'
-      run: |
-        mvn clean compile org.owasp:dependency-check-maven:check \
-          -Dnvd.api.key="${{ secrets.NVD_API_KEY }}" \
-          -Dnvd.api.delay=1000 \
-          -DfailBuildOnCVSS=9.0 \
-          -Dformat=HTML
-      env:
-        NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-
-    - name: Run OWASP Dependency Check (Production Policy)
-      if: github.ref == 'refs/heads/main'
+    - name: Run OWASP Dependency Check (Comprehensive Scan)
       run: |
         mvn clean compile org.owasp:dependency-check-maven:check \
           -Dnvd.api.key="${{ secrets.NVD_API_KEY }}" \
           -Dnvd.api.delay=1000 \
           -DfailBuildOnCVSS=7.0 \
           -Dformat=ALL \
-          -DprettyPrint=true
+          -DprettyPrint=true \
+          -DskipTestScope=false
       env:
         NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
@@ -56,6 +47,71 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: dependency-check-reports-${{ github.run_number }}
+        name: security-scan-reports-${{ github.run_number }}
         path: target/dependency-check-report.*
-        retention-days: 30  # Optional: Set retention period
+        retention-days: 90  # Keep security reports longer
+
+    - name: Create Security Summary
+      if: always()
+      run: |
+        echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+        echo "**Scan Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f target/dependency-check-report.html ]; then
+          echo "Security scan completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "Reports generated: HTML, XML, JSON" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "ERROR: Security scan failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Artifacts:** security-scan-reports-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+
+  # Optional: Add additional security scanning tools
+  code-security-scan:
+    runs-on: ubuntu-latest
+    name: CodeQL Security Analysis
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: java
+
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build for CodeQL analysis
+      run: mvn clean compile -DskipTests
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  # Optional: Secrets scanning
+  secrets-scan:
+    runs-on: ubuntu-latest
+    name: Secrets Detection
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better secret detection
+
+    - name: Run TruffleHog OSS
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified

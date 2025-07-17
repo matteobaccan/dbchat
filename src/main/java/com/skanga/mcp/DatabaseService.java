@@ -350,7 +350,8 @@ public class DatabaseService {
             throw new SQLException("SQL query cannot be empty");
         }
 
-        String normalizedSql = sql.trim().toLowerCase();
+        // Normalize all whitespace to single spaces for consistent validation
+        String normalizedSql = sql.trim().toLowerCase().replaceAll("\\s+", " ");
 
         // Block potentially dangerous SQL operations
         String[] dangerousOperations = {
@@ -364,8 +365,8 @@ public class DatabaseService {
             }
         }
 
-        // Additional check for common SQL injection patterns
-        if (normalizedSql.contains(";") && !normalizedSql.endsWith(";")) {
+        // Block any semicolon that's not at the very end (after trimming)
+        if (normalizedSql.replaceAll(";\\s*$", "").contains(";")) {
             throw new SQLException("Multiple statements not allowed");
         }
 
@@ -412,8 +413,13 @@ public class DatabaseService {
 
     public void close() {
         if (dataSource != null && !dataSource.isClosed()) {
-            dataSource.close();
-            logger.info("Database connection pool closed");
+            try {
+                dataSource.close();
+                logger.info("Database connection pool closed");
+            } catch (Exception e) {
+                logger.warn("Error closing database connection pool: {}", e.getMessage(), e);
+                // Don't re-throw - this is cleanup code
+            }
         }
     }
 }
