@@ -1,19 +1,19 @@
 # DBMCP - MCP Server for Databases
 
-A generic MCP (Model Context Protocol) server for database operations using Java, Maven, and JDBC. Supports multiple database types and integrates seamlessly with Claude Desktop for natural language database interactions.
+An MCP (Model Context Protocol) server for database operations using Java, Maven, and JDBC. Supports almost every database type and integrates seamlessly with Claude Desktop for natural language database interactions.
 
 ## 🌟 Features
 
+- **Natural language interface**: Ask your databases a question in Enhlish. Have a conversation with your tables.
 - **Multi-database support**: Works with any JDBC-compatible database
+- **Data visualization**: Generate charts and graphs from database data
 - **Dual transport modes**: stdio (standard) and HTTP modes for flexible deployment
 - **MCP Protocol compliant**: Implements listResources, readResource, listTools, and callTool
-- **Query execution**: Execute SQL queries with formatted, tabular results
+- **Query execution**: Execute SQL queries with well formatted, tabular results
 - **Resource discovery**: Browse database structure (tables, views, schemas)
 - **Metadata access**: Detailed information about database objects
 - **Connection pooling**: HikariCP-based connection management
 - **Security controls**: Read-only mode, query validation, and limits
-- **Natural language interface**: Use Claude Desktop to query databases conversationally
-- **Data visualization**: Generate charts and graphs from database data
 - **Error handling**: Comprehensive error reporting and logging
 - **Health monitoring**: Built-in health check endpoint (HTTP mode)
 - **CORS support**: Ready for browser-based applications (HTTP mode)
@@ -48,6 +48,8 @@ A generic MCP (Model Context Protocol) server for database operations using Java
 - **MongoDB** - Document database (experimental)
 - **Apache Cassandra** - NoSQL database
 - **Apache Spark SQL** - Unified analytics engine
+
+**IMPORTANT NOTE:** All JDBC drivers are subject to their own individual licences. It is your responsibility to ensure that you are compliant with all driver licensing requirements.
 
 ## 🚀 Transport Modes
 
