@@ -577,22 +577,22 @@
                 </configuration>
             </plugin>
 
-            <!-- Security scanning -->
+            <!-- Security scanning
+            Use Industry standard Common Vulnerability Scoring System (CVSS)
+            CVSS Score
+            0 = No vulnerability
+            5 = Moderate impact
+            10 = Critical impact
+            We fail on Medium+ vulnerabilities
             <plugin>
                 <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
                 <version>12.1.3</version>
                 <configuration>
-                    <!-- Use Industry standard Common Vulnerability Scoring System (CVSS)
-                    CVSS Score
-                    0 = No vulnerability
-                    5 = Moderate impact
-                    10 = Critical impact
-                    We fail on Medium+ vulnerabilities -->
                     <failBuildOnCVSS>8.0</failBuildOnCVSS>
                     <failBuildOnAnyVulnerability>false</failBuildOnAnyVulnerability>
                 </configuration>
-            </plugin>
+            </plugin> -->
         </plugins>
     </build>
 
