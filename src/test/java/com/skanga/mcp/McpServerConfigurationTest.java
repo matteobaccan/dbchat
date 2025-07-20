@@ -4,10 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,12 +14,11 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class McpServerConfigurationTest {
     private PrintStream originalErr;
-    private ByteArrayOutputStream errorOutput;
 
     @BeforeEach
     void setUp() {
         originalErr = System.err;
-        errorOutput = new ByteArrayOutputStream();
+        ByteArrayOutputStream errorOutput = new ByteArrayOutputStream();
         System.setErr(new PrintStream(errorOutput));
     }
 
@@ -36,7 +32,7 @@ class McpServerConfigurationTest {
     }
 
     @Test
-    void testConfigurationPrecedence_CliOverridesEnv() {
+    void testConfigurationPrecedence_CliOverridesEnv() throws IOException {
         // Test that CLI arguments override environment variables
         // This tests the getConfigValue method indirectly
         
@@ -52,7 +48,7 @@ class McpServerConfigurationTest {
     }
 
     @Test
-    void testConfigurationPrecedence_SystemProperty() {
+    void testConfigurationPrecedence_SystemProperty() throws IOException {
         String[] args = {}; // No CLI args
         
         System.setProperty("db.url", "jdbc:test:sysprop");
@@ -62,7 +58,7 @@ class McpServerConfigurationTest {
     }
 
     @Test
-    void testConfigurationPrecedence_DefaultValues() {
+    void testConfigurationPrecedence_DefaultValues() throws IOException {
         String[] args = {}; // No CLI args, no system properties
         
         ConfigParams config = McpServer.loadConfiguration(args);
@@ -130,17 +126,15 @@ class McpServerConfigurationTest {
     }
 
     @Test
-    void testMainMethod_InvalidConfiguration() throws Exception {
+    void testMainMethod_InvalidConfiguration() {
         // Test main method with invalid numeric configuration
         String[] args = {"--max_connections=invalid"};
         
-        assertThrows(NumberFormatException.class, () -> {
-            McpServer.main(args);
-        });
+        assertThrows(NumberFormatException.class, () -> McpServer.main(args));
     }
 
     @Test
-    void testMainMethod_StdioModeSuccess() throws Exception {
+    void testMainMethod_StdioModeSuccess() {
         // Test successful stdio mode startup
         String[] args = {"--http_mode=false"};
         
@@ -152,9 +146,7 @@ class McpServerConfigurationTest {
             System.setIn(emptyInput);
             
             // This should not throw an exception and should exit gracefully
-            assertDoesNotThrow(() -> {
-                McpServer.main(args);
-            });
+            assertDoesNotThrow(() -> McpServer.main(args));
             
         } finally {
             System.setIn(originalIn);
@@ -162,7 +154,7 @@ class McpServerConfigurationTest {
     }
 
     @Test
-    void testShutdownHook() throws Exception {
+    void testShutdownHook() {
         // Test that shutdown hook is properly registered
         ConfigParams config = new ConfigParams(
             "jdbc:h2:mem:testdb", "sa", "", "org.h2.Driver",
@@ -172,13 +164,9 @@ class McpServerConfigurationTest {
         McpServer server = new McpServer(config);
         
         // Create the shutdown hook manually to test it
-        Thread shutdownHook = new Thread(() -> {
-            server.databaseService.close();
-        });
+        Thread shutdownHook = new Thread(server.databaseService::close);
         
         // Verify the hook runs without error
-        assertDoesNotThrow(() -> {
-            shutdownHook.run();
-        });
+        assertDoesNotThrow(shutdownHook::run);
     }
 }
