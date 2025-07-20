@@ -1,765 +1,1250 @@
-# DBMCP - MCP Server for Databases
-## Installation and Usage Guide
+# DBMCP - Developer Installation Guide
+## Building and Deployment Documentation for Database MCP Server
+
+This guide is for developers who need to build DBMCP from source, understand build profiles, configure advanced deployment scenarios, or contribute to the project.
+
+**End users**: See [README.md](README.md) for simple setup instructions using pre-built JAR files.
 
 ## 📋 Prerequisites
 
-Before you begin, ensure you have the following installed on your system:
-
 ### Required Software
-- **Java 17 or higher** - Download from [OpenJDK](https://openjdk.org/) or [Oracle](https://www.oracle.com/java/technologies/downloads/)
-- **Maven 3.6 or higher** - Download from [Apache Maven](https://maven.apache.org/download.cgi)
-- **Git** - Download from [git-scm.com](https://git-scm.com/)
+- **Java 17 or higher** - [OpenJDK](https://openjdk.org/) or [Oracle JDK](https://www.oracle.com/java/technologies/downloads/)
+- **Maven 3.6 or higher** - [Apache Maven](https://maven.apache.org/download.cgi)
+- **Git** - [git-scm.com](https://git-scm.com/)
 
 ### Verify Installation
-Open a terminal/command prompt and run:
-
 ```bash
-# Check Java version (must be 17+)
-java -version
-
-# Check Maven version (must be 3.6+)
-mvn -version
-
-# Check Git
+java -version    # Must show 17+
+mvn -version     # Must show 3.6+
 git --version
 ```
 
-## 🚀 Step 1: Download and Build the Project
+## 🏗️ Building from Source
 
-### Clone the Repository
+### Clone Repository
 ```bash
-git clone https://github.com/skanga/dbmcp
+git clone https://github.com/skanga/dbmcp.git
 cd dbmcp
 ```
 
-### Choose Your Database Profile and Build
+### Understanding Build Profiles
 
-The project supports different database sets through Maven profiles:
+DBMCP uses Maven profiles to manage JDBC driver dependencies. This approach keeps JAR sizes manageable while supporting a wide range of databases.
 
-#### Option A: Basic Build (H2, SQLite, PostgreSQL)
+#### Default Profile (No additional flags)
+**Included drivers:**
+- H2 Database Engine - In-memory and file-based database
+- SQLite JDBC Driver - Lightweight file-based database
+- PostgreSQL JDBC Driver - Advanced open-source database
+- CSV JDBC Driver - Query CSV files as database tables
+
+**Build command:**
 ```bash
 mvn clean package
 ```
 
-#### Option B: Standard Databases (includes MySQL, MariaDB, ClickHouse)
+**Resulting JAR:** `target/dbmcp-2.0.0.jar` (~15MB)
+
+#### Standard Databases Profile (`-P standard-databases`)
+**Additional drivers:**
+- MySQL Connector/J - Popular open-source database
+- MariaDB Connector/J - MySQL-compatible database
+- ClickHouse JDBC Driver - Column-oriented analytics database
+
+**Build command:**
 ```bash
 mvn clean package -P standard-databases
 ```
 
-#### Option C: Enterprise Databases (includes Oracle, SQL Server, IBM DB2)
+**Resulting JAR:** `target/dbmcp-2.0.0.jar` (~25MB)
+
+#### Enterprise Databases Profile (`-P enterprise-databases`)
+**Additional drivers:**
+- Oracle JDBC Driver (ojdbc11) - Enterprise database system
+- Microsoft SQL Server JDBC Driver - Microsoft database system
+- IBM DB2 JDBC Driver - IBM enterprise database
+
+**Build command:**
 ```bash
 mvn clean package -P standard-databases,enterprise-databases
 ```
 
-#### Option D: Cloud Analytics (includes Redshift, Snowflake, BigQuery)
+**Resulting JAR:** `target/dbmcp-2.0.0.jar` (~60MB)
+
+**Note:** Enterprise drivers require accepting additional licenses. Ensure compliance with vendor licensing terms.
+
+#### Cloud Analytics Profile (`-P cloud-analytics`)
+**Additional drivers:**
+- Amazon Redshift JDBC Driver - AWS data warehouse
+- Snowflake JDBC Driver - Cloud data platform
+- Google BigQuery JDBC Driver - Google's analytics database
+
+**Build command:**
 ```bash
 mvn clean package -P standard-databases,cloud-analytics
 ```
 
-#### Option E: Everything (creates 400MB+ JAR)
+**Resulting JAR:** `target/dbmcp-2.0.0.jar` (~80MB)
+
+#### Big Data Profile (`-P big-data`)
+**Additional drivers:**
+- Apache Hive JDBC Driver - Data warehouse software
+- MongoDB JDBC Driver - Document database (experimental)
+- Apache Cassandra JDBC Driver - NoSQL database
+- Apache Spark SQL JDBC Driver - Unified analytics engine
+
+**Build command:**
+```bash
+mvn clean package -P standard-databases,big-data
+```
+
+**Resulting JAR:** `target/dbmcp-2.0.0.jar` (~120MB)
+
+#### Complete Build (All Profiles)
 ```bash
 mvn clean package -P standard-databases,enterprise-databases,cloud-analytics,big-data
 ```
 
-### Verify Build Success
+**Resulting JAR:** `target/dbmcp-2.0.0.jar` (~400MB)
+
+### Custom Profile Combinations
+
+You can combine profiles as needed:
+
 ```bash
-# Check that the JAR file was created
-ls target/dbmcp-1.0.0.jar
+# MySQL + PostgreSQL + Oracle only
+mvn clean package -P standard-databases,enterprise-databases
+
+# Analytics databases only
+mvn clean package -P cloud-analytics
+
+# Standard + Cloud (no enterprise)
+mvn clean package -P standard-databases,cloud-analytics
 ```
 
-## 🗄️ Step 2: Database Setup Options
+### Maven Profile Details
 
-### Option A: Quick Test with H2 (Recommended for First Run)
-H2 is an in-memory database perfect for testing - no additional setup required!
+#### Profile Dependencies Matrix
+
+| Database | Default | standard-databases | enterprise-databases | cloud-analytics | big-data |
+|----------|---------|-------------------|---------------------|----------------|----------|
+| H2 | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SQLite | ✓ | ✓ | ✓ | ✓ | ✓ |
+| PostgreSQL | ✓ | ✓ | ✓ | ✓ | ✓ |
+| CSV Files | ✓ | ✓ | ✓ | ✓ | ✓ |
+| MySQL | | ✓ | ✓ | ✓ | ✓ |
+| MariaDB | | ✓ | ✓ | ✓ | ✓ |
+| ClickHouse | | ✓ | ✓ | ✓ | ✓ |
+| Oracle | | | ✓ | | |
+| SQL Server | | | ✓ | | |
+| IBM DB2 | | | ✓ | | |
+| Redshift | | | | ✓ | |
+| Snowflake | | | | ✓ | |
+| BigQuery | | | | ✓ | |
+| Hive | | | | | ✓ |
+| MongoDB | | | | | ✓ |
+| Cassandra | | | | | ✓ |
+| Spark SQL | | | | | ✓ |
+
+### Build Verification
 
 ```bash
+# Check that the JAR file was created
+ls -la target/dbmcp-2.0.0.jar
+
+# Check included drivers
+jar tf target/dbmcp-2.0.0.jar | grep -E "\.(jar|class)" | grep -E "(mysql|postgres|oracle)"
+
+# Quick test to see if it starts
+java -jar target/dbmcp-2.0.0.jar
+
+Ctrl-C to stop it
+```
+
+## 🗄️ Database-Specific Setup
+
+### In-Memory Databases (Development/Testing)
+
+#### H2 In-Memory Database
+```bash
+# No setup required - embedded
 export DB_URL="jdbc:h2:mem:testdb"
 export DB_USER="sa"
 export DB_PASSWORD=""
 export DB_DRIVER="org.h2.Driver"
 ```
 
-### Option B: MySQL Database
+#### H2 File-Based Database
 ```bash
-# 1. Install MySQL or use Docker
-docker run -d -p 3306:3306 -e MYSQL_ROOT_PASSWORD=password mysql:8.0
+export DB_URL="jdbc:h2:file:./data/testdb"
+export DB_USER="sa"
+export DB_PASSWORD=""
+export DB_DRIVER="org.h2.Driver"
+```
 
-# 2. Create database and user
-mysql -u root -p
-CREATE DATABASE testdb;
-CREATE USER 'mcpuser'@'%' IDENTIFIED BY 'mcppassword';
-GRANT ALL PRIVILEGES ON testdb.* TO 'mcpuser'@'%';
-FLUSH PRIVILEGES;
-EXIT;
+### File-Based Databases
 
-# 3. Set environment variables
-export DB_URL="jdbc:mysql://localhost:3306/testdb"
+#### SQLite
+```bash
+export DB_URL="jdbc:sqlite:/absolute/path/to/database.db"
+export DB_USER=""
+export DB_PASSWORD=""
+export DB_DRIVER="org.sqlite.JDBC"
+```
+
+#### CSV Files
+```bash
+# Single CSV file
+export DB_URL="jdbc:relique:csv:/path/to/file.csv"
+export DB_USER=""
+export DB_PASSWORD=""
+export DB_DRIVER="org.relique.jdbc.csv.CsvDriver"
+
+# Directory of CSV files
+export DB_URL="jdbc:relique:csv:/path/to/csv/directory"
+export DB_USER=""
+export DB_PASSWORD=""
+export DB_DRIVER="org.relique.jdbc.csv.CsvDriver"
+
+# ZIP file containing CSVs
+export DB_URL="jdbc:relique:csv:zip:/path/to/archive.zip"
+export DB_USER=""
+export DB_PASSWORD=""
+export DB_DRIVER="org.relique.jdbc.csv.CsvDriver"
+
+# Custom separator and file extension
+export DB_URL="jdbc:relique:csv:/path/to/data?separator=;&fileExtension=.txt"
+export DB_USER=""
+export DB_PASSWORD=""
+export DB_DRIVER="org.relique.jdbc.csv.CsvDriver"
+```
+
+### Standard Databases
+
+#### MySQL
+```bash
+# Docker setup
+docker run -d --name mysql-test \
+  -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=rootpassword \
+  -e MYSQL_DATABASE=testdb \
+  -e MYSQL_USER=mcpuser \
+  -e MYSQL_PASSWORD=mcppassword \
+  mysql:8.0
+
+# Connection configuration
+export DB_URL="jdbc:mysql://localhost:3306/testdb?useSSL=false&serverTimezone=UTC"
 export DB_USER="mcpuser"
 export DB_PASSWORD="mcppassword"
 export DB_DRIVER="com.mysql.cj.jdbc.Driver"
 ```
 
-### Option C: PostgreSQL Database
+#### MariaDB
 ```bash
-# 1. Install PostgreSQL or use Docker
-docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:15
+# Docker setup
+docker run -d --name mariadb-test \
+  -p 3307:3306 \
+  -e MYSQL_ROOT_PASSWORD=rootpassword \
+  -e MYSQL_DATABASE=testdb \
+  -e MYSQL_USER=mcpuser \
+  -e MYSQL_PASSWORD=mcppassword \
+  mariadb:10.6
 
-# 2. Create database and user
-psql -U postgres
-CREATE DATABASE testdb;
-CREATE USER mcpuser WITH PASSWORD 'mcppassword';
-GRANT ALL PRIVILEGES ON DATABASE testdb TO mcpuser;
-\q
+# Connection configuration
+export DB_URL="jdbc:mariadb://localhost:3307/testdb"
+export DB_USER="mcpuser"
+export DB_PASSWORD="mcppassword"
+export DB_DRIVER="org.mariadb.jdbc.Driver"
+```
 
-# 3. Set environment variables
+#### PostgreSQL
+```bash
+# Docker setup
+docker run -d --name postgres-test \
+  -p 5432:5432 \
+  -e POSTGRES_DB=testdb \
+  -e POSTGRES_USER=mcpuser \
+  -e POSTGRES_PASSWORD=mcppassword \
+  postgres:15
+
+# Connection configuration
 export DB_URL="jdbc:postgresql://localhost:5432/testdb"
 export DB_USER="mcpuser"
 export DB_PASSWORD="mcppassword"
 export DB_DRIVER="org.postgresql.Driver"
 ```
 
-### Option D: SQLite (File-based)
+#### ClickHouse
 ```bash
-export DB_URL="jdbc:sqlite:./testdb.sqlite"
-export DB_USER=""
+# Docker setup
+docker run -d --name clickhouse-test \
+  -p 8123:8123 \
+  -p 9000:9000 \
+  clickhouse/clickhouse-server
+
+# Connection configuration
+export DB_URL="jdbc:clickhouse://localhost:8123/default"
+export DB_USER="default"
 export DB_PASSWORD=""
-export DB_DRIVER="org.sqlite.JDBC"
+export DB_DRIVER="com.clickhouse.jdbc.ClickHouseDriver"
 ```
 
-### Option E: Oracle Database
+### Enterprise Databases
+
+#### Oracle Database
 ```bash
+# Docker setup (requires Oracle account)
+docker run -d --name oracle-test \
+  -p 1521:1521 \
+  -e ORACLE_PASSWORD=password \
+  container-registry.oracle.com/database/express:latest
+
+# Connection configuration
 export DB_URL="jdbc:oracle:thin:@localhost:1521:xe"
-export DB_USER="username"
+export DB_USER="system"
 export DB_PASSWORD="password"
 export DB_DRIVER="oracle.jdbc.driver.OracleDriver"
 ```
 
-### Option F: SQL Server
+#### SQL Server
 ```bash
-export DB_URL="jdbc:sqlserver://localhost:1433;databaseName=mydb"
-export DB_USER="username"
-export DB_PASSWORD="password"
+# Docker setup
+docker run -d --name sqlserver-test \
+  -e "ACCEPT_EULA=Y" \
+  -e "SA_PASSWORD=StrongPassword123!" \
+  -p 1433:1433 \
+  mcr.microsoft.com/mssql/server:2019-latest
+
+# Connection configuration
+export DB_URL="jdbc:sqlserver://localhost:1433;databaseName=master;encrypt=false"
+export DB_USER="sa"
+export DB_PASSWORD="StrongPassword123!"
 export DB_DRIVER="com.microsoft.sqlserver.jdbc.SQLServerDriver"
 ```
 
-## ▶️ Step 3: Choose Your Transport Mode and Start the Server
-
-The DBMCP server supports two transport modes:
-
-### **stdio Mode** - For Claude Desktop Integration (Default)
-Standard MCP communication over stdin/stdout for Claude Desktop.
-
-### **HTTP Mode** - For Web Applications and Testing
-HTTP REST API for web applications, remote access, and easier testing.
-
----
-
-### 🖥️ stdio Mode (Claude Desktop)
-
-#### Method 1: Using Environment Variables
+#### IBM DB2
 ```bash
-java -jar target/dbmcp-1.0.0.jar
+# Docker setup
+docker run -d --name db2-test \
+  -e LICENSE=accept \
+  -e DB2INST1_PASSWORD=password \
+  -e DBNAME=testdb \
+  -p 50000:50000 \
+  ibmcom/db2
+
+# Connection configuration
+export DB_URL="jdbc:db2://localhost:50000/testdb"
+export DB_USER="db2inst1"
+export DB_PASSWORD="password"
+export DB_DRIVER="com.ibm.db2.jcc.DB2Driver"
 ```
 
-#### Method 2: Using Java System Properties
+### Cloud Analytics Databases
+
+#### Amazon Redshift
 ```bash
-java -Ddb.url="jdbc:h2:mem:testdb" \
-     -Ddb.user="sa" \
-     -Ddb.password="" \
-     -Ddb.driver="org.h2.Driver" \
-     -jar target/dbmcp-1.0.0.jar
+export DB_URL="jdbc:redshift://your-cluster.region.redshift.amazonaws.com:5439/database"
+export DB_USER="username"
+export DB_PASSWORD="password"
+export DB_DRIVER="com.amazon.redshift.jdbc42.Driver"
 ```
 
-#### Method 3: Using Command Line Arguments
+#### Snowflake
 ```bash
-java -jar target/dbmcp-1.0.0.jar \
-     --db_url="jdbc:h2:mem:testdb" \
-     --db_user="sa" \
-     --db_password="" \
-     --db_driver="org.h2.Driver"
+export DB_URL="jdbc:snowflake://account.snowflakecomputing.com/?warehouse=warehouse&db=database&schema=schema"
+export DB_USER="username"
+export DB_PASSWORD="password"
+export DB_DRIVER="net.snowflake.client.jdbc.SnowflakeDriver"
 ```
 
-#### Expected Output (stdio mode)
-```
-[main] INFO com.skanga.mcp.McpServer - Starting Database MCP Server in stdio mode...
-```
-
-The server is now waiting for JSON-RPC requests on stdin.
-
----
-
-### 🌐 HTTP Mode (Web Applications)
-
-#### Method 1: Using Environment Variables
+#### Google BigQuery
 ```bash
-export HTTP_MODE="true"
-export HTTP_PORT="8080"  # Optional, defaults to 8080
-java -jar target/dbmcp-1.0.0.jar
+export DB_URL="jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443;ProjectId=project-id;OAuthType=0;OAuthServiceAcctEmail=service@project.iam.gserviceaccount.com;OAuthPvtKeyPath=/path/to/key.json"
+export DB_USER=""
+export DB_PASSWORD=""
+export DB_DRIVER="com.simba.googlebigquery.jdbc42.Driver"
 ```
 
-#### Method 2: Using Command Line Arguments
+### Big Data Databases
+
+#### Apache Hive
 ```bash
-# Default port 8080
-java -jar target/dbmcp-1.0.0.jar --http_mode=true
-
-# Custom port
-java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
+export DB_URL="jdbc:hive2://localhost:10000/default"
+export DB_USER="hive"
+export DB_PASSWORD=""
+export DB_DRIVER="org.apache.hive.jdbc.HiveDriver"
 ```
 
-#### Method 3: Using Java System Properties
+#### MongoDB (via JDBC)
 ```bash
-java -Dhttp.mode=true \
-     -Dhttp.port=8080 \
-     -Ddb.url="jdbc:h2:mem:testdb" \
-     -jar target/dbmcp-1.0.0.jar
+export DB_URL="jdbc:mongodb://localhost:27017/database"
+export DB_USER="username"
+export DB_PASSWORD="password"
+export DB_DRIVER="com.mongodb.jdbc.MongoDriver"
 ```
 
-#### Expected Output (HTTP mode)
-```
-[main] INFO com.skanga.mcp.McpServer - Starting Database MCP Server in HTTP mode on port 8080...
-[main] INFO com.skanga.mcp.McpServer - Database MCP Server HTTP mode started on port 8080
-[main] INFO com.skanga.mcp.McpServer - MCP endpoint: http://localhost:8080/mcp
-[main] INFO com.skanga.mcp.McpServer - Health check: http://localhost:8080/health
-```
+## 🚀 Transport Modes and Configuration
 
-#### HTTP Endpoints
-- **`POST /mcp`** - MCP JSON-RPC requests
-- **`GET /health`** - Health check and server status
-- **`OPTIONS /mcp`** - CORS preflight support
+### Transport Mode Architecture
 
-## 🧪 Step 4: Test the Server
+DBMCP supports two transport modes for different deployment scenarios:
 
-### Test stdio Mode
+#### stdio mode (Default)
+- **Use case**: Claude Desktop integration, command-line tools
+- **Protocol**: JSON-RPC 2.0 over stdin/stdout
+- **Security**: Local process communication only
+- **Performance**: Direct process communication (fastest)
 
-#### Quick Test with H2
+#### HTTP mode
+- **Use case**: Web applications, remote access, API integration
+- **Protocol**: JSON-RPC 2.0 over HTTP POST
+- **Security**: HTTP with CORS support, local binding recommended
+- **Performance**: HTTP overhead, suitable for web integration
+
+### Development Server Modes
+
+#### stdio Development Mode
 ```bash
-# In a new terminal, create some test data
-echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test-client", "version": "1.0.0"}}}' | java -jar target/dbmcp-1.0.0.jar
+# Basic stdio mode
+java -jar target/dbmcp-2.0.0.jar
 
-# Create a test table
-echo '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "query", "arguments": {"sql": "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(100), email VARCHAR(100))"}}}' | java -jar target/dbmcp-1.0.0.jar
+# Debug mode with detailed logging
+java -Dlogging.level.root=DEBUG -jar target/dbmcp-2.0.0.jar
 
-# Insert test data
-echo '{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "query", "arguments": {"sql": "INSERT INTO users VALUES (1, '\''John Doe'\'', '\''john@example.com'\''), (2, '\''Jane Smith'\'', '\''jane@example.com'\'')"}}}' | java -jar target/dbmcp-1.0.0.jar
-
-# Query the data
-echo '{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "query", "arguments": {"sql": "SELECT * FROM users ORDER BY id"}}}' | java -jar target/dbmcp-1.0.0.jar
+# Test with manual input
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbmcp-2.0.0.jar
 ```
 
-### Test HTTP Mode
-
-Start the server in HTTP mode first:
+#### HTTP Development Mode
 ```bash
-java -jar target/dbmcp-1.0.0.jar --http_mode=true
+# Basic HTTP mode
+java -jar target/dbmcp-2.0.0.jar --http_mode=true
+
+# Custom port with debug logging
+java -Dlogging.level.root=DEBUG -jar target/dbmcp-2.0.0.jar --http_mode=true --http_port=9090
+
+# Production-like settings
+java -jar target/dbmcp-2.0.0.jar \
+  --http_mode=true \
+  --http_port=8080 \
+  --max_connections=50 \
+  --query_timeout_seconds=120
 ```
 
-Then in another terminal:
+### Configuration File Support
 
-#### Health Check
-```bash
-curl http://localhost:8080/health
+Create advanced configuration files for complex deployments:
+
+#### Example: `production.conf`
+```properties
+# Database Connection
+DB_URL=jdbc:postgresql://prod-db:5432/analytics
+DB_USER=readonly_user
+DB_PASSWORD="complex password with spaces"
+DB_DRIVER=org.postgresql.Driver
+
+# Connection Pool Settings
+MAX_CONNECTIONS=50
+CONNECTION_TIMEOUT_MS=60000
+IDLE_TIMEOUT_MS=300000
+MAX_LIFETIME_MS=1800000
+LEAK_DETECTION_THRESHOLD_MS=60000
+
+# Query Settings
+QUERY_TIMEOUT_SECONDS=120
+SELECT_ONLY=true
+MAX_SQL_LENGTH=100000
+MAX_ROWS_LIMIT=50000
+
+# Transport Settings
+HTTP_MODE=true
+HTTP_PORT=8080
 ```
 
-#### Initialize Protocol
+#### Example: `development.conf`
+```properties
+# Development H2 Database
+DB_URL=jdbc:h2:mem:devdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+DB_USER=sa
+DB_PASSWORD=
+DB_DRIVER=org.h2.Driver
+
+# Relaxed settings for development
+MAX_CONNECTIONS=5
+CONNECTION_TIMEOUT_MS=30000
+QUERY_TIMEOUT_SECONDS=60
+SELECT_ONLY=false
+MAX_SQL_LENGTH=50000
+MAX_ROWS_LIMIT=10000
+
+# HTTP mode for web development
+HTTP_MODE=true
+HTTP_PORT=3001
+```
+
+#### Usage:
 ```bash
+# Use specific config file
+java -jar target/dbmcp-2.0.0.jar --config_file=production.conf
+
+# Override specific settings
+java -jar target/dbmcp-2.0.0.jar --config_file=production.conf --http_port=9090
+
+# Multiple config files for different environments
+java -jar target/dbmcp-2.0.0.jar --config_file=base.conf --config_file=env-specific.conf
+```
+
+### Advanced Configuration Options
+
+#### Connection Pool Tuning
+```
+# High-throughput settings
+MAX_CONNECTIONS=100
+CONNECTION_TIMEOUT_MS=10000
+IDLE_TIMEOUT_MS=120000
+MAX_LIFETIME_MS=900000
+LEAK_DETECTION_THRESHOLD_MS=30000
+
+# Conservative settings
+MAX_CONNECTIONS=5
+CONNECTION_TIMEOUT_MS=60000
+IDLE_TIMEOUT_MS=600000
+MAX_LIFETIME_MS=1800000
+LEAK_DETECTION_THRESHOLD_MS=120000
+```
+
+#### Security Configuration
+```
+# Maximum security
+SELECT_ONLY=true
+MAX_SQL_LENGTH=5000
+MAX_ROWS_LIMIT=100
+QUERY_TIMEOUT_SECONDS=15
+
+# Development flexibility
+SELECT_ONLY=false
+MAX_SQL_LENGTH=100000
+MAX_ROWS_LIMIT=50000
+QUERY_TIMEOUT_SECONDS=300
+```
+
+#### Performance Tuning
+```
+# High-performance settings
+MAX_CONNECTIONS=50
+CONNECTION_TIMEOUT_MS=5000
+QUERY_TIMEOUT_SECONDS=300
+MAX_ROWS_LIMIT=100000
+
+# Memory-constrained settings
+MAX_CONNECTIONS=3
+CONNECTION_TIMEOUT_MS=30000
+QUERY_TIMEOUT_SECONDS=30
+MAX_ROWS_LIMIT=1000
+```
+
+## 🧪 Testing and Validation
+
+### Unit Testing
+```bash
+# Run all tests
+mvn test
+
+# Run specific test class
+mvn test -Dtest=McpServerTest
+
+# Run tests with specific profile
+mvn test -P standard-databases
+
+# Generate test reports
+mvn test jacoco:report
+```
+
+### Integration Testing
+```bash
+# Full integration test suite
+mvn verify
+
+# Test with specific database profiles
+mvn verify -P standard-databases
+mvn verify -P enterprise-databases
+
+# Test with Docker databases
+mvn verify -P integration-tests
+```
+
+### Manual Protocol Testing
+
+#### stdio Mode Testing
+```bash
+# Initialize protocol
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbmcp-2.0.0.jar
+
+# Send initialized notification
+echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' | java -jar target/dbmcp-2.0.0.jar
+
+# List tools
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | java -jar target/dbmcp-2.0.0.jar
+
+# Execute query
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"query","arguments":{"sql":"SELECT 1 as test","maxRows":1}}}' | java -jar target/dbmcp-2.0.0.jar
+
+# List resources
+echo '{"jsonrpc":"2.0","id":4,"method":"resources/list","params":{}}' | java -jar target/dbmcp-2.0.0.jar
+```
+
+#### HTTP Mode Testing
+```bash
+# Start server
+java -jar target/dbmcp-2.0.0.jar --http_mode=true &
+SERVER_PID=$!
+
+# Wait for startup
+sleep 2
+
+# Health check
+curl -s http://localhost:8080/health | jq
+
+# Initialize protocol
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "initialize",
-    "params": {
-      "protocolVersion": "2024-11-05",
-      "capabilities": {},
-      "clientInfo": {"name": "http-client", "version": "1.0.0"}
-    }
-  }'
-```
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | jq
 
-#### List Tools
-```bash
+# Send initialized notification
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-```
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
 
-#### Execute Query
-```bash
+# List tools
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 3,
-    "method": "tools/call",
-    "params": {
-      "name": "query",
-      "arguments": {
-        "sql": "SELECT 1 as test_value, '\''Hello World'\'' as message",
-        "maxRows": 10
-      }
-    }
-  }'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | jq
+
+# Execute query
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"query","arguments":{"sql":"SELECT 1 as test","maxRows":1}}}' | jq
+
+# List resources
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"resources/list","params":{}}' | jq
+
+# Cleanup
+kill $SERVER_PID
 ```
 
-## 🔧 Step 5: Configure with Claude Desktop
+### Automated Test Scripts
 
-### Download Claude Desktop
-1. Go to [claude.ai/download](https://claude.ai/download)
-2. Install the desktop application
-3. Sign in with your Claude account
-
-⚠️ **Important**: MCP is NOT supported on the Claude.ai website. You must use Claude Desktop.
-
-### Configure Claude Desktop
-
-#### Find Configuration File Location:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-#### Access Through Claude Desktop:
-1. Open Claude Desktop
-2. Click **Claude** menu (macOS) or settings icon
-3. Select **Settings...**
-4. Click **Developer** in the left sidebar
-5. Click **Edit Config**
-
-#### Add Database Server Configuration:
-
-```json
-{
-  "mcpServers": {
-    "database-server": {
-      "command": "java",
-      "args": [
-        "-jar",
-        "/absolute/path/to/your/target/dbmcp-1.0.0.jar"
-      ],
-      "env": {
-        "DB_URL": "jdbc:h2:mem:testdb",
-        "DB_USER": "sa",
-        "DB_PASSWORD": "",
-        "DB_DRIVER": "org.h2.Driver"
-      }
-    }
-  }
-}
-```
-
-#### Configuration Examples for Different Databases:
-
-**MySQL:**
-```json
-{
-  "mcpServers": {
-    "mysql-server": {
-      "command": "java",
-      "args": ["-jar", "/absolute/path/to/dbmcp-1.0.0.jar"],
-      "env": {
-        "DB_URL": "jdbc:mysql://localhost:3306/your_database",
-        "DB_USER": "your_username",
-        "DB_PASSWORD": "your_password",
-        "DB_DRIVER": "com.mysql.cj.jdbc.Driver"
-      }
-    }
-  }
-}
-```
-
-**PostgreSQL:**
-```json
-{
-  "mcpServers": {
-    "postgres-server": {
-      "command": "java",
-      "args": ["-jar", "/absolute/path/to/dbmcp-1.0.0.jar"],
-      "env": {
-        "DB_URL": "jdbc:postgresql://localhost:5432/your_database",
-        "DB_USER": "your_username",
-        "DB_PASSWORD": "your_password",
-        "DB_DRIVER": "org.postgresql.Driver"
-      }
-    }
-  }
-}
-```
-
-#### Multiple Database Connections:
-```json
-{
-  "mcpServers": {
-    "production-db": {
-      "command": "java",
-      "args": ["-jar", "/path/to/dbmcp-1.0.0.jar"],
-      "env": {
-        "DB_URL": "jdbc:mysql://prod-server:3306/proddb",
-        "DB_USER": "readonly_user",
-        "DB_PASSWORD": "secure_password",
-        "DB_DRIVER": "com.mysql.cj.jdbc.Driver"
-      }
-    },
-    "analytics-db": {
-      "command": "java",
-      "args": ["-jar", "/path/to/dbmcp-1.0.0.jar"],
-      "env": {
-        "DB_URL": "jdbc:postgresql://analytics:5432/analytics",
-        "DB_USER": "analyst",
-        "DB_PASSWORD": "password",
-        "DB_DRIVER": "org.postgresql.Driver"
-      }
-    }
-  }
-}
-```
-
-### Important Configuration Notes:
-1. **Use Absolute Paths**: Always use complete file paths
-2. **Java Path**: If `java` isn't in PATH, use full path like `"c:/java/jdk-17/bin/java.exe"`
-3. **Windows Paths**: Use forward slashes: `"c:/path/to/file"`
-4. **Security**: Environment variables are encrypted by the OS
-5. **Restart Required**: Restart Claude Desktop after configuration changes
-
-## 🔧 Step 5B: Integrate with Web Applications (HTTP mode)
-
-### JavaScript/Node.js Integration
-```javascript
-// Example: Query database from a web application
-async function queryDatabase(sql, maxRows = 1000) {
-  const response = await fetch('http://localhost:8080/mcp', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method: 'tools/call',
-      params: {
-        name: 'query',
-        arguments: { sql, maxRows }
-      }
-    })
-  });
-  
-  return await response.json();
-}
-
-// Usage
-const result = await queryDatabase('SELECT COUNT(*) FROM users');
-console.log(result);
-```
-
-### Python Integration
+#### Python Testing Script (`test_mcp.py`)
 ```python
+#!/usr/bin/env python3
+import json
+import subprocess
+import sys
+import time
 import requests
 
-def query_database(sql, max_rows=1000):
-    response = requests.post('http://localhost:8080/mcp', json={
-        'jsonrpc': '2.0',
-        'id': 1,
-        'method': 'tools/call',
-        'params': {
-            'name': 'query',
-            'arguments': {
-                'sql': sql,
-                'maxRows': max_rows
+def test_stdio_mode():
+    """Test stdio mode functionality"""
+    print("Testing stdio mode...")
+    
+    # Test initialize
+    init_request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1.0"}
+        }
+    }
+    
+    result = subprocess.run(
+        ["java", "-jar", "target/dbmcp-2.0.0.jar"],
+        input=json.dumps(init_request),
+        text=True,
+        capture_output=True
+    )
+    
+    if result.returncode == 0:
+        response = json.loads(result.stdout)
+        assert response["jsonrpc"] == "2.0"
+        assert "result" in response
+        print("✓ stdio mode initialize test passed")
+    else:
+        print(f"✗ stdio mode test failed: {result.stderr}")
+        sys.exit(1)
+
+def test_http_mode():
+    """Test HTTP mode functionality"""
+    print("Testing HTTP mode...")
+    
+    # Start server
+    process = subprocess.Popen([
+        "java", "-jar", "target/dbmcp-2.0.0.jar", 
+        "--http_mode=true", "--http_port=8081"
+    ])
+    
+    time.sleep(3)  # Wait for startup
+    
+    try:
+        # Health check
+        response = requests.get("http://localhost:8081/health")
+        assert response.status_code == 200
+        print("✓ HTTP health check passed")
+        
+        # MCP initialize
+        init_request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1.0"}
             }
         }
-    })
-    return response.json()
+        
+        response = requests.post(
+            "http://localhost:8081/mcp",
+            json=init_request
+        )
+        assert response.status_code == 200
+        assert response.json()["jsonrpc"] == "2.0"
+        print("✓ HTTP MCP initialize test passed")
+        
+    finally:
+        process.terminate()
+        process.wait()
 
-# Usage
-result = query_database('SELECT * FROM users LIMIT 10')
-print(result)
+if __name__ == "__main__":
+    test_stdio_mode()
+    test_http_mode()
+    print("All tests passed!")
 ```
 
-### cURL Examples
+#### Bash Testing Script (`test_build.sh`)
 ```bash
+#!/bin/bash
+set -e
+
+echo "Testing DBMCP build and functionality..."
+
+# Test basic build
+echo "Testing basic build..."
+mvn clean package -q
+test -f target/dbmcp-2.0.0.jar || (echo "Build failed" && exit 1)
+echo "✓ Basic build successful"
+
+# Test standard databases build
+echo "Testing standard databases build..."
+mvn clean package -P standard-databases -q
+test -f target/dbmcp-2.0.0.jar || (echo "Standard build failed" && exit 1)
+echo "✓ Standard databases build successful"
+
+# Test enterprise databases build (if available)
+echo "Testing enterprise databases build..."
+if mvn clean package -P standard-databases,enterprise-databases -q 2>/dev/null; then
+    echo "✓ Enterprise databases build successful"
+else
+    echo "⚠ Enterprise databases build skipped (drivers may not be available)"
+fi
+
+# Test basic functionality
+echo "Testing basic functionality..."
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | \
+    timeout 10s java -jar target/dbmcp-2.0.0.jar > /dev/null || (echo "Functionality test failed" && exit 1)
+echo "✓ Basic functionality test passed"
+
+echo "All tests completed successfully!"
+```
+
+## 🐳 Docker Deployment
+
+### Development Docker Setup
+
+#### Dockerfile
+```dockerfile
+FROM openjdk:17-jdk-slim
+
+WORKDIR /app
+
+# Copy built JAR
+COPY target/dbmcp-2.0.0.jar dbmcp.jar
+
+# Create non-root user
+RUN useradd -m -u 1000 dbmcp
+USER dbmcp
+
+# Expose HTTP port
+EXPOSE 8080
+
+# Default command
+CMD ["java", "-jar", "dbmcp.jar", "--http_mode=true", "--http_port=8080"]
+```
+
+#### Docker Compose for Development
+```yaml
+version: '3.8'
+services:
+  dbmcp:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/testdb
+      - DB_USER=mcpuser
+      - DB_PASSWORD=mcppassword
+      - DB_DRIVER=org.postgresql.Driver
+      - HTTP_MODE=true
+      - HTTP_PORT=8080
+    depends_on:
+      - postgres
+    networks:
+      - dbmcp-network
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=mcpuser
+      - POSTGRES_PASSWORD=mcppassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dbmcp-network
+
+volumes:
+  postgres_data:
+
+networks:
+  dbmcp-network:
+```
+
+#### Usage
+```bash
+# Build and start services
+docker-compose up --build
+
+# Test the setup
+curl http://localhost:8080/health
+
+# Stop services
+docker-compose down
+```
+
+### Production Docker Setup
+
+#### Multi-stage Production Dockerfile
+```dockerfile
+# Build stage
+FROM maven:3.8.6-openjdk-17 AS build
+WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+RUN mvn clean package -P standard-databases -DskipTests
+
+# Runtime stage
+FROM openjdk:17-jdk-slim AS runtime
+WORKDIR /app
+
+# Install security updates
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 dbmcp
+
+# Copy JAR from build stage
+COPY --from=build /app/target/dbmcp-2.0.0.jar dbmcp.jar
+
+# Change ownership
+RUN chown dbmcp:dbmcp dbmcp.jar
+
+USER dbmcp
+
 # Health check
-curl http://localhost:8080/health
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
 
-# List available tools
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+EXPOSE 8080
 
-# Execute a query
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 2,
-    "method": "tools/call",
-    "params": {
-      "name": "query",
-      "arguments": {
-        "sql": "SELECT COUNT(*) as user_count FROM users",
-        "maxRows": 1
-      }
-    }
-  }'
-
-# List database resources
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"resources/list","params":{}}'
+CMD ["java", "-jar", "dbmcp.jar", "--http_mode=true", "--http_port=8080"]
 ```
 
-## 🚀 Step 6: Using the Database MCP Server
+## 🔧 IDE Configuration
 
-### Verify Connection
-After restarting Claude Desktop:
-1. Look for the MCP icon (slider/plug) in the message input box
-2. Click to see your database server listed and connected
+### IntelliJ IDEA Setup
 
-### Example Queries
-```
-"Show me all tables in the database"
-"Query the users table and show me the first 10 records"
-"What's the structure of the orders table?"
-"Run this SQL: SELECT COUNT(*) FROM customers WHERE status = 'active'"
-"Create a chart showing monthly sales from the orders table"
-```
+#### Import Project
+1. **Open IntelliJ IDEA**
+2. **Import Project** → Select `pom.xml`
+3. **Import as Maven project**
+4. **Set Project SDK** → Java 17+
 
-### For Web Applications (HTTP mode)
+#### Run Configurations
 
-#### Health Monitoring
-Monitor server status:
-```bash
-curl http://localhost:8080/health
-```
+**stdio Mode Configuration:**
+- **Main class**: `com.skanga.mcp.McpServer`
+- **Program arguments**: (none for default stdio mode)
+- **VM options**: `-Dlogging.level.root=DEBUG`
+- **Environment variables**: `DB_URL=jdbc:h2:mem:testdb;DB_USER=sa;DB_PASSWORD=;DB_DRIVER=org.h2.Driver`
 
-Expected response:
+**HTTP Mode Configuration:**
+- **Main class**: `com.skanga.mcp.McpServer`
+- **Program arguments**: `--http_mode=true --http_port=8080`
+- **VM options**: `-Dlogging.level.root=DEBUG`
+- **Environment variables**: `DB_URL=jdbc:h2:mem:testdb;DB_USER=sa;DB_PASSWORD=;DB_DRIVER=org.h2.Driver`
+
+#### Build Configurations
+Create separate run configurations for different profiles:
+- **Default Build**: `mvn clean package`
+- **Standard Build**: `mvn clean package -P standard-databases`
+- **Enterprise Build**: `mvn clean package -P standard-databases,enterprise-databases`
+
+### VS Code Setup
+
+#### Extensions
+- **Extension Pack for Java**
+- **Spring Boot Tools**
+- **Maven for Java**
+
+#### launch.json
 ```json
 {
-  "status": "healthy",
-  "server": "Database MCP Server",
-  "timestamp": 1703123456789,
-  "database": "connected"
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Launch McpServer (stdio)",
+            "request": "launch",
+            "mainClass": "com.skanga.mcp.McpServer",
+            "projectName": "dbmcp",
+            "env": {
+                "DB_URL": "jdbc:h2:mem:testdb",
+                "DB_USER": "sa",
+                "DB_PASSWORD": "",
+                "DB_DRIVER": "org.h2.Driver"
+            },
+            "vmArgs": "-Dlogging.level.root=DEBUG"
+        },
+        {
+            "type": "java",
+            "name": "Launch McpServer (HTTP)",
+            "request": "launch",
+            "mainClass": "com.skanga.mcp.McpServer",
+            "projectName": "dbmcp",
+            "args": ["--http_mode=true", "--http_port=8080"],
+            "env": {
+                "DB_URL": "jdbc:h2:mem:testdb",
+                "DB_USER": "sa", 
+                "DB_PASSWORD": "",
+                "DB_DRIVER": "org.h2.Driver"
+            },
+            "vmArgs": "-Dlogging.level.root=DEBUG"
+        }
+    ]
 }
 ```
 
-#### API Integration Examples
+#### tasks.json
+```json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "maven-build-default",
+            "type": "shell",
+            "command": "mvn",
+            "args": ["clean", "package"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "maven-build-standard",
+            "type": "shell", 
+            "command": "mvn",
+            "args": ["clean", "package", "-P", "standard-databases"],
+            "group": "build"
+        },
+        {
+            "label": "maven-test",
+            "type": "shell",
+            "command": "mvn",
+            "args": ["test"],
+            "group": "test"
+        }
+    ]
+}
+```
 
-**Dashboard Application:**
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Database Dashboard</title>
-</head>
-<body>
-    <script>
-    async function loadUserCount() {
-        const response = await fetch('http://localhost:8080/mcp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: 1,
-                method: 'tools/call',
-                params: {
-                    name: 'query',
-                    arguments: {
-                        sql: 'SELECT COUNT(*) as count FROM users',
-                        maxRows: 1
-                    }
-                }
-            })
-        });
-        
-        const result = await response.json();
-        document.getElementById('userCount').textContent = 
-            result.result.content[0].text;
+## 🚀 Deployment Strategies
+
+### Local Development Deployment
+```bash
+# Quick development setup
+java -jar target/dbmcp-2.0.0.jar \
+  --config_file=dev.conf \
+  --http_mode=true \
+  --http_port=3001
+```
+
+### Staging Environment Deployment
+```bash
+# Staging with PostgreSQL
+java -jar target/dbmcp-2.0.0.jar \
+  --config_file=staging.conf \
+  --http_mode=true \
+  --http_port=8080 \
+  --max_connections=20 \
+  --select_only=true
+```
+
+### Production Environment Deployment
+
+#### Systemd Service (`/etc/systemd/system/dbmcp.service`)
+```ini
+[Unit]
+Description=DBMCP Database MCP Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=dbmcp
+Group=dbmcp
+WorkingDirectory=/opt/dbmcp
+ExecStart=/usr/bin/java -jar /opt/dbmcp/dbmcp-2.0.0.jar --config_file=/etc/dbmcp/production.conf
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dbmcp
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/dbmcp
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Installation Script (`install-production.sh`)
+```bash
+#!/bin/bash
+set -e
+
+# Create user
+sudo useradd -r -s /bin/false dbmcp
+
+# Create directories
+sudo mkdir -p /opt/dbmcp
+sudo mkdir -p /etc/dbmcp
+sudo mkdir -p /var/log/dbmcp
+
+# Copy files
+sudo cp target/dbmcp-2.0.0.jar /opt/dbmcp/
+sudo cp production.conf /etc/dbmcp/
+sudo cp dbmcp.service /etc/systemd/system/
+
+# Set permissions
+sudo chown -R dbmcp:dbmcp /opt/dbmcp
+sudo chown -R dbmcp:dbmcp /var/log/dbmcp
+sudo chmod 600 /etc/dbmcp/production.conf
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable dbmcp
+sudo systemctl start dbmcp
+
+echo "DBMCP production service installed and started"
+```
+
+### Cloud Deployment (AWS)
+
+#### ECS Task Definition
+```json
+{
+  "family": "dbmcp",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::account:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::account:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "dbmcp",
+      "image": "your-account.dkr.ecr.region.amazonaws.com/dbmcp:2.0.0",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "HTTP_MODE",
+          "value": "true"
+        },
+        {
+          "name": "HTTP_PORT", 
+          "value": "8080"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DB_URL",
+          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbmcp/db-url"
+        },
+        {
+          "name": "DB_USER",
+          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbmcp/db-user"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbmcp/db-password"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/dbmcp",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
     }
-    
-    loadUserCount();
-    </script>
-    
-    <h1>User Count: <span id="userCount">Loading...</span></h1>
-</body>
-</html>
+  ]
+}
 ```
 
-## 🛠️ Advanced Configuration
+## 🔍 Troubleshooting Development Issues
 
-### Transport Mode Selection
+### Build Issues
+
+#### Maven Profile Problems
 ```bash
-# Environment variable approach
-export HTTP_MODE="true"      # Enable HTTP mode
-export HTTP_PORT="8080"      # Set HTTP port
+# Verify available profiles
+mvn help:all-profiles
 
-# Command line approach
-java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
+# Debug profile activation
+mvn help:active-profiles -P standard-databases
 
-# System properties approach
-java -Dhttp.mode=true -Dhttp.port=8080 -jar target/dbmcp-1.0.0.jar
+# Check effective POM
+mvn help:effective-pom -P standard-databases
 ```
 
-### Connection Pool Settings
-Set environment variables for fine-tuning:
-
+#### Dependency Issues
 ```bash
-export MAX_CONNECTIONS="20"
-export CONNECTION_TIMEOUT_MS="30000"
-export QUERY_TIMEOUT_SECONDS="60"
-export SELECT_ONLY="false"
-export MAX_SQL_LENGTH="50000"
-export MAX_ROWS_LIMIT="50000"
+# Analyze dependencies
+mvn dependency:tree -P standard-databases
+
+# Resolve version conflicts
+mvn dependency:analyze
+
+# Force update snapshots
+mvn clean install -U
 ```
 
-### Security Settings
+#### JDBC Driver Issues
 ```bash
-# Enable read-only mode
-export SELECT_ONLY="true"
+# Verify driver in JAR
+jar tf target/dbmcp-2.0.0.jar | grep -E "(mysql|postgres|oracle)"
 
-# Limit query size
-export MAX_SQL_LENGTH="10000"
+# Test driver loading
+java -cp target/dbmcp-2.0.0.jar -e "Class.forName('com.mysql.cj.jdbc.Driver')"
 
-# Limit result size
-export MAX_ROWS_LIMIT="1000"
+# Check driver versions
+mvn dependency:list | grep -E "(mysql|postgres|oracle)"
 ```
 
-### Debug Mode
-Enable debug logging for troubleshooting:
+### Runtime Issues
 
+#### Connection Problems
 ```bash
-# stdio mode
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
+# Test database connectivity
+java -cp target/dbmcp-2.0.0.jar -e "
+import java.sql.*;
+Connection conn = DriverManager.getConnection('$DB_URL', '$DB_USER', '$DB_PASSWORD');
+System.out.println('Connection successful');
+conn.close();
+"
+
+# Verify JDBC URL format
+java -jar target/dbmcp-2.0.0.jar --db_url="$DB_URL" --help
 ```
 
-# HTTP mode
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar --http_mode=true
-```
-
-### Configuration Priority Order
-1. **Command line arguments**: `--http_mode=true`, `--http_port=8080`
-2. **Environment variables**: `HTTP_MODE`, `HTTP_PORT`
-3. **System properties**: `-Dhttp.mode=true`, `-Dhttp.port=8080`
-4. **Default values**: stdio mode, port 8080
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-#### "ClassNotFoundException" for database driver
-**Solution**: Ensure you built with the correct Maven profile for your database.
-
-#### "Connection refused" or "Access denied"
-**Solutions**:
-- Verify database server is running
-- Check connection parameters
-- Ensure database user has necessary permissions
-- Check firewall settings
-
-#### Server starts but doesn't respond (stdio mode)
-**Solutions**:
-- Verify JSON-RPC request format
-- Check server logs for errors
-- Ensure proper stdin/stdout communication
-
-#### HTTP server doesn't start
-**Solutions**:
-- Check if port is already in use: `netstat -an | grep 8080`
-- Try different port: `--http_port=9090`
-- Check for permission issues on the port
-- Verify firewall settings
-
-#### Claude Desktop doesn't show the server
-**Solutions**:
-- Validate JSON configuration syntax
-- Check absolute file paths
-- Verify Java is accessible
-- Restart Claude Desktop
-
-#### HTTP requests fail with CORS errors
-**Solutions**:
-- Server includes CORS headers by default
-- For browser testing, ensure you're making requests from `http://localhost`
-- Check browser developer tools for specific CORS errors
-
-### Mode-Specific Troubleshooting
-
-#### stdio Mode Issues
+#### Memory Issues
 ```bash
-# Test JSON-RPC communication
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | java -jar target/dbmcp-1.0.0.jar
+# Monitor memory usage
+java -Xmx512m -XX:+PrintGCDetails -jar target/dbmcp-2.0.0.jar
 
-# Debug mode for detailed logging
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
+# Profile memory allocation
+java -XX:+UseG1GC -XX:+PrintGCApplicationStoppedTime -jar target/dbmcp-2.0.0.jar
+
+# Enable heap dump on OOM
+java -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -jar target/dbmcp-2.0.0.jar
 ```
 
-#### HTTP Mode Issues
+#### Performance Debugging
 ```bash
-# Test server startup
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar --http_mode=true
+# Enable JMX monitoring
+java -Dcom.sun.management.jmxremote \
+     -Dcom.sun.management.jmxremote.port=9999 \
+     -Dcom.sun.management.jmxremote.authenticate=false \
+     -Dcom.sun.management.jmxremote.ssl=false \
+     -jar target/dbmcp-2.0.0.jar
 
-# Test health endpoint
-curl -v http://localhost:8080/health
-
-# Test MCP endpoint
-curl -v -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-
-# Check what's running on the port
-netstat -an | grep 8080
+# Profile with async-profiler
+java -jar target/dbmcp-2.0.0.jar &
+PID=$!
+./profiler.sh -d 30 -f profile.html $PID
 ```
 
-### Validation Commands
-```bash
-# Test Java version
-java -version
+## 📚 Additional Resources for Developers
 
-# Validate JSON configuration (Claude Desktop)
-cat claude_desktop_config.json | python -m json.tool
+### Documentation
+- **MCP Specification**: [modelcontextprotocol.io](https://modelcontextprotocol.io)
+- **JDBC Tutorial**: [Oracle JDBC Tutorial](https://docs.oracle.com/javase/tutorial/jdbc/)
+- **HikariCP Documentation**: [HikariCP GitHub](https://github.com/brettwooldridge/HikariCP)
+- **Maven Profiles**: [Maven Profile Documentation](https://maven.apache.org/guides/introduction/introduction-to-profiles.html)
 
-# Test database connection manually (stdio)
-java -jar target/dbmcp-1.0.0.jar < test_query.json
+### Development Tools
+- **MCP Inspector**: Test MCP protocol compliance
+- **Database Tools**: DBeaver, DataGrip for database management
+- **API Testing**: Postman, Insomnia for HTTP mode testing
+- **Performance Monitoring**: JProfiler, VisualVM for performance analysis
 
-# Test database connection manually (HTTP)
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+### Contributing Guidelines
+1. **Fork repository** and create feature branch
+2. **Follow coding standards** (Google Java Style)
+3. **Add tests** for new functionality
+4. **Update documentation** for API changes
+5. **Submit pull request** with clear description
 
-```
+### License Compliance
+- **Apache 2.0**: Main project license
+- **JDBC Drivers**: Each driver has its own license requirements
+- **Enterprise Drivers**: May require commercial licenses
+- **Review vendor terms** before distribution
 
-## 📚 Additional Resources
+---
 
-- [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
-- [Claude Desktop Documentation](https://support.anthropic.com)
-- [JDBC Documentation](https://docs.oracle.com/javase/tutorial/jdbc/)
-- [Maven Documentation](https://maven.apache.org/guides/getting-started/)
-- [HTTP/REST API Best Practices](https://restfulapi.net/)
-
-## 🎯 Next Steps
-
-Once installed, you can:
-
-### With Claude Desktop (stdio mode):
-- Query your database using natural language through Claude
-- Generate SQL queries with Claude's help
-- Create data visualizations and charts
-- Explore database schemas and relationships
-- Build reports and analytics dashboards
-
-### With Web Applications (HTTP mode):
-- Integrate database queries into web applications
-- Build custom dashboards and analytics tools
-- Create APIs that leverage the MCP protocol
-- Automate database testing and validation
-- Monitor database health and performance
-
-### Choosing the Right Mode:
-
-**Use stdio mode when:**
-- Integrating with Claude Desktop
-- Building conversational database interfaces
-- Working with natural language queries
-- Creating interactive data exploration experiences
-
-**Use HTTP mode when:**
-- Building web applications or APIs
-- Creating custom dashboards
-- Integrating with existing web infrastructure
-- Automating database operations
-- Testing and development workflows
-
-For detailed usage examples and advanced features, see the README.md file.
+This developer guide provides comprehensive information for building, testing, and deploying DBMCP. For end-user setup instructions, see [README.md](README.md).

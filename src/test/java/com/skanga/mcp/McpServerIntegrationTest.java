@@ -319,14 +319,24 @@ class McpServerIntegrationTest {
     @Test
     @Timeout(10)
     void testStdioMode_RequestWithError() {
-        // Prepare input with regular request that will cause an error
-        String requestJson = """
-            {"id":1,"method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
-            """;
+        // Prepare input with proper MCP initialization sequence followed by error request
+        String initializeRequest = """
+        {"jsonrpc":"2.0","id":"init","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"tools":{},"resources":{}},"clientInfo":{"name":"TestClient","version":"1.0.0"}}}
+        """;
 
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(requestJson.getBytes());
+        String initializedNotification = """
+        {"jsonrpc":"2.0","method":"notifications/initialized"}
+        """;
+
+        String errorRequest = """
+        {"jsonrpc":"2.0","id":"error","method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
+        """;
+
+        // Combine all requests with newlines (stdio mode expects line-separated JSON)
+        String allRequests = initializeRequest + "\n" + initializedNotification + "\n" + errorRequest + "\n";
+
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(allRequests.getBytes());
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
         InputStream originalIn = System.in;
         PrintStream originalOut = System.out;
 
@@ -336,10 +346,23 @@ class McpServerIntegrationTest {
 
             assertDoesNotThrow(() -> mcpServer.startStdioMode());
 
-            // For regular requests, error response should be sent
             String output = outputStream.toString().trim();
-            assertTrue(output.contains("error"));
-            assertTrue(output.contains("SQL query cannot be empty"));
+            String[] responses = output.split("\n");
+
+            // Should have 2 responses (initialize response + error response)
+            // The initialized notification doesn't get a response
+            assertTrue(responses.length >= 2, "Should have at least 2 responses");
+
+            // First response should be successful initialize
+            assertTrue(responses[0].contains("\"result\""), "First response should be initialize success");
+            assertTrue(responses[0].contains("protocolVersion"), "Should contain protocol version");
+
+            // Last response should be the error for empty SQL
+            String errorResponse = responses[responses.length - 1];
+            assertTrue(errorResponse.contains("\"error\""), "Should contain error");
+            assertTrue(errorResponse.contains("SQL query cannot be empty"), "Should contain empty SQL error message");
+            assertTrue(errorResponse.contains("\"id\":\"error\""), "Should have matching request ID");
+
         } finally {
             System.setIn(originalIn);
             System.setOut(originalOut);

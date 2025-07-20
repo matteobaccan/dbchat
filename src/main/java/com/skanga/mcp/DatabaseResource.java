@@ -1,7 +1,14 @@
 package com.skanga.mcp;
 
 /**
- * Represents a database resource (table, view, schema, etc.)
+ * Represents a database resource (table, view, schema, etc.) that can be accessed through the MCP server.
+ * This record encapsulates metadata about database objects and their content for client consumption.
+ *
+ * @param uri Unique resource identifier in the format "database://type/name" (e.g., "database://table/users")
+ * @param name Human-readable name of the resource
+ * @param description Detailed description of what this resource contains
+ * @param mimeType MIME type of the resource content (typically "text/plain")
+ * @param content The actual content of the resource (may be null for lazy-loaded resources)
  */
 public record DatabaseResource(
         String uri,

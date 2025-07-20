@@ -20,14 +20,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class HttpIntegrationTest {
-    
     private static final int TEST_PORT = 18081;
     private static final String BASE_URL = "http://localhost:" + TEST_PORT;
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     private static McpServer server;
     private static HttpClient httpClient;
     private static Thread serverThread;
+    private static boolean mcpInitialized = false;
 
     @BeforeAll
     static void setUpAll() throws InterruptedException {
@@ -39,18 +39,18 @@ class HttpIntegrationTest {
                 "org.h2.Driver",
                 false, 10000
         );
-        
+
         // Create server
         server = new McpServer(testConfig);
-        
+
         // Setup HTTP client
         httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
-        
+
         startHttpServer();
     }
-    
+
     @AfterAll
     static void tearDownAll() {
         if (serverThread != null && serverThread.isAlive()) {
@@ -62,10 +62,10 @@ class HttpIntegrationTest {
             }
         }
     }
-    
+
     private static void startHttpServer() throws InterruptedException {
         CountDownLatch serverStartLatch = new CountDownLatch(1);
-        
+
         serverThread = new Thread(() -> {
             try {
                 serverStartLatch.countDown();
@@ -76,14 +76,14 @@ class HttpIntegrationTest {
                 }
             }
         });
-        
+
         serverThread.setDaemon(true);
         serverThread.start();
-        
+
         assertTrue(serverStartLatch.await(5, TimeUnit.SECONDS), "Server thread failed to start");
         waitForServerReady();
     }
-    
+
     private static void waitForServerReady() throws InterruptedException {
         int maxAttempts = 30;
         for (int i = 0; i < maxAttempts; i++) {
@@ -93,34 +93,84 @@ class HttpIntegrationTest {
                         .timeout(Duration.ofSeconds(2))
                         .GET()
                         .build();
-                
-                HttpResponse<String> response = httpClient.send(request, 
+
+                HttpResponse<String> response = httpClient.send(request,
                         HttpResponse.BodyHandlers.ofString());
-                
+
                 if (response.statusCode() == 200) {
                     return;
                 }
             } catch (Exception e) {
                 // Server not ready yet
             }
-            
+
             Thread.sleep(200);
         }
-        
+
         fail("HTTP server did not become ready within timeout");
     }
-    
-    private HttpResponse<String> sendMcpRequest(String jsonRequest) throws IOException, InterruptedException {
+
+    /**
+     * Helper method to initialize the MCP server for testing.
+     * This follows the proper MCP lifecycle: initialize → initialized notification → ready
+     */
+    private static void initializeMcpServer() throws IOException, InterruptedException {
+        if (mcpInitialized) {
+            return; // Already initialized
+        }
+
+        // Step 1: Send initialize request
+        String initializeRequest = """
+            {
+                "jsonrpc": "2.0",
+                "id": "init-setup",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-03-26",
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {}
+                    },
+                    "clientInfo": {
+                        "name": "IntegrationTestClient",
+                        "version": "1.0.0"
+                    }
+                }
+            }
+            """;
+
+        HttpResponse<String> initResponse = sendMcpRequest(initializeRequest);
+        assertEquals(200, initResponse.statusCode());
+
+        JsonNode initJson = objectMapper.readTree(initResponse.body());
+        assertEquals("init-setup", initJson.get("id").asText());
+        assertTrue(initJson.has("result"));
+
+        // Step 2: Send initialized notification
+        String initializedNotification = """
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            }
+            """;
+
+        HttpResponse<String> notificationResponse = sendMcpRequest(initializedNotification);
+        assertEquals(204, notificationResponse.statusCode()); // Notifications return 204 No Content
+
+        mcpInitialized = true;
+    }
+
+    private static HttpResponse<String> sendMcpRequest(String jsonRequest) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/mcp"))
                 .timeout(Duration.ofSeconds(15))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonRequest))
                 .build();
-        
+
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
-    
+
     @Test
     @Order(1)
     void testServerHealthAndReadiness() throws Exception {
@@ -129,30 +179,33 @@ class HttpIntegrationTest {
                 .timeout(Duration.ofSeconds(5))
                 .GET()
                 .build();
-        
-        HttpResponse<String> response = httpClient.send(request, 
+
+        HttpResponse<String> response = httpClient.send(request,
                 HttpResponse.BodyHandlers.ofString());
-        
+
         assertEquals(200, response.statusCode());
-        
+
         JsonNode healthResponse = objectMapper.readTree(response.body());
         assertEquals("healthy", healthResponse.get("status").asText());
         assertEquals("Database MCP Server", healthResponse.get("server").asText());
         assertEquals("connected", healthResponse.get("database").asText());
     }
-    
+
     @Test
     @Order(2)
-    void testFullMcpWorkflow() throws Exception {
-        // 1. Initialize
+    void testMcpInitialization() throws Exception {
+        // Test the MCP initialization process
         String initRequest = """
             {
                 "jsonrpc": "2.0",
-                "id": "init-1",
+                "id": "init-test",
                 "method": "initialize",
                 "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
+                    "protocolVersion": "2025-03-26",
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {}
+                    },
                     "clientInfo": {
                         "name": "integration-test",
                         "version": "1.0.0"
@@ -160,15 +213,100 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> initResponse = sendMcpRequest(initRequest);
         assertEquals(200, initResponse.statusCode());
-        
+
         JsonNode initJson = objectMapper.readTree(initResponse.body());
-        assertEquals("init-1", initJson.get("id").asText());
+        assertEquals("init-test", initJson.get("id").asText());
         assertTrue(initJson.has("result"));
-        
-        // 2. List Tools
+
+        JsonNode result = initJson.get("result");
+        assertEquals("2025-03-26", result.get("protocolVersion").asText());
+        assertTrue(result.has("capabilities"));
+        assertTrue(result.has("serverInfo"));
+
+        // Test initialized notification
+        String initializedNotification = """
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            }
+            """;
+
+        HttpResponse<String> notificationResponse = sendMcpRequest(initializedNotification);
+        assertEquals(204, notificationResponse.statusCode());
+
+        mcpInitialized = true;
+    }
+
+    @Test
+    @Order(3)
+    void testLifecycleViolations() throws Exception {
+        // Create a new server instance to test lifecycle violations
+        ConfigParams testConfig = ConfigParams.customConfig(
+                "jdbc:h2:mem:lifecycletest;DB_CLOSE_DELAY=-1",
+                "sa", "", "org.h2.Driver", false, 10000
+        );
+
+        McpServer lifecycleTestServer = new McpServer(testConfig);
+
+        // Start a temporary server on a different port
+        int lifecycleTestPort = TEST_PORT + 1;
+        Thread lifecycleServerThread = new Thread(() -> {
+            try {
+                lifecycleTestServer.startHttpMode(lifecycleTestPort);
+            } catch (IOException e) {
+                // Expected when we shut it down
+            }
+        });
+        lifecycleServerThread.setDaemon(true);
+        lifecycleServerThread.start();
+
+        // Wait for server to be ready
+        Thread.sleep(2000);
+
+        try {
+            // Try to call tools/list before initialization - should fail
+            String prematureRequest = """
+                {
+                    "jsonrpc": "2.0",
+                    "id": "premature",
+                    "method": "tools/list",
+                    "params": {}
+                }
+                """;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + lifecycleTestPort + "/mcp"))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(prematureRequest))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, response.statusCode());
+
+            JsonNode jsonResponse = objectMapper.readTree(response.body());
+            assertTrue(jsonResponse.has("error"));
+
+            JsonNode error = jsonResponse.get("error");
+            assertEquals(-32600, error.get("code").asInt()); // Invalid request
+            assertTrue(error.get("message").asText().contains("not initialized"));
+
+        } finally {
+            lifecycleServerThread.interrupt();
+            lifecycleTestServer.shutdown();
+        }
+    }
+
+    @Test
+    @Order(4)
+    void testFullMcpWorkflow() throws Exception {
+        // Ensure MCP is initialized for all subsequent tests
+        initializeMcpServer();
+
+        // 1. List Tools
         String listToolsRequest = """
             {
                 "jsonrpc": "2.0",
@@ -177,15 +315,15 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         HttpResponse<String> toolsResponse = sendMcpRequest(listToolsRequest);
         assertEquals(200, toolsResponse.statusCode());
-        
+
         JsonNode toolsJson = objectMapper.readTree(toolsResponse.body());
         assertEquals("tools-1", toolsJson.get("id").asText());
         assertTrue(toolsJson.get("result").get("tools").isArray());
-        
-        // 3. Create a test table
+
+        // 2. Create a test table
         String createTableRequest = """
             {
                 "jsonrpc": "2.0",
@@ -200,16 +338,16 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> createResponse = sendMcpRequest(createTableRequest);
         assertEquals(200, createResponse.statusCode());
-        
+
         JsonNode createJson = objectMapper.readTree(createResponse.body());
         assertEquals("create-1", createJson.get("id").asText());
         assertTrue(createJson.has("result"));
         assertFalse(createJson.get("result").get("isError").asBoolean());
-        
-        // 4. Insert test data
+
+        // 3. Insert test data
         String insertRequest = """
             {
                 "jsonrpc": "2.0",
@@ -224,15 +362,15 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> insertResponse = sendMcpRequest(insertRequest);
         assertEquals(200, insertResponse.statusCode());
-        
+
         JsonNode insertJson = objectMapper.readTree(insertResponse.body());
         assertEquals("insert-1", insertJson.get("id").asText());
         assertTrue(insertJson.has("result"));
-        
-        // 5. Query the data
+
+        // 4. Query the data
         String queryRequest = """
             {
                 "jsonrpc": "2.0",
@@ -247,21 +385,21 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> queryResponse = sendMcpRequest(queryRequest);
         assertEquals(200, queryResponse.statusCode());
-        
+
         JsonNode queryJson = objectMapper.readTree(queryResponse.body());
         assertEquals("query-1", queryJson.get("id").asText());
         assertTrue(queryJson.has("result"));
-        
+
         JsonNode content = queryJson.get("result").get("content").get(0);
         String resultText = content.get("text").asText();
         assertTrue(resultText.contains("Test User 1"));
         assertTrue(resultText.contains("Test User 2"));
         assertTrue(resultText.contains("Test User 3"));
-        
-        // 6. List Resources
+
+        // 5. List Resources
         String listResourcesRequest = """
             {
                 "jsonrpc": "2.0",
@@ -270,14 +408,14 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         HttpResponse<String> resourcesResponse = sendMcpRequest(listResourcesRequest);
         assertEquals(200, resourcesResponse.statusCode());
-        
+
         JsonNode resourcesJson = objectMapper.readTree(resourcesResponse.body());
         assertEquals("resources-1", resourcesJson.get("id").asText());
         assertTrue(resourcesJson.get("result").get("resources").isArray());
-        
+
         // Check that our table appears in resources
         JsonNode resources = resourcesJson.get("result").get("resources");
         boolean foundTable = false;
@@ -288,8 +426,8 @@ class HttpIntegrationTest {
             }
         }
         assertTrue(foundTable, "Integration test table should appear in resources");
-        
-        // 7. Read table resource
+
+        // 6. Read table resource
         String readResourceRequest = """
             {
                 "jsonrpc": "2.0",
@@ -300,104 +438,175 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> readResponse = sendMcpRequest(readResourceRequest);
         assertEquals(200, readResponse.statusCode());
-        
+
         JsonNode readJson = objectMapper.readTree(readResponse.body());
         assertEquals("read-1", readJson.get("id").asText());
         assertTrue(readJson.has("result"));
-        
+
         JsonNode contents = readJson.get("result").get("contents");
         assertTrue(contents.isArray());
         assertTrue(contents.size() > 0);
-        
+
         String tableInfo = contents.get(0).get("text").asText();
         assertTrue(tableInfo.contains("INTEGRATION_TEST"));
         assertTrue(tableInfo.contains("Columns:"));
     }
-    
+
     @Test
-    @Order(3)
+    @Order(5)
     void testErrorHandling() throws Exception {
-        // Test invalid SQL
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
+        // Test SQL execution error - should be successful MCP response with tool error
         String invalidSqlRequest = """
-            {
-                "jsonrpc": "2.0",
-                "id": "error-1",
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT * FROM nonexistent_table",
-                        "maxRows": 100
-                    }
+        {
+            "jsonrpc": "2.0",
+            "id": "error-1",
+            "method": "tools/call",
+            "params": {
+                "name": "query",
+                "arguments": {
+                    "sql": "SELECT * FROM nonexistent_table",
+                    "maxRows": 100
                 }
             }
-            """;
-        
+        }
+        """;
+
         HttpResponse<String> response = sendMcpRequest(invalidSqlRequest);
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals("error-1", jsonResponse.get("id").asText());
-        assertTrue(jsonResponse.has("error"));
-        
-        JsonNode error = jsonResponse.get("error");
-        assertEquals(-32000, error.get("code").asInt()); // Database error
-        assertTrue(error.get("message").asText().toLowerCase().contains("database error"));
-        
-        // Test invalid method
+
+        // Should be a successful MCP response (tool executed, but with error result)
+        assertTrue(jsonResponse.has("result"));
+        assertFalse(jsonResponse.has("error"));
+
+        // The tool result should indicate an error
+        JsonNode result = jsonResponse.get("result");
+        assertTrue(result.get("isError").asBoolean());
+        assertTrue(result.has("content"));
+
+        // Content should contain SQL error information
+        JsonNode content = result.get("content").get(0);
+        assertEquals("text", content.get("type").asText());
+        String errorText = content.get("text").asText().toLowerCase();
+        assertTrue(errorText.contains("sql error") || errorText.contains("table"));
+
+        // Test invalid method - should be JSON-RPC protocol error
         String invalidMethodRequest = """
-            {
-                "jsonrpc": "2.0",
-                "id": "error-2",
-                "method": "nonexistent/method",
-                "params": {}
-            }
-            """;
-        
+        {
+            "jsonrpc": "2.0",
+            "id": "error-2",
+            "method": "nonexistent/method",
+            "params": {}
+        }
+        """;
+
         response = sendMcpRequest(invalidMethodRequest);
         assertEquals(200, response.statusCode());
-        
+
         jsonResponse = objectMapper.readTree(response.body());
         assertEquals("error-2", jsonResponse.get("id").asText());
         assertTrue(jsonResponse.has("error"));
-        
-        error = jsonResponse.get("error");
+        assertFalse(jsonResponse.has("result"));
+
+        JsonNode error = jsonResponse.get("error");
         assertEquals(-32601, error.get("code").asInt()); // Method not found
         assertTrue(error.get("message").asText().contains("Method not found"));
-        
-        // Test empty SQL
+
+        // Test empty SQL - should be JSON-RPC parameter validation error
         String emptySqlRequest = """
-            {
-                "jsonrpc": "2.0",
-                "id": "error-3",
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "",
-                        "maxRows": 100
-                    }
+        {
+            "jsonrpc": "2.0",
+            "id": "error-3",
+            "method": "tools/call",
+            "params": {
+                "name": "query",
+                "arguments": {
+                    "sql": "",
+                    "maxRows": 100
                 }
             }
-            """;
-        
+        }
+        """;
+
         response = sendMcpRequest(emptySqlRequest);
         assertEquals(200, response.statusCode());
-        
+
         jsonResponse = objectMapper.readTree(response.body());
         assertEquals("error-3", jsonResponse.get("id").asText());
         assertTrue(jsonResponse.has("error"));
-        
+        assertFalse(jsonResponse.has("result"));
+
         error = jsonResponse.get("error");
+        assertEquals(-32602, error.get("code").asInt()); // Invalid params
         assertTrue(error.get("message").asText().contains("SQL query cannot be empty"));
+
+        // Test missing required parameter - should be JSON-RPC parameter validation error
+        String missingSqlRequest = """
+        {
+            "jsonrpc": "2.0",
+            "id": "error-4",
+            "method": "tools/call",
+            "params": {
+                "name": "query",
+                "arguments": {
+                    "maxRows": 100
+                }
+            }
+        }
+        """;
+
+        response = sendMcpRequest(missingSqlRequest);
+        assertEquals(200, response.statusCode());
+
+        jsonResponse = objectMapper.readTree(response.body());
+        assertEquals("error-4", jsonResponse.get("id").asText());
+        assertTrue(jsonResponse.has("error"));
+
+        error = jsonResponse.get("error");
+        assertEquals(-32602, error.get("code").asInt()); // Invalid params
+        assertTrue(error.get("message").asText().contains("SQL query cannot be null"));
+
+        // Test unknown tool - should be JSON-RPC parameter validation error
+        String unknownToolRequest = """
+        {
+            "jsonrpc": "2.0",
+            "id": "error-5",
+            "method": "tools/call",
+            "params": {
+                "name": "unknown_tool",
+                "arguments": {
+                    "param": "value"
+                }
+            }
+        }
+        """;
+
+        response = sendMcpRequest(unknownToolRequest);
+        assertEquals(200, response.statusCode());
+
+        jsonResponse = objectMapper.readTree(response.body());
+        assertEquals("error-5", jsonResponse.get("id").asText());
+        assertTrue(jsonResponse.has("error"));
+
+        error = jsonResponse.get("error");
+        assertEquals(-32602, error.get("code").asInt()); // Invalid params
+        assertTrue(error.get("message").asText().contains("Unknown tool"));
     }
-    
+
     @Test
-    @Order(4)
+    @Order(6)
     void testNotificationHandling() throws Exception {
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
         // Send notification (no id field) - should get 204 response
         String notificationRequest = """
             {
@@ -406,11 +615,11 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         HttpResponse<String> response = sendMcpRequest(notificationRequest);
         assertEquals(204, response.statusCode());
         assertTrue(response.body().isEmpty());
-        
+
         // Send notification with error - should still get 204
         String errorNotificationRequest = """
             {
@@ -419,15 +628,18 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         response = sendMcpRequest(errorNotificationRequest);
         assertEquals(204, response.statusCode());
         assertTrue(response.body().isEmpty());
     }
-    
+
     @Test
-    @Order(5)
+    @Order(7)
     void testDifferentIdTypes() throws Exception {
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
         // Test with numeric ID
         String numericIdRequest = """
             {
@@ -437,13 +649,13 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         HttpResponse<String> response = sendMcpRequest(numericIdRequest);
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals(42, jsonResponse.get("id").asInt());
-        
+
         // Test with string ID
         String stringIdRequest = """
             {
@@ -453,13 +665,13 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         response = sendMcpRequest(stringIdRequest);
         assertEquals(200, response.statusCode());
-        
+
         jsonResponse = objectMapper.readTree(response.body());
         assertEquals("my-string-id", jsonResponse.get("id").asText());
-        
+
         // Test with null ID
         String nullIdRequest = """
             {
@@ -469,13 +681,13 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         response = sendMcpRequest(nullIdRequest);
         assertEquals(200, response.statusCode());
-        
+
         jsonResponse = objectMapper.readTree(response.body());
         assertTrue(jsonResponse.get("id").isNull());
-        
+
         // Test with complex ID (object)
         String complexIdRequest = """
             {
@@ -485,20 +697,23 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         response = sendMcpRequest(complexIdRequest);
         assertEquals(200, response.statusCode());
-        
+
         jsonResponse = objectMapper.readTree(response.body());
         JsonNode responseId = jsonResponse.get("id");
         assertTrue(responseId.isObject());
         assertEquals("complex", responseId.get("requestId").asText());
         assertEquals(123456789, responseId.get("timestamp").asLong());
     }
-    
+
     @Test
-    @Order(6)
+    @Order(8)
     void testQueryWithMaxRows() throws Exception {
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
         // First, insert more test data
         String insertMoreDataRequest = """
             {
@@ -514,10 +729,10 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> insertResponse = sendMcpRequest(insertMoreDataRequest);
         assertEquals(200, insertResponse.statusCode());
-        
+
         // Query with maxRows limit
         String limitedQueryRequest = """
             {
@@ -533,32 +748,35 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> queryResponse = sendMcpRequest(limitedQueryRequest);
         assertEquals(200, queryResponse.statusCode());
-        
+
         JsonNode queryJson = objectMapper.readTree(queryResponse.body());
         assertEquals("limited-query", queryJson.get("id").asText());
         assertTrue(queryJson.has("result"));
-        
+
         JsonNode content = queryJson.get("result").get("content").get(0);
         String resultText = content.get("text").asText();
-        
+
         // Should contain row count information
         assertTrue(resultText.contains("Rows returned: 3"));
-        
+
         // Should contain the first 3 users
         assertTrue(resultText.contains("Test User 1"));
         assertTrue(resultText.contains("Test User 2"));
         assertTrue(resultText.contains("Test User 3"));
-        
+
         // Should NOT contain users 4 and beyond (due to maxRows limit)
         assertFalse(resultText.contains("User 4"));
     }
-    
+
     @Test
-    @Order(7)
+    @Order(9)
     void testInvalidResourceRead() throws Exception {
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
         String invalidResourceRequest = """
             {
                 "jsonrpc": "2.0",
@@ -569,21 +787,24 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> response = sendMcpRequest(invalidResourceRequest);
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals("invalid-resource", jsonResponse.get("id").asText());
         assertTrue(jsonResponse.has("error"));
-        
+
         JsonNode error = jsonResponse.get("error");
         assertTrue(error.get("message").asText().contains("Resource not found"));
     }
-    
+
     @Test
-    @Order(8)
+    @Order(10)
     void testLongRunningQuery() throws Exception {
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
         // Test a query that takes some time (create and populate a larger table)
         String createLargeTableRequest = """
             {
@@ -599,30 +820,33 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         long startTime = System.currentTimeMillis();
         HttpResponse<String> response = sendMcpRequest(createLargeTableRequest);
         long endTime = System.currentTimeMillis();
-        
+
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals("create-large", jsonResponse.get("id").asText());
         assertTrue(jsonResponse.has("result"));
-        
+
         // Verify execution time is reported
         JsonNode content = jsonResponse.get("result").get("content").get(0);
         String resultText = content.get("text").asText();
         assertTrue(resultText.contains("Execution time:"));
         assertTrue(resultText.contains("ms"));
-        
+
         // Verify the query actually took some measurable time
         assertTrue(endTime - startTime > 0);
     }
-    
+
     @Test
-    @Order(9)
+    @Order(11)
     void testDatabaseInfoResource() throws Exception {
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
         String dbInfoRequest = """
             {
                 "jsonrpc": "2.0",
@@ -633,18 +857,18 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> response = sendMcpRequest(dbInfoRequest);
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals("db-info", jsonResponse.get("id").asText());
         assertTrue(jsonResponse.has("result"));
-        
+
         JsonNode contents = jsonResponse.get("result").get("contents");
         assertTrue(contents.isArray());
         assertTrue(contents.size() > 0);
-        
+
         String dbInfo = contents.get(0).get("text").asText();
         assertTrue(dbInfo.contains("Database Information"));
         assertTrue(dbInfo.contains("Product: H2"));
@@ -652,10 +876,13 @@ class HttpIntegrationTest {
         assertTrue(dbInfo.contains("URL:"));
         assertTrue(dbInfo.contains("Username:"));
     }
-    
+
     @Test
-    @Order(10)
+    @Order(12)
     void testCleanupAndResourceVerification() throws Exception {
+        // Ensure MCP is initialized
+        initializeMcpServer();
+
         // Drop the test tables
         String dropTableRequest = """
             {
@@ -671,14 +898,14 @@ class HttpIntegrationTest {
                 }
             }
             """;
-        
+
         HttpResponse<String> response = sendMcpRequest(dropTableRequest);
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals("cleanup", jsonResponse.get("id").asText());
         assertTrue(jsonResponse.has("result"));
-        
+
         // Verify tables are gone by listing resources
         String listResourcesRequest = """
             {
@@ -688,17 +915,17 @@ class HttpIntegrationTest {
                 "params": {}
             }
             """;
-        
+
         response = sendMcpRequest(listResourcesRequest);
         assertEquals(200, response.statusCode());
-        
+
         jsonResponse = objectMapper.readTree(response.body());
         JsonNode resources = jsonResponse.get("result").get("resources");
-        
+
         // Check that our test tables are no longer in the resources
         boolean foundIntegrationTest = false;
         boolean foundLargeTest = false;
-        
+
         for (JsonNode resource : resources) {
             String uri = resource.get("uri").asText();
             if (uri.contains("INTEGRATION_TEST")) {
@@ -708,7 +935,7 @@ class HttpIntegrationTest {
                 foundLargeTest = true;
             }
         }
-        
+
         assertFalse(foundIntegrationTest, "Integration test table should be removed");
         assertFalse(foundLargeTest, "Large test table should be removed");
     }

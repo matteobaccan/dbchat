@@ -117,6 +117,7 @@ class McpServerEdgeCaseTest {
 
         when(mockConfig.maxRowsLimit()).thenReturn(1000);
         when(mockConfig.maxSqlLength()).thenReturn(10000);
+        when(mockConfig.getDatabaseType()).thenReturn("h2");
         when(mockService.getDatabaseConfig()).thenReturn(mockConfig);
         when(mockService.executeQuery("SELECT * FROM test", 500)).thenReturn(result);
         McpServer server = createMcpServer(mockService);

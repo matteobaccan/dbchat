@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified MCP Protocol Test Script
+MCP Protocol Test Script
 Tests both stdio and HTTP modes for the Database MCP Server
 Includes comprehensive protocol compliance testing and comparison
 """
@@ -13,6 +13,7 @@ import os
 import signal
 import socket
 import platform
+import glob
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -56,18 +57,19 @@ class ModeResults:
     test_cases: List[TestCase]
     success_rate: float
 
-class UnifiedMCPTester:
+class MCPTester:
     def __init__(self, jar_path: str, java_path: str = "java", port: int = 8080):
         self.jar_path = jar_path
         self.java_path = java_path
         self.port = port
         self.server_process = None
         self.test_cases = []
+        self.is_initialized = False
 
     def print_header(self):
         """Print test header with system information"""
         print("=" * 70)
-        print("UNIFIED MCP PROTOCOL TEST SUITE")
+        print("MCP PROTOCOL TEST SUITE")
         print("=" * 70)
         print(f"Platform: {platform.system()} {platform.release()}")
         print(f"Python: {sys.version.split()[0]}")
@@ -268,6 +270,13 @@ class UnifiedMCPTester:
 
             stdout, stderr = process.communicate(input=input_line, timeout=30)
 
+            # Check for process errors
+            if process.returncode != 0:
+                print(f"Server process failed with return code {process.returncode}")
+                if stderr:
+                    print(f"Server error: {stderr}")
+                return None
+
             if not stdout.strip():
                 return None
 
@@ -284,9 +293,58 @@ class UnifiedMCPTester:
         else:
             return self.send_stdio_request(request)
 
+    def send_stdio_session_requests(self, requests: List[Dict[str, Any]]) -> List[Optional[Dict[str, Any]]]:
+        """Send multiple MCP requests via stdio in a single session"""
+        try:
+            env = self.setup_environment(TransportMode.STDIO)
+            cmd = [self.java_path, "-jar", self.jar_path]
+
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env
+            )
+
+            responses = []
+
+            for request in requests:
+                input_line = json.dumps(request) + "\n"
+                process.stdin.write(input_line)
+                process.stdin.flush()
+
+                # For notifications, don't expect a response
+                if "id" not in request:
+                    responses.append(None)
+                    continue
+
+                # Read response
+                try:
+                    output_line = process.stdout.readline()
+                    if output_line.strip():
+                        response = json.loads(output_line.strip())
+                        responses.append(response)
+                    else:
+                        responses.append(None)
+                except json.JSONDecodeError:
+                    responses.append(None)
+
+            # Close stdin to signal end of input
+            process.stdin.close()
+            process.wait(timeout=5)
+
+            return responses
+
+        except Exception as e:
+            print(f"Stdio session failed: {e}")
+            return [None] * len(requests)
+
     def create_test_cases(self) -> List[TestCase]:
-        """Create comprehensive test cases"""
+        """Create comprehensive test cases in proper MCP lifecycle order"""
         return [
+            # Step 1: Initialize the protocol
             TestCase(
                 name="Initialize Protocol",
                 request={
@@ -294,13 +352,30 @@ class UnifiedMCPTester:
                     "id": 1,
                     "method": "initialize",
                     "params": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {},
+                        "protocolVersion": "2025-03-26",  # Updated to current version
+                        "capabilities": {
+                            "tools": {},
+                            "resources": {}
+                        },
                         "clientInfo": {"name": "test-client", "version": "1.0.0"}
                     }
                 },
-                expected_fields=["jsonrpc", "id", "result"]
+                expected_fields=["jsonrpc", "id", "result", "result.protocolVersion", "result.capabilities", "result.serverInfo"]
             ),
+
+            # Step 2: Send initialized notification
+            TestCase(
+                name="Send Initialized Notification",
+                request={
+                    "jsonrpc": "2.0",
+                    "method": "notifications/initialized"
+                },
+                expected_fields=[],
+                is_notification=True,
+                should_have_response=False
+            ),
+
+            # Step 3: Now we can use other methods
             TestCase(
                 name="List Tools",
                 request={
@@ -347,21 +422,8 @@ class UnifiedMCPTester:
                 },
                 expected_fields=["jsonrpc", "id", "result", "result.contents"]
             ),
-            TestCase(
-                name="Notification Test (No Response Expected)",
-                request={
-                    "jsonrpc": "2.0",
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {},
-                        "clientInfo": {"name": "test-client", "version": "1.0.0"}
-                    }
-                },
-                expected_fields=[],
-                is_notification=True,
-                should_have_response=False
-            ),
+
+            # Error tests
             TestCase(
                 name="Error Test - Invalid Method",
                 request={
@@ -385,6 +447,8 @@ class UnifiedMCPTester:
                 },
                 expected_fields=["jsonrpc", "id", "error", "error.code", "error.message"]
             ),
+
+            # ID format tests
             TestCase(
                 name="ID Test - Null ID",
                 request={
@@ -529,7 +593,7 @@ class UnifiedMCPTester:
             print("Install with: pip install requests")
             return ModeResults(mode, 0, 0, 0, 0, [], 0.0)
 
-        # Pre-flight checks
+        # Pre-flight checks for HTTP
         if mode == TransportMode.HTTP:
             if not self.check_port_availability():
                 return ModeResults(mode, 0, 0, 0, 1, [], 0.0)
@@ -554,23 +618,47 @@ class UnifiedMCPTester:
             print(f"\nRunning {len(test_cases)} test cases...")
             print("-" * 40)
 
-            for i, test_case in enumerate(test_cases, 1):
-                print(f"Test {i:2d}: {test_case.name}...", end=" ")
+            if mode == TransportMode.STDIO:
+                # For stdio, run all requests in a single session to maintain state
+                requests = [tc.request for tc in test_cases]
+                responses = self.send_stdio_session_requests(requests)
 
-                result = self.run_test_case(test_case, mode)
-                results.append(result)
+                for i, (test_case, response) in enumerate(zip(test_cases, responses), 1):
+                    print(f"Test {i:2d}: {test_case.name}...", end=" ")
 
-                if result.result == TestResult.PASS:
-                    passed += 1
-                    print(f"✅ PASS ({result.execution_time:.2f}s)")
-                elif result.result == TestResult.FAIL:
-                    failed += 1
-                    print(f"❌ FAIL ({result.execution_time:.2f}s)")
-                    print(f"    Error: {result.error_message}")
-                else:
-                    errors += 1
-                    print(f"🔥 ERROR ({result.execution_time:.2f}s)")
-                    print(f"    Error: {result.error_message}")
+                    result = self.validate_test_response(test_case, response)
+                    results.append(result)
+
+                    if result.result == TestResult.PASS:
+                        passed += 1
+                        print(f"✅ PASS ({result.execution_time:.2f}s)")
+                    elif result.result == TestResult.FAIL:
+                        failed += 1
+                        print(f"❌ FAIL ({result.execution_time:.2f}s)")
+                        print(f"    Error: {result.error_message}")
+                    else:
+                        errors += 1
+                        print(f"🔥 ERROR ({result.execution_time:.2f}s)")
+                        print(f"    Error: {result.error_message}")
+            else:
+                # For HTTP, run each test individually (server maintains state)
+                for i, test_case in enumerate(test_cases, 1):
+                    print(f"Test {i:2d}: {test_case.name}...", end=" ")
+
+                    result = self.run_test_case(test_case, mode)
+                    results.append(result)
+
+                    if result.result == TestResult.PASS:
+                        passed += 1
+                        print(f"✅ PASS ({result.execution_time:.2f}s)")
+                    elif result.result == TestResult.FAIL:
+                        failed += 1
+                        print(f"❌ FAIL ({result.execution_time:.2f}s)")
+                        print(f"    Error: {result.error_message}")
+                    else:
+                        errors += 1
+                        print(f"🔥 ERROR ({result.execution_time:.2f}s)")
+                        print(f"    Error: {result.error_message}")
 
             success_rate = (passed / len(test_cases)) * 100 if test_cases else 0
             return ModeResults(mode, len(test_cases), passed, failed, errors, results, success_rate)
@@ -578,6 +666,51 @@ class UnifiedMCPTester:
         finally:
             if mode == TransportMode.HTTP:
                 self.stop_http_server()
+
+    def validate_test_response(self, test_case: TestCase, response: Optional[Dict[str, Any]]) -> TestCase:
+        """Validate a test response and return result"""
+        result_case = TestCase(
+            name=test_case.name,
+            request=test_case.request,
+            expected_fields=test_case.expected_fields,
+            is_notification=test_case.is_notification,
+            should_have_response=test_case.should_have_response
+        )
+
+        # Handle notifications (should have NO response)
+        if test_case.is_notification and not test_case.should_have_response:
+            if response is None:
+                result_case.result = TestResult.PASS
+                result_case.response = None
+                return result_case
+            else:
+                result_case.result = TestResult.FAIL
+                result_case.error_message = f"Unexpected response for notification"
+                result_case.response = response
+                return result_case
+
+        # Handle regular requests (should have response)
+        if response is None:
+            result_case.result = TestResult.ERROR
+            result_case.error_message = "No response from server"
+            return result_case
+
+        result_case.response = response
+
+        # Validate response
+        errors = []
+        expected_id = test_case.request.get("id") if "id" in test_case.request else None
+
+        errors.extend(self.validate_json_rpc(response, expected_id))
+        errors.extend(self.validate_expected_fields(response, test_case.expected_fields))
+
+        if errors:
+            result_case.result = TestResult.FAIL
+            result_case.error_message = "; ".join(errors)
+        else:
+            result_case.result = TestResult.PASS
+
+        return result_case
 
     def print_mode_summary(self, results: ModeResults):
         """Print summary for a specific mode"""
@@ -659,49 +792,58 @@ class UnifiedMCPTester:
 
 def main():
     """Main function with comprehensive argument parsing"""
-    if len(sys.argv) < 2:
-        print("Usage: python unified-mcp-test.py <jar_path> [options]")
-        print()
-        print("Options:")
-        print("  --mode <stdio|http|both>     Test mode (default: both)")
-        print("  --java <path>                Java executable path (default: java)")
-        print("  --port <number>              HTTP port for testing (default: 8080)")
-        print("  --help                       Show this help message")
-        print()
-        print("Examples:")
-        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar")
-        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar --mode stdio")
-        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar --mode http --port 9090")
-        print("  python unified-mcp-test.py target/dbmcp-1.0.0.jar --java /path/to/java")
-        sys.exit(1)
 
-    # Parse arguments
-    jar_path = sys.argv[1]
+    jar_path = None
     mode = TransportMode.BOTH
     java_path = "java"
     port = 8080
 
-    i = 2
-    while i < len(sys.argv):
-        arg = sys.argv[i]
+    # Parse args, allowing jar_path to be optional
+    args = sys.argv[1:]
+    if args and not args[0].startswith("--"):
+        jar_path = args[0]
+        args = args[1:]
+    else:
+        jars = sorted(glob.glob("target/dbmcp-*.jar"), key=os.path.getmtime, reverse=True)
+        if jars:
+            jar_path = jars[0]
+            print(f"Auto-detected JAR: {jar_path}")
+        else:
+            print("Error: No dbmcp JAR found in target/. Please run 'mvn clean package'.")
+            sys.exit(1)
+
+    i = 0
+    while i < len(args):
+        arg = args[i]
         if arg == "--help":
-            main()  # This will print help and exit
-        elif arg == "--mode" and i + 1 < len(sys.argv):
+            print("Usage: python test-mcp-protocol.py [jar_path] [options]")
+            print()
+            print("Options:")
+            print("  --mode <stdio|http|both>     Test mode (default: both)")
+            print("  --java <path>                Java executable path (default: java)")
+            print("  --port <number>              HTTP port for testing (default: 8080)")
+            print("  --help                       Show this help message")
+            print()
+            print("Examples:")
+            print("  python test-mcp-protocol.py target/dbmcp-2.0.0.jar")
+            print("  python test-mcp-protocol.py --mode http --port 9090")
+            sys.exit(0)
+        elif arg == "--mode" and i + 1 < len(args):
             try:
-                mode_str = sys.argv[i + 1].lower()
+                mode_str = args[i + 1].lower()
                 mode = TransportMode(mode_str) if mode_str != "both" else TransportMode.BOTH
             except ValueError:
-                print(f"Invalid mode: {sys.argv[i + 1]}. Use stdio, http, or both")
+                print(f"Invalid mode: {args[i + 1]}. Use stdio, http, or both")
                 sys.exit(1)
             i += 2
-        elif arg == "--java" and i + 1 < len(sys.argv):
-            java_path = sys.argv[i + 1]
+        elif arg == "--java" and i + 1 < len(args):
+            java_path = args[i + 1]
             i += 2
-        elif arg == "--port" and i + 1 < len(sys.argv):
+        elif arg == "--port" and i + 1 < len(args):
             try:
-                port = int(sys.argv[i + 1])
+                port = int(args[i + 1])
             except ValueError:
-                print(f"Invalid port: {sys.argv[i + 1]}")
+                print(f"Invalid port: {args[i + 1]}")
                 sys.exit(1)
             i += 2
         else:
@@ -722,7 +864,7 @@ def main():
             sys.exit(1)
 
     # Create tester and run tests
-    tester = UnifiedMCPTester(jar_path=jar_path, java_path=java_path, port=port)
+    tester = MCPTester(jar_path=jar_path, java_path=java_path, port=port)
 
     # Handle Ctrl+C gracefully
     def signal_handler(sig, frame):

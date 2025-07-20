@@ -1,5 +1,8 @@
 package com.skanga.mcp;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
@@ -9,6 +12,8 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test utilities and configuration for database MCP server tests
@@ -198,6 +203,41 @@ public class TestUtils {
             conn.commit();
             conn.setAutoCommit(true);
         }
+    }
+
+    /**
+     * Helper method to initialize the server for tests
+     */
+    public static void initializeServer(McpServer mcpServer, ObjectMapper objectMapper) {
+        // Step 1: Send initialize request
+        ObjectNode initRequest = objectMapper.createObjectNode();
+        initRequest.put("id", 1);
+        initRequest.put("method", "initialize");
+
+        ObjectNode initParams = objectMapper.createObjectNode();
+        initParams.put("protocolVersion", "2025-03-26");
+        ObjectNode capabilities = objectMapper.createObjectNode();
+        ObjectNode toolsCap = objectMapper.createObjectNode();
+        toolsCap.put("listChanged", false);
+        capabilities.set("tools", toolsCap);
+        ObjectNode resourcesCap = objectMapper.createObjectNode();
+        resourcesCap.put("subscribe", false);
+        resourcesCap.put("listChanged", false);
+        capabilities.set("resources", resourcesCap);
+        initParams.set("capabilities", capabilities);
+        initRequest.set("params", initParams);
+
+        JsonNode initResponse = mcpServer.handleRequest(initRequest);
+        assertNotNull(initResponse);
+        assertTrue(initResponse.has("result"));
+
+        // Step 2: Send initialized notification
+        ObjectNode initializedRequest = objectMapper.createObjectNode();
+        initializedRequest.put("method", "notifications/initialized");
+        // No id field for notifications
+
+        JsonNode initializedResponse = mcpServer.handleRequest(initializedRequest);
+        assertNull(initializedResponse); // Notifications don't return responses
     }
 
     /**

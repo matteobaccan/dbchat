@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -48,10 +49,11 @@ class HttpModeTest {
         lenient().when(mockConfigParams.dbUser()).thenReturn("sa");
         lenient().when(mockConfigParams.dbPass()).thenReturn("");
         lenient().when(mockConfigParams.dbDriver()).thenReturn("org.h2.Driver");
-        lenient().when(mockConfigParams.maxRowsLimit()).thenReturn(1000);
+        lenient().when(mockConfigParams.maxRowsLimit()).thenReturn(10000);
         lenient().when(mockConfigParams.maxSqlLength()).thenReturn(10000);
         lenient().when(mockConfigParams.queryTimeoutSeconds()).thenReturn(30);
         lenient().when(mockConfigParams.selectOnly()).thenReturn(true);
+        lenient().when(mockConfigParams.getDatabaseType()).thenReturn("h2");
         lenient().when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockConfigParams);
 
         // Create server with mocked database service
@@ -213,7 +215,7 @@ class HttpModeTest {
                 "id": 1,
                 "method": "initialize",
                 "params": {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": "2025-03-26",
                     "capabilities": {},
                     "clientInfo": {
                         "name": "test-client",
@@ -234,66 +236,87 @@ class HttpModeTest {
         assertTrue(jsonResponse.has("result"));
         
         JsonNode result = jsonResponse.get("result");
-        assertEquals("2024-11-05", result.get("protocolVersion").asText());
+        assertEquals("2025-03-26", result.get("protocolVersion").asText());
         assertTrue(result.has("capabilities"));
         assertTrue(result.has("serverInfo"));
     }
-    
+
     @Test
     void testListToolsRequest() throws Exception {
         startHttpServer();
-        
+
+        // Ensure the database config is properly mocked for tool description
+        when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockConfigParams);
+        when(mockConfigParams.maxRowsLimit()).thenReturn(10000); // Add this mock
+
+        // Initialize the MCP server ONCE before concurrent requests
+        initializeMcpServer();
+
         String listToolsRequest = """
-            {
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/list",
-                "params": {}
-            }
-            """;
-        
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {}
+        }
+        """;
+
         HttpResponse<String> response = sendMcpRequest(listToolsRequest);
-        
+
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals("2.0", jsonResponse.get("jsonrpc").asText());
         assertEquals(2, jsonResponse.get("id").asInt());
         assertTrue(jsonResponse.has("result"));
-        
+
         JsonNode result = jsonResponse.get("result");
         assertTrue(result.has("tools"));
         assertTrue(result.get("tools").isArray());
-        assertTrue(result.get("tools").size() > 0);
-        
-        // Check that query tool exists
+
         JsonNode tools = result.get("tools");
+        assertTrue(tools.size() > 0, "Should have at least one tool");
+
+        // Check that query tool exists
         boolean hasQueryTool = false;
         for (JsonNode tool : tools) {
             if ("query".equals(tool.get("name").asText())) {
                 hasQueryTool = true;
                 assertTrue(tool.has("description"));
                 assertTrue(tool.has("inputSchema"));
+
+                // Verify the tool structure
+                assertTrue(tool.get("description").asText().contains("SQL"));
+
+                JsonNode inputSchema = tool.get("inputSchema");
+                assertTrue(inputSchema.has("type"));
+                assertEquals("object", inputSchema.get("type").asText());
+                assertTrue(inputSchema.has("properties"));
+                assertTrue(inputSchema.get("properties").has("sql"));
+
                 break;
             }
         }
-        assertTrue(hasQueryTool, "Query tool should be present");
+        assertTrue(hasQueryTool, "Query tool should be present in tools list");
     }
-    
+
     @Test
     void testQueryToolExecution() throws Exception {
         startHttpServer();
-        
+
         // Mock database service response
         QueryResult mockResult = new QueryResult(
-                java.util.List.of("test_column"),
-                java.util.List.of(java.util.List.of("test_value")),
+                List.of("test_column"),
+                List.of(List.of("test_value")),
                 1,
                 50L
         );
         when(mockDatabaseService.executeQuery(any(), any(Integer.class))).thenReturn(mockResult);
         when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockConfigParams);
-        
+
+        // Initialize the MCP server
+        initializeMcpServer();
+
         String queryRequest = """
             {
                 "jsonrpc": "2.0",
@@ -378,7 +401,9 @@ class HttpModeTest {
                 "params": {}
             }
             """;
-        
+        // Initialize the MCP server ONCE before concurrent requests
+        initializeMcpServer();
+
         HttpResponse<String> response = sendMcpRequest(invalidMethodRequest);
         
         assertEquals(200, response.statusCode());
@@ -392,45 +417,63 @@ class HttpModeTest {
         assertEquals(-32601, error.get("code").asInt()); // Method not found
         assertTrue(error.get("message").asText().contains("Method not found"));
     }
-    
+
     @Test
     void testDatabaseErrorHandling() throws Exception {
         startHttpServer();
-        
+
         // Mock database service to throw exception
         when(mockDatabaseService.executeQuery(any(), any(Integer.class)))
                 .thenThrow(new SQLException("Database connection failed"));
         when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockConfigParams);
-        
+        when(mockConfigParams.getDatabaseType()).thenReturn("h2");
+
         String queryRequest = """
-            {
-                "jsonrpc": "2.0",
-                "id": 5,
-                "method": "tools/call",
-                "params": {
-                    "name": "query",
-                    "arguments": {
-                        "sql": "SELECT 1",
-                        "maxRows": 10
-                    }
+        {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {
+                "name": "query",
+                "arguments": {
+                    "sql": "SELECT 1",
+                    "maxRows": 10
                 }
             }
-            """;
-        
+        }
+        """;
+        // Initialize the MCP server ONCE before concurrent requests
+        initializeMcpServer();
+
         HttpResponse<String> response = sendMcpRequest(queryRequest);
-        
+
         assertEquals(200, response.statusCode());
-        
+
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertEquals("2.0", jsonResponse.get("jsonrpc").asText());
         assertEquals(5, jsonResponse.get("id").asInt());
-        assertTrue(jsonResponse.has("error"));
-        
-        JsonNode error = jsonResponse.get("error");
-        assertEquals(-32000, error.get("code").asInt()); // Database error
-        assertTrue(error.get("message").asText().contains("Database error"));
+
+        // Should be successful MCP response with tool error (MCP spec compliance)
+        assertTrue(jsonResponse.has("result"));
+        assertFalse(jsonResponse.has("error"));
+
+        JsonNode result = jsonResponse.get("result");
+        assertTrue(result.get("isError").asBoolean());
+        assertTrue(result.has("content"));
+
+        // Verify error content
+        JsonNode content = result.get("content");
+        assertTrue(content.isArray());
+        assertTrue(content.size() > 0);
+
+        JsonNode textContent = content.get(0);
+        assertEquals("text", textContent.get("type").asText());
+
+        String errorText = textContent.get("text").asText();
+        assertTrue(errorText.contains("SQL Error"));
+        assertTrue(errorText.contains("Database connection failed"));
     }
-    
+
     @Test
     void testIdHandling() throws Exception {
         startHttpServer();
@@ -489,7 +532,10 @@ class HttpModeTest {
         );
         when(mockDatabaseService.executeQuery(any(), any(Integer.class))).thenReturn(mockResult);
         when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockConfigParams);
-        
+
+        // Initialize the MCP server ONCE before concurrent requests
+        initializeMcpServer();
+
         // Send multiple concurrent requests
         int numRequests = 5;
         Thread[] threads = new Thread[numRequests];
@@ -578,5 +624,44 @@ class HttpModeTest {
                     .build();
             httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         }, "Should throw IOException when server is stopped");
+    }
+
+    /**
+     * Helper method to initialize the MCP server for testing
+     */
+    private void initializeMcpServer() throws Exception {
+        // Send initialize request
+        String initializeRequest = """
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {
+                    "tools": {},
+                    "resources": {}
+                },
+                "clientInfo": {
+                    "name": "TestClient",
+                    "version": "1.0.0"
+                }
+            }
+        }
+        """;
+
+        HttpResponse<String> initResponse = sendMcpRequest(initializeRequest);
+        assertEquals(200, initResponse.statusCode());
+
+        // Send initialized notification
+        String initializedNotification = """
+        {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        }
+        """;
+
+        HttpResponse<String> notificationResponse = sendMcpRequest(initializedNotification);
+        assertEquals(204, notificationResponse.statusCode());
     }
 }

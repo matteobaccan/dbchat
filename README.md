@@ -1,181 +1,175 @@
-# DBMCP - MCP Server for Databases
+# DBMCP - Talk to Your Database using AI
 
-An MCP (Model Context Protocol) server for database operations using Java, Maven, and JDBC. Supports almost every database type and integrates seamlessly with Claude Desktop for natural language database interactions.
+Transform your database into an intelligent conversational partner. Ask questions in plain English, get instant answers, and create beautiful visualizations - all through Claude Desktop.
 
-## 🌟 Features
+## 🌟 What is DBMCP?
 
-- **Natural language interface**: Ask your databases a question in English. Have a conversation with your tables.
-- **Multi-database support**: Works with any JDBC-compatible database
-- **Data visualization**: Generate charts, graphs and ER diagrams from database data
-- **Dual transport modes**: stdio (standard) and HTTP modes for flexible deployment
-- **MCP Protocol compliant**: Implements listResources, readResource, listTools, and callTool
-- **Query execution**: Executes SQL queries with well formatted, tabular results
-- **Resource discovery**: Browse database structure (tables, views, schemas)
-- **Metadata access**: Detailed information about database objects
-- **Connection pooling**: HikariCP-based connection management
-- **Security controls**: Read-only mode, query validation, and limits
-- **Error handling**: Comprehensive error reporting and logging
-- **Health monitoring**: Built-in health check endpoint (HTTP mode)
-- **CORS support**: Ready for browser-based applications (HTTP mode)
+DBMCP is a bridge that connects any MCP client like Claude Desktop to your database, enabling natural language database interactions. Instead of writing SQL queries, simply ask Claude questions about your data and get instant, intelligent responses.
+
+**Before DBMCP:**
+```sql
+SELECT c.name, COUNT(o.id) as order_count, SUM(o.total) as revenue 
+FROM customers c 
+LEFT JOIN orders o ON c.id = o.customer_id 
+WHERE o.created_at >= '2024-01-01' 
+GROUP BY c.id, c.name 
+ORDER BY revenue DESC 
+LIMIT 10;
+```
+
+**With DBMCP:**
+```
+"Show me our top 10 customers by revenue this year"
+```
+
+## 🎯 Why Use DBMCP?
+
+### 🗣️ Natural Language Database Queries
+- **Ask questions in plain English**: "How many customers signed up last month?"
+- **Get conversational responses**: Claude explains the data and provides insights
+- **No SQL knowledge required**: Perfect for business users and analysts
+
+### 📊 Instant Data Visualizations
+- **Automatic chart creation**: Claude generates beautiful charts from your data
+- **Multiple chart types**: Line charts, bar charts, pie charts, scatter plots, and more
+- **Interactive insights**: Drill down into your data with follow-up questions
+
+### 🔍 Smart Data Exploration
+- **Database discovery**: "What tables do we have?" "Show me the customer table structure"
+- **Relationship understanding**: Claude explains how your tables connect
+- **Data quality insights**: Find duplicates, missing data, and anomalies
+
+### 💼 Business Intelligence Made Easy
+- **Executive dashboards**: "Create a sales summary for our board meeting"
+- **Trend analysis**: "Show me user growth over the past 6 months"
+- **Performance metrics**: "Which products are underperforming?"
 
 ## 🗃️ Supported Databases
 
-### Default (Always Included)
-- **H2** - In-memory and file-based database
-- **SQLite** - Lightweight file-based database
-- **PostgreSQL** - Advanced open-source database
-- **CSV File** - Query any directory or ZIP file containing [RFC 4180](https://tools.ietf.org/html/rfc4180)
-  compliant CSV or DBF files (needs extra config) to be accessed as though it were a database containing tables.
+DBMCP works with virtually any database through JDBC drivers:
 
-### Standard Databases (via `standard-databases` profile)
-- **MySQL** - Popular open-source database
-- **MariaDB** - MySQL-compatible database
-- **ClickHouse** - Column-oriented analytics database
-- **Apache Doris** - Use MySQL driver (it is 100% compatible with MySQL)
+### Popular Databases
+- **MySQL** / **MariaDB** - Web applications and e-commerce
+- **PostgreSQL** - Advanced applications and analytics
+- **SQLite** - Local applications and prototypes
+- **Oracle** - Enterprise applications
+- **SQL Server** - Microsoft environments
+- **H2** - Testing and development
 
-### Enterprise Databases (via `enterprise-databases` profile)
-- **Oracle** - Enterprise database system
-- **SQL Server** - Microsoft database system
-- **IBM DB2** - IBM enterprise database
-
-### Cloud Analytics (via `cloud-analytics` profile)
+### Analytics & Cloud
 - **Amazon Redshift** - AWS data warehouse
 - **Snowflake** - Cloud data platform
-- **Google BigQuery** - Google's analytics database
+- **Google BigQuery** - Google analytics
+- **ClickHouse** - Real-time analytics
 
-### Big Data (via `big-data` profile)
-- **Apache Hive** - Data warehouse software
-- **MongoDB** - Document database (experimental)
-- **Apache Cassandra** - NoSQL database
-- **Apache Spark SQL** - Unified analytics engine
+### Flat-file Based Data
+- **CSV Files** - Spreadsheet data and exports
+- **Excel Files** - Can be exported to CSV and queried
 
-**IMPORTANT NOTE:** All JDBC drivers are subject to their own individual licences. It is your responsibility to ensure that you are compliant with all driver licensing requirements.
+*See [INSTALL.md](INSTALL.md) for the complete list and build options.*
 
-## 🚀 Transport Modes
+## 🚀 Quick Start
 
-### stdio mode (Default)
-Standard MCP communication over stdin/stdout for Claude Desktop integration.
+### Step 1: Download
 
-```bash
-java -jar target/dbmcp-1.0.0.jar
+Download the latest release from [GitHub Releases](https://github.com/skanga/dbmcp/releases):
+- `dbmcp-2.0.0.jar` - Basic version (H2, SQLite, PostgreSQL, CSV)
+- `dbmcp-2.0.0-standard.jar` - With MySQL, MariaDB, ClickHouse
+- `dbmcp-2.0.0-enterprise.jar` - With Oracle, SQL Server, DB2
+- `dbmcp-2.0.0-full.jar` - All databases included (400MB+)
+
+NOTE: You can also build an efficient custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md)  for details
+
+IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you install. The DBMCP license does not cover any third party code or binaries.
+
+### Step 2: Install Claude Desktop (or any other MCP client)
+
+1. Download [Claude Desktop](https://claude.ai/download) (free)
+2. Sign in with your Claude account
+3. **Important**: MCP only works with Claude Desktop. The Claude website does not support MCP
+
+### Step 3: Set Up Your Database Connection
+
+Create a configuration file `dbmcp.conf`:
+
+```properties
+# Basic database connection
+DB_URL=jdbc:mysql://localhost:3306/your_database
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_DRIVER=com.mysql.cj.jdbc.Driver
+
+# Optional: Enable web interface
+HTTP_MODE=false
+HTTP_PORT=8080
 ```
 
-### HTTP mode
-HTTP REST API for web applications, testing, and remote access.
+**Popular Database Examples:**
 
-```bash
-# Start HTTP server on default port 8080
-java -jar target/dbmcp-1.0.0.jar --http_mode=true
-
-# Start on custom port
-java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
-
-# Or using environment variables
-export HTTP_MODE=true
-export HTTP_PORT=8080
-java -jar target/dbmcp-1.0.0.jar
+**MySQL:**
+```properties
+DB_URL=jdbc:mysql://localhost:3306/your_database
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_DRIVER=com.mysql.cj.jdbc.Driver
 ```
 
-#### HTTP Endpoints
-- `POST /mcp` - MCP JSON-RPC requests
-- `GET /health` - Health check and server status
-- `OPTIONS /mcp` - CORS preflight support
-
-#### HTTP Examples
-```bash
-# Health check
-curl http://localhost:8080/health
-
-# MCP request
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-
-# Initialize protocol
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "initialize",
-    "params": {
-      "protocolVersion": "2024-11-05",
-      "capabilities": {},
-      "clientInfo": {"name": "http-client", "version": "1.0.0"}
-    }
-  }'
+**PostgreSQL:**
+```properties
+DB_URL=jdbc:postgresql://localhost:5432/your_database
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_DRIVER=org.postgresql.Driver
 ```
 
-## 🚀 Quick Start (Please read [INSTALL.md](INSTALL.md) for more details)
-
-### 1. Build the Project
-```bash
-# Basic build (H2, SQLite, PostgreSQL)
-mvn clean package
-
-# With MySQL/MariaDB/ClickHouse support
-mvn clean package -P standard-databases
-
-# With enterprise database support
-mvn clean package -P standard-databases,enterprise-databases
+**SQLite:**
+```properties
+DB_URL=jdbc:sqlite:/path/to/your/database.db
+DB_USER=
+DB_PASSWORD=
+DB_DRIVER=org.sqlite.JDBC
 ```
 
-### 2. Configure Database Connection
-```bash
-# Use environment variables
-export DB_URL="jdbc:mysql://localhost:3306/mydb"
-export DB_USER="username"
-export DB_PASSWORD="password"
-export DB_DRIVER="com.mysql.cj.jdbc.Driver"
-java -jar target/dbmcp-1.0.0.jar
-
-# Or use system properties
-java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
-     -Ddb.user="username" \
-     -Ddb.password="password" \
-     -Ddb.driver="com.mysql.cj.jdbc.Driver" \
-     -jar target/dbmcp-1.0.0.jar
-
-# Or use command line arguments
-java -jar target/dbmcp-1.0.0.jar \
-     --db_url="jdbc:mysql://localhost:3306/mydb" \
-     --db_user="username" \
-     --db_password="password" \
-     --db_driver="com.mysql.cj.jdbc.Driver"
+**Testing with H2 (no setup required):**
+```properties
+DB_URL=jdbc:h2:mem:testdb
+DB_USER=sa
+DB_PASSWORD=
+DB_DRIVER=org.h2.Driver
 ```
 
-### 3. Run the Server
+### Step 4: Configure Claude Desktop
 
-#### For Claude Desktop (stdio mode)
-```bash
-java -jar target/dbmcp-1.0.0.jar
-```
-
-#### For HTTP/Web Applications
-```bash
-# Default port 8080
-java -jar target/dbmcp-1.0.0.jar --http_mode=true
-
-# Custom port
-java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=9090
-```
-
-### 4. Integration Options
-
-#### Claude Desktop Integration
-
-Add to your Claude Desktop configuration `claude_desktop_config.json`. You can add multiple databases if needed. Refer to [INSTALL.md](INSTALL.md) for more details:
+1. Open Claude Desktop
+2. Go to **Settings** → **Developer** → **Edit Config**
+3. Add your database server:
 
 ```json
 {
   "mcpServers": {
-    "database-server": {
+    "database": {
       "command": "java",
-      "args": ["-jar", "/absolute/path/to/target/dbmcp-1.0.0.jar"],
+      "args": [
+        "-jar", 
+        "/absolute/path/to/dbmcp-2.0.0.jar",
+        "--config_file=/absolute/path/to/dbmcp.conf"
+      ]
+    }
+  }
+}
+```
+
+**Alternative without config file:**
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "java",
+      "args": ["-jar", "/absolute/path/to/dbmcp-2.0.0.jar"],
       "env": {
-        "DB_URL": "jdbc:mysql://localhost:3306/mydb",
-        "DB_USER": "username",
-        "DB_PASSWORD": "password",
+        "DB_URL": "jdbc:mysql://localhost:3306/your_database",
+        "DB_USER": "your_username", 
+        "DB_PASSWORD": "your_password",
         "DB_DRIVER": "com.mysql.cj.jdbc.Driver"
       }
     }
@@ -183,470 +177,532 @@ Add to your Claude Desktop configuration `claude_desktop_config.json`. You can a
 }
 ```
 
-#### Web Application Integration
+**Windows Example:**
+```json
+{
+  "mcpServers": {
+    "database": {
+      "command": "java",
+      "args": [
+        "-jar", 
+        "C:/Users/YourName/Downloads/dbmcp-2.0.0.jar",
+        "--config_file=C:/Users/YourName/dbmcp.conf"
+      ]
+    }
+  }
+}
+```
 
-For HTTP mode, integrate with any web application or API client:
+### Step 5: Connect Multiple Databases
 
-```javascript
-// JavaScript example
-const response = await fetch('http://localhost:8080/mcp', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'tools/call',
-    params: {
-      name: 'query',
-      arguments: {
-        sql: 'SELECT COUNT(*) FROM users',
-        maxRows: 1000
+```json
+{
+  "mcpServers": {
+    "production-db": {
+      "command": "java",
+      "args": ["-jar", "/path/to/dbmcp-2.0.0.jar"],
+      "env": {
+        "DB_URL": "jdbc:mysql://prod-server:3306/production",
+        "DB_USER": "readonly_user",
+        "DB_PASSWORD": "secure_password",
+        "DB_DRIVER": "com.mysql.cj.jdbc.Driver",
+        "SELECT_ONLY": "true"
+      }
+    },
+    "analytics-db": {
+      "command": "java", 
+      "args": ["-jar", "/path/to/dbmcp-2.0.0.jar"],
+      "env": {
+        "DB_URL": "jdbc:postgresql://analytics:5432/warehouse",
+        "DB_USER": "analyst",
+        "DB_PASSWORD": "password",
+        "DB_DRIVER": "org.postgresql.Driver"
       }
     }
-  })
-});
-const result = await response.json();
+  }
+}
 ```
 
-```python
-# Python example
-import requests
+### Step 6: Restart Claude Desktop
 
-response = requests.post('http://localhost:8080/mcp', json={
-    'jsonrpc': '2.0',
-    'id': 1,
-    'method': 'tools/list',
-    'params': {}
-})
-print(response.json())
+Close and reopen Claude Desktop. You should see a database connection indicator in the chat input.
+
+## 💬 Start Talking to Your Database
+
+### Data Exploration
+```
+"What tables do we have in the database?"
+"Show me the structure of the customers table"
+"How many records are in each table?"
 ```
 
-## 📊 Data Visualization with Claude Desktop
-
-The Database MCP Server enables Claude to create beautiful, interactive charts and graphs directly from your database data:
-
-### Supported Visualizations
-- **Line Charts** - Time series, trends, progression
-- **Bar Charts** - Comparisons, categories, rankings
-- **Pie Charts** - Proportions, distributions
-- **Scatter Plots** - Relationships, correlations
-- **Area Charts** - Cumulative data, stacked values
-- **Heat Maps** - Pattern visualization, correlations
-- **Histograms** - Data distribution, frequency
-- **Box Plots** - Statistical summaries
-
-## 🎨 Example Visualization Requests
-
-### Sales Analytics
+### Business Questions
 ```
-"Query our sales database and create a line chart showing monthly revenue for the last 12 months"
-
-"Show me a bar chart of our top 10 customers by total order value"
-
-"Create a pie chart showing the distribution of orders by product category"
+"How many new customers did we get last month?"
+"What are our top 5 selling products this quarter?"
+"Show me revenue by month for the past year"
 ```
 
-### Business Intelligence
+### Data Analysis
 ```
-"Pull data from the users table and create a chart showing user signups by month over the past year"
-
-"Generate a scatter plot showing the relationship between order value and customer age"
-
-"Create a heat map showing sales performance by region and month"
+"Find customers who haven't ordered in 6 months"
+"Are there any duplicate email addresses?"
+"What's the average order value by customer segment?"
 ```
 
-### How It Works
-1. **Natural Language Query** - Ask Claude to analyze your data
-2. **Automatic SQL Generation** - Claude creates optimized queries
-3. **Data Processing** - Results are processed and cleaned
-4. **Interactive Charts** - Beautiful, responsive visualizations are generated
-5. **Export & Share** - Charts can be exported or embedded
+### Visualizations
+```
+"Create a chart showing monthly sales trends"
+"Make a pie chart of orders by product category"
+"Show me a bar chart of customer signups by region"
+```
 
-## 🛠️ Configuration Examples
+### Advanced Analytics
+```
+"Calculate customer lifetime value for each segment"
+"Identify seasonal trends in our sales data"
+"Find correlations between customer age and purchase behavior"
+```
 
-### MySQL
+## 📱 More Real-World Examples
+
+### E-commerce Analytics
+```
+"Show me our conversion funnel from visitors to purchases"
+"Which products have the highest return rates?"
+"Create a dashboard showing daily sales performance"
+```
+
+### Customer Success
+```
+"Find customers at risk of churning"
+"Show me customer satisfaction trends"
+"Identify our most valuable customer segments"
+```
+
+### Financial Reporting
+```
+"Generate a P&L summary for this quarter"
+"Show cash flow trends over the past 12 months"
+"Create an expense breakdown by department"
+```
+
+### Operations Management
+```
+"Monitor inventory levels across all warehouses"
+"Show shipping performance by carrier"
+"Identify bottlenecks in our fulfillment process"
+```
+
+
+## 📊 Data Visualization Examples
+
+DBMCP enables Claude to create stunning visualizations directly from your database:
+
+### Sales Dashboard
+- **Monthly Revenue Trends**: Line charts showing growth over time
+- **Top Products**: Bar charts of bestsellers
+- **Regional Performance**: Heat maps of sales by location
+- **Customer Segments**: Pie charts of revenue distribution
+
+### Analytics Reports
+- **User Growth**: Area charts showing acquisition trends
+- **Performance Metrics**: Multi-axis charts combining different KPIs
+- **Comparative Analysis**: Side-by-side visualizations of different periods
+
+### Operational Dashboards
+- **Inventory Levels**: Real-time stock visualization
+- **System Performance**: Time-series charts of key metrics
+- **Quality Metrics**: Statistical charts showing trends and outliers
+
+## 🛡️ Security Features
+
+### Read-Only Mode
+Protect your data with read-only access:
+```properties
+SELECT_ONLY=true
+```
+
+### Query Limits
+Control resource usage:
+```properties
+MAX_ROWS_LIMIT=1000
+QUERY_TIMEOUT_SECONDS=30
+MAX_SQL_LENGTH=10000
+```
+
+### Local Processing
+- All data stays on your machine
+- No external API calls
+- Encrypted environment variables
+- Secure local communication
+
+## 🌐 Web Interface (Optional)
+
+Enable HTTP mode for web-based access:
+
+```properties
+HTTP_MODE=true
+HTTP_PORT=8080
+```
+
+Then access at: `http://localhost:8080/` for example try: `http://localhost:8080/health` to check health status
+
+
+## 🔧 Configuration Methods and Priority
+
+DBMCP supports multiple configuration methods for maximum flexibility. Understanding the priority order is crucial for troubleshooting and advanced setups.
+
+### Configuration Priority Order (Highest to Lowest)
+
+1. **Command Line Arguments** (Highest Priority)
+2. **Configuration Files**
+3. **Environment Variables**
+4. **System Properties**
+5. **Built-in Defaults** (Lowest Priority)
+
+This means command line arguments will always override config files, which override environment variables, and so on.
+
+### Method 1: Command Line Arguments
+**Format**: `--parameter_name=value`
+**Use case**: Quick overrides, testing, one-time configurations
+
 ```bash
-export DB_URL="jdbc:mysql://localhost:3306/database_name"
+java -jar dbmcp-2.0.0.jar \
+  --db_url="jdbc:mysql://localhost:3306/mydb" \
+  --db_user="username" \
+  --db_password="password" \
+  --db_driver="com.mysql.cj.jdbc.Driver" \
+  --http_mode=true \
+  --http_port=8080 \
+  --select_only=true
+```
+
+**Available parameters:**
+- `--config_file=/path/to/config.conf`
+- `--db_url="jdbc:..."`
+- `--db_user="username"`
+- `--db_password="password"`
+- `--db_driver="com.mysql.cj.jdbc.Driver"`
+- `--http_mode=true`
+- `--http_port=8080`
+- `--max_connections=20`
+- `--connection_timeout_ms=30000`
+- `--query_timeout_seconds=60`
+- `--select_only=true`
+- `--max_sql_length=50000`
+- `--max_rows_limit=10000`
+
+### Method 2: Configuration Files
+**Format**: `KEY=VALUE` (one per line)
+**Use case**: Production environments, complex configurations, version control
+
+Create a file (e.g., `dbmcp.conf`):
+```properties
+# Database Connection
+DB_URL=jdbc:postgresql://localhost:5432/myapp
+DB_USER=dbuser
+DB_PASSWORD=my secure password with spaces
+DB_DRIVER=org.postgresql.Driver
+
+# Connection Pool Settings
+MAX_CONNECTIONS=20
+CONNECTION_TIMEOUT_MS=60000
+IDLE_TIMEOUT_MS=300000
+MAX_LIFETIME_MS=1800000
+LEAK_DETECTION_THRESHOLD_MS=60000
+
+# Query Settings
+QUERY_TIMEOUT_SECONDS=45
+SELECT_ONLY=false
+MAX_SQL_LENGTH=50000
+MAX_ROWS_LIMIT=50000
+
+# Server Settings
+HTTP_MODE=true
+HTTP_PORT=8080
+```
+
+**Usage:**
+```bash
+java -jar dbmcp-2.0.0.jar --config_file=dbmcp.conf
+```
+
+**Config file features:**
+- Comments start with `#`
+- Empty lines are ignored
+- Values can be quoted: `DB_PASSWORD="password with spaces"`
+- Keys are case-insensitive
+- Supports all the same parameters as command line
+
+### Method 3: Environment Variables
+**Format**: `UPPERCASE_WITH_UNDERSCORES`
+**Use case**: Docker, cloud deployment, CI/CD, secure credential management
+
+```bash
+export DB_URL="jdbc:mysql://localhost:3306/mydb"
 export DB_USER="username"
 export DB_PASSWORD="password"
 export DB_DRIVER="com.mysql.cj.jdbc.Driver"
+export HTTP_MODE="true"
+export HTTP_PORT="8080"
+export SELECT_ONLY="true"
+
+java -jar dbmcp-2.0.0.jar
 ```
 
-### PostgreSQL
+**All environment variables:**
+- `CONFIG_FILE` - Path to configuration file
+- `DB_URL` - Database connection URL
+- `DB_USER` - Database username
+- `DB_PASSWORD` - Database password
+- `DB_DRIVER` - JDBC driver class
+- `HTTP_MODE` - Enable HTTP mode (true/false)
+- `HTTP_PORT` - HTTP server port
+- `MAX_CONNECTIONS` - Connection pool size
+- `CONNECTION_TIMEOUT_MS` - Connection timeout
+- `QUERY_TIMEOUT_SECONDS` - Query timeout
+- `SELECT_ONLY` - Read-only mode (true/false)
+- `MAX_SQL_LENGTH` - Maximum query length
+- `MAX_ROWS_LIMIT` - Maximum result rows
+- `IDLE_TIMEOUT_MS` - Connection idle timeout
+- `MAX_LIFETIME_MS` - Connection max lifetime
+- `LEAK_DETECTION_THRESHOLD_MS` - Leak detection threshold
+
+### Method 4: System Properties
+**Format**: `-Dparameter.name=value` (underscores become dots)
+**Use case**: JVM-specific configuration, IDE run configurations
+
 ```bash
-export DB_URL="jdbc:postgresql://localhost:5432/mydb"
-export DB_USER="username"
-export DB_PASSWORD="password"
-export DB_DRIVER="org.postgresql.Driver"
+java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
+     -Ddb.user="username" \
+     -Ddb.password="password" \
+     -Ddb.driver="com.mysql.cj.jdbc.Driver" \
+     -Dhttp.mode="true" \
+     -Dhttp.port="8080" \
+     -jar dbmcp-2.0.0.jar
 ```
 
-### Oracle
+**Property naming**: Environment variable `DB_URL` becomes system property `db.url`
+
+### Method 5: Built-in Defaults
+**When**: No configuration provided
+**Values**: Safe defaults for development
+
+```properties
+DB_URL=jdbc:h2:mem:testdb
+DB_USER=sa
+DB_PASSWORD=
+DB_DRIVER=org.h2.Driver
+HTTP_MODE=false
+HTTP_PORT=8080
+MAX_CONNECTIONS=10
+CONNECTION_TIMEOUT_MS=30000
+QUERY_TIMEOUT_SECONDS=30
+SELECT_ONLY=true
+MAX_SQL_LENGTH=10000
+MAX_ROWS_LIMIT=10000
+```
+
+### Configuration Examples
+
+#### Example 1: Priority Override
 ```bash
-export DB_URL="jdbc:oracle:thin:@localhost:1521:xe"
-export DB_USER="username"
-export DB_PASSWORD="password"
-export DB_DRIVER="oracle.jdbc.driver.OracleDriver"
+# Config file has HTTP_PORT=8080
+echo "HTTP_PORT=8080" > config.conf
+
+# Environment variable sets different port
+export HTTP_PORT=9090
+
+# Command line overrides both
+java -jar dbmcp-2.0.0.jar --config_file=config.conf --http_port=7070
+
+# Result: Uses port 7070 (command line wins)
 ```
 
-### SQL Server
+#### Example 2: Mixed Configuration
 ```bash
-export DB_URL="jdbc:sqlserver://localhost:1433;databaseName=mydb"
-export DB_USER="username"
-export DB_PASSWORD="password"
-export DB_DRIVER="com.microsoft.sqlserver.jdbc.SQLServerDriver"
+# Use config file for database settings
+echo "DB_URL=jdbc:mysql://localhost:3306/mydb" > prod.conf
+echo "DB_USER=produser" >> prod.conf
+echo "SELECT_ONLY=true" >> prod.conf
+
+# Override password via environment (more secure)
+export DB_PASSWORD="secure_password"
+
+# Override port via command line (for this run only)
+java -jar dbmcp-2.0.0.jar --config_file=prod.conf --http_port=9090
 ```
 
-### H2 (In-Memory)
-```bash
-export DB_URL="jdbc:h2:mem:testdb"
-export DB_USER="sa"
-export DB_PASSWORD=""
-export DB_DRIVER="org.h2.Driver"
-```
-
-### CSV File/Dir/Zip (See [docs](https://github.com/simoc/csvjdbc/blob/master/docs/doc.md) here)
-```bash
-export DB_URL="jdbc:relique:csv:/path/to/file.txt?separator=;&fileExtension=.txt"
-export DB_USER=""
-export DB_PASSWORD=""
-export DB_DRIVER="org.sqlite.JDBC"
-```
-
-### SQLite
-```bash
-export DB_URL="jdbc:sqlite:/path/to/database.db"
-export DB_USER=""
-export DB_PASSWORD=""
-export DB_DRIVER="org.sqlite.JDBC"
-```
-
-## 🔧 MCP Protocol Support
-
-### Tools
-
-#### `query` Tool
-Execute SQL queries on the database.
-
-**Parameters:**
-- `sql` (string, required): SQL query to execute
-- `maxRows` (integer, optional): Maximum number of rows to return (default: 1000)
-
-**Example:**
+#### Example 3: Claude Desktop Configuration
 ```json
 {
-  "method": "tools/call",
-  "params": {
-    "name": "query",
-    "arguments": {
-      "sql": "SELECT * FROM users WHERE status = 'active'",
-      "maxRows": 100
+  "mcpServers": {
+    "database": {
+      "command": "java",
+      "args": [
+        "-jar", "/path/to/dbmcp-2.0.0.jar",
+        "--config_file=/path/to/production.conf",
+        "--select_only=true"
+      ],
+      "env": {
+        "DB_PASSWORD": "secure_password_from_env"
+      }
     }
   }
 }
 ```
 
-### Resources
+### Configuration Parameters Reference
 
-The server exposes database metadata as resources:
+#### Database Connection
+- `DB_URL` - JDBC connection string (required)
+- `DB_USER` - Database username
+- `DB_PASSWORD` - Database password
+- `DB_DRIVER` - JDBC driver class (required)
 
-- `database://info` - Database connection and feature information
-- `database://table/{tableName}` - Table structure and metadata
-- `database://schema/{schemaName}` - Schema information (if supported)
+#### Connection Pool
+- `MAX_CONNECTIONS=10` - Maximum concurrent connections
+- `CONNECTION_TIMEOUT_MS=30000` - Connection acquisition timeout
+- `IDLE_TIMEOUT_MS=600000` - Connection idle timeout (10 minutes)
+- `MAX_LIFETIME_MS=1800000` - Connection max lifetime (30 minutes)
+- `LEAK_DETECTION_THRESHOLD_MS=60000` - Connection leak detection (1 minute)
 
-## 💬 Natural Language Database Interactions
+#### Query Settings
+- `QUERY_TIMEOUT_SECONDS=30` - SQL query execution timeout
+- `SELECT_ONLY=true` - Read-only mode (blocks INSERT/UPDATE/DELETE)
+- `MAX_SQL_LENGTH=10000` - Maximum characters in SQL query
+- `MAX_ROWS_LIMIT=10000` - Maximum rows returned per query
 
-With Claude Desktop integration, you can interact with your database using natural language:
+#### Server Settings
+- `HTTP_MODE=false` - Enable HTTP web interface
+- `HTTP_PORT=8080` - HTTP server port
 
-### Data Exploration
-```
-"What tables do we have in our database?"
-"Show me the structure of the users table"
-"How many customers do we have by region?"
-"What are our top-selling products this month?"
-```
+### Security Best Practices
 
-### Analytics & Reporting
-```
-"Create a sales report for Q4 2024"
-"Show me customer growth trends over the past year"
-"Which products have the highest profit margins?"
-"Generate a dashboard showing key business metrics"
-```
-
-### Data Quality & Investigation
-```
-"Are there any duplicate email addresses in our customer table?"
-"Find customers who haven't placed orders in the last 6 months"
-"Show me any unusual spikes in our daily transaction data"
-"Identify potential data quality issues in our product catalog"
-```
-
-### Schema Understanding
-```
-"Explain the relationship between our orders and customers tables"
-"What foreign keys exist in our database?"
-"Show me all indexes on the products table"
-"What are the primary keys for each table?"
-```
-
-## 🏗️ Project Structure
-
-```
-src/main/java/com/skanga/mcp/
-├── McpServer.java           # Main MCP server implementation (stdio + HTTP)
-├── ConfigParams.java        # Configuration parameter holder (record)
-├── DatabaseService.java     # Database operations with HikariCP
-├── DatabaseResource.java    # Resource representation (record)
-└── QueryResult.java         # Query result holder (record)
-```
-
-### Key Components
-
-- **McpServer.java** - Main entry point supporting both JSON-RPC over stdio and HTTP
-- **DatabaseService.java** - Core database operations with connection pooling
-- **ConfigParams.java** - Configuration management with validation
-- **DatabaseResource.java** - Database object representation
-- **QueryResult.java** - Structured query results
-
-## ⚙️ Advanced Configuration
-
-### Transport Mode Configuration
+#### Credential Management
 ```bash
-# HTTP mode settings
-export HTTP_MODE="true"       # Enable HTTP mode
-export HTTP_PORT="8080"       # HTTP server port
+# ✅ Good: Use environment variables for passwords
+export DB_PASSWORD="secure_password"
+java -jar dbmcp-2.0.0.jar --config_file=app.conf
 
-# Or via command line
-java -jar target/dbmcp-1.0.0.jar --http_mode=true --http_port=8080
+# ✅ Good: Use config file with restricted permissions
+chmod 600 secure.conf
+java -jar dbmcp-2.0.0.jar --config_file=secure.conf
+
+# ❌ Avoid: Passwords in command line (visible in process list)
+java -jar dbmcp-2.0.0.jar --db_password="visible_password"
 ```
 
-### Connection Pool Settings
+#### Configuration File Security
 ```bash
-export MAX_CONNECTIONS="20"
-export CONNECTION_TIMEOUT_MS="30000"
-export QUERY_TIMEOUT_SECONDS="60"
-export IDLE_TIMEOUT_MS="600000"
-export MAX_LIFETIME_MS="1800000"
-export LEAK_DETECTION_THRESHOLD_MS="60000"
+# Create secure config file
+umask 077
+cat > secure.conf << EOF
+DB_PASSWORD=secure_password
+EOF
+
+# Verify permissions
+ls -la secure.conf
+# Should show: -rw------- (owner read/write only)
 ```
 
-### Security Settings
+### Troubleshooting Configuration
+
+#### Check Effective Configuration
+Enable debug logging to see which values are being used:
 ```bash
-export SELECT_ONLY="true"        # Enable read-only mode
-export MAX_SQL_LENGTH="10000"    # Limit query size
-export MAX_ROWS_LIMIT="1000"     # Limit result size
+java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.0.jar --config_file=myconfig.conf
 ```
 
-### Configuration Priority Order
-1. Command line arguments: `--db_url=...`, `--http_mode=true`
-2. Environment variables: `DB_URL`, `HTTP_MODE`
-3. System properties: `-Ddb.url=...`, `-Dhttp.mode=true`
-4. Default values
+#### Common Issues
+1. **Config file not found**: Use absolute paths
+2. **Permission denied**: Check file permissions
+3. **Wrong values used**: Check priority order
+4. **Environment variables not set**: Use `env | grep DB_` to verify
 
-## 🛡️ Security Considerations
-
-### Database Security
-- Use read-only database users when possible
-- Configure query timeouts to prevent long-running queries
-- Limit maximum row counts to prevent memory issues
-- Use connection pooling in production environments
-- Validate SQL queries before execution
-- Consider implementing query allowlists for production use
-
-### MCP Security
-- Server runs locally with no external network access (stdio mode)
-- All data processing happens locally
-- No data is sent to external services
-- Environment variables are encrypted by the OS
-
-### HTTP Mode Security
-- **Local deployment recommended**: HTTP mode is designed for local development and testing
-- **CORS enabled**: Allows browser-based applications (configure as needed)
-- **No authentication**: Consider adding external authentication for production deployments
-- **Health endpoint**: Monitor server status at `/health`
-- **Network binding**: Server binds to localhost by default
-
-## 📋 Usage Examples
-
-### Initialize Connection
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "initialize",
-  "params": {
-    "protocolVersion": "2024-11-05",
-    "capabilities": {},
-    "clientInfo": {
-      "name": "test-client",
-      "version": "1.0.0"
-    }
-  }
-}
-```
-
-### Execute SQL Query
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "method": "tools/call",
-  "params": {
-    "name": "query",
-    "arguments": {
-      "sql": "SELECT COUNT(*) as user_count FROM users",
-      "maxRows": 1
-    }
-  }
-}
-```
-
-### List Database Resources
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 4,
-  "method": "resources/list",
-  "params": {}
-}
-```
-
-### Read Table Metadata
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 5,
-  "method": "resources/read",
-  "params": {
-    "uri": "database://table/users"
-  }
-}
-```
-
-## 📊 Real-World Use Cases
-
-### Business Intelligence
-- **Sales Analytics**: Monthly revenue trends, top customers, product performance
-- **Customer Insights**: Segmentation analysis, lifetime value, churn prediction
-- **Operational Metrics**: Inventory levels, performance tracking, cost analysis
-
-### Data Exploration
-- **Schema Discovery**: Understanding database structure and relationships
-- **Data Quality**: Finding duplicates, missing values, inconsistencies
-- **Trend Analysis**: Identifying patterns and anomalies in data
-
-### Reporting & Dashboards
-- **Executive Summaries**: KPI tracking, growth metrics, performance indicators
-- **Operational Reports**: Daily/weekly summaries, exception reports
-- **Interactive Analysis**: Ad-hoc queries, drill-down capabilities
-
-### Web Integration (HTTP Mode)
-- **API Integration**: Embed database queries in web applications
-- **Dashboard Development**: Build custom dashboards with real-time data
-- **Microservices**: Use as a database microservice in larger architectures
-- **Testing & Automation**: Automated database testing and validation
-
-## 🚫 Limitations
-
-- **Claude.ai website**: Does not support MCP servers (use Claude Desktop for stdio mode)
-- **Mobile apps**: MCP is only available in Claude Desktop
-- **Linux support**: Currently macOS and Windows (Linux in development)
-- **Network access**: MCP servers run locally only (HTTP mode available for local web apps)
-- **Performance**: Large queries may be slower due to communication overhead
-
-## 📝 Logging
-
-The server uses SLF4J for logging. Configure logging levels as needed:
-- `INFO` - General server operations, HTTP requests
-- `DEBUG` - Detailed request/response information
-- `ERROR` - Error conditions
-
+#### Validation Commands
 ```bash
-# Enable debug logging
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
+# Test database connection with current config
+java -jar dbmcp-2.0.0.jar --help
 
-# Enable trace logging for database operations
-java -Dlogging.level.com.skanga.mcp=TRACE -jar target/dbmcp-1.0.0.jar
+# Verify config file syntax
+grep -v "^#" myconfig.conf | grep -v "^$"
+
+# Check environment variables
+env | grep -E "(DB_|HTTP_|MAX_|SELECT_)"
 ```
 
-## 🔧 Development
+## 🚫 Troubleshooting
 
-### Adding New Tools
-1. Add tool definition in `handleListTools()`
-2. Add tool execution in `handleCallTool()`
-3. Implement the tool logic in `DatabaseService`
+### Claude Desktop Not Connecting
+1. **Check paths**: Use absolute paths in configuration
+2. **Java version**: Ensure Java 17+ is installed
+3. **File permissions**: Verify JAR file is readable
+4. **Restart Claude**: Close and reopen Claude Desktop
 
-### Error Handling
-The server provides detailed error responses:
-- `invalid_request` - Invalid method or parameters
-- `database_error` - SQL or connection errors
-- `internal_error` - Unexpected server errors
+### Database Connection Issues
+1. **Test connection**: Verify database is running
+2. **Check credentials**: Ensure username/password are correct
+3. **Network access**: Confirm database allows connections
+4. **Driver support**: Use the correct JAR version for your database
 
-## 🧪 Testing
+### Performance Issues
+1. **Limit results**: Use `MAX_ROWS_LIMIT=1000`
+2. **Query timeout**: Set `QUERY_TIMEOUT_SECONDS=30`
+3. **Connection pool**: Adjust `MAX_CONNECTIONS=10`
 
-### Automated Testing
-```bash
-mvn test                    # Unit tests
-mvn verify                  # Integration tests
-python3 test-mcp-protocol.py target/dbmcp-1.0.0.jar stdio    # stdio protocol tests
-python3 test-mcp-protocol.py target/dbmcp-1.0.0.jar http     # HTTP protocol tests
-python3 test-mcp-server.py                                   # server tests
+### Common Error Messages
 
-```
+**"ClassNotFoundException"**
+- Download the correct JAR version for your database
+- Check that the database driver is included
 
-### Manual Testing
-```bash
-# Test health endpoint
-curl http://localhost:8080/health
+**"Connection refused"**
+- Verify database server is running
+- Check connection URL, username, and password
+- Ensure database allows connections from your machine
 
-# Test MCP protocol
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+**"Server not responding"**
+- Check Claude Desktop configuration syntax
+- Verify Java is accessible in PATH
+- Review Claude Desktop logs
 
-# Interactive testing (stdio mode)
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbmcp-1.0.0.jar
+## 🎯 Best Practices
 
-# Manual testing with debug output
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-1.0.0.jar
-```
+### Getting Started
+1. **Start with read-only**: Use `SELECT_ONLY=true` initially
+2. **Test with sample data**: Try H2 database first
+3. **Begin with simple questions**: Start with basic table exploration
+4. **Build complexity gradually**: Move to advanced analytics over time
 
-## 🎯 Getting Started Tips
+### Security
+1. **Use dedicated database users**: Create read-only users for DBMCP
+2. **Limit access**: Only grant necessary table permissions
+3. **Monitor usage**: Review query logs regularly
+4. **Backup data**: Always maintain database backups
 
-1. **Start Simple**: Begin with H2 for initial testing
-2. **Choose Your Mode**: Use stdio for Claude Desktop, HTTP for web applications
-3. **Test Connection**: Verify database connectivity before MCP integration
-4. **Start with Read-Only**: Use `SELECT_ONLY=true` for safety
-5. **Monitor Performance**: Watch memory usage for large queries
-6. **Use Health Checks**: Monitor `/health` endpoint in HTTP mode
+### Performance
+1. **Set reasonable limits**: Use `MAX_ROWS_LIMIT` and timeouts
+2. **Index important columns**: Ensure queries can run efficiently
+3. **Monitor resources**: Watch CPU and memory usage
+4. **Optimize queries**: Let Claude suggest query improvements
 
-## 📚 Additional Resources
+## 📚 Learn More
 
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-- [Claude Desktop Download](https://claude.ai/download)
-- [JDBC Documentation](https://docs.oracle.com/javase/tutorial/jdbc/)
-- [HikariCP Connection Pool](https://github.com/brettwooldridge/HikariCP)
-- [Maven Getting Started Guide](https://maven.apache.org/guides/getting-started/)
+- **Model Context Protocol**: [modelcontextprotocol.io](https://modelcontextprotocol.io)
+- **Claude Desktop**: [claude.ai/download](https://claude.ai/download)
+- **Developer Guide**: See [INSTALL.md](INSTALL.md) for technical details
+- **GitHub Repository**: [github.com/skanga/dbmcp](https://github.com/skanga/dbmcp)
 
-## 📄 License
+## 🚀 Ready to Transform Your Data Experience?
 
-This project is provided as-is for educational and development purposes under Apache 2.0 license.
+1. **Download** the appropriate JAR file for your database
+2. **Install** Claude Desktop (free)
+3. **Configure** your database connection
+4. **Add** DBMCP to Claude Desktop settings
+5. **Start asking** questions about your data!
 
----
+Transform your relationship with data. No more complex SQL queries, no more waiting for reports. Just natural conversations with your database, powered by Claude's intelligence and DBMCP's seamless integration.
 
-## 🚀 Ready to Get Started?
-
-1. **Install Prerequisites**: Java 17+, Maven 3.6+
-2. **Build the Project**: `mvn clean package -P standard-databases` or similar
-3. **Configure Database**: Set environment variables
-4. **Choose Your Mode**:
-   - **For Claude Desktop**: Run in stdio mode
-   - **For Web Applications**: Run in HTTP mode
-5. **Configure Integration**: Add server to Claude Desktop or integrate with your web app
-6. **Start Querying**: Ask Claude about your data or make HTTP requests!
-
-Transform your database interactions with natural language queries, automated visualizations, and intelligent analysis through the power of Claude Desktop and the Database MCP Server - now available in both stdio and HTTP modes for maximum flexibility.
-
-## License
-
-This project is provided as-is for educational and development purposes under Apache 2.0 license.
+**Get started today and discover what your data has been trying to tell you.**

@@ -42,6 +42,7 @@ class DatabaseServiceTest {
         lenient().when(config.dbUrl()).thenReturn("jdbc:h2:mem:testdb");
         lenient().when(config.dbUser()).thenReturn("sa");
         lenient().when(config.dbPass()).thenReturn("");
+        lenient().when(config.getDatabaseType()).thenReturn("h2");
 
         lenient().when(config.maxConnections()).thenReturn(10);
         lenient().when(config.connectionTimeoutMs()).thenReturn(30000);
@@ -174,40 +175,57 @@ class DatabaseServiceTest {
 
     @Test
     void testListResources() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
+        lenient().when(connection.getMetaData()).thenReturn(metaData);
 
-        when(metaData.getDatabaseProductName()).thenReturn("H2");
-        when(metaData.getDatabaseProductVersion()).thenReturn("1.4");
-        when(metaData.getDriverName()).thenReturn("H2 Driver");
-        when(metaData.getDriverVersion()).thenReturn("1.4");
-        when(metaData.isReadOnly()).thenReturn(false);
-        when(metaData.getDefaultTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
-        when(metaData.supportsTransactions()).thenReturn(true);
-        when(metaData.supportsStoredProcedures()).thenReturn(false);
-        when(metaData.supportsMultipleResultSets()).thenReturn(true);
-        when(metaData.supportsBatchUpdates()).thenReturn(true);
+        lenient().when(metaData.getDatabaseProductName()).thenReturn("H2");
+        lenient().when(metaData.getDatabaseProductVersion()).thenReturn("1.4");
+        lenient().when(metaData.getDriverName()).thenReturn("H2 Driver");
+        lenient().when(metaData.getDriverVersion()).thenReturn("1.4");
+        lenient().when(metaData.isReadOnly()).thenReturn(false);
+        lenient().when(metaData.getDefaultTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
+        lenient().when(metaData.supportsTransactions()).thenReturn(true);
+        lenient().when(metaData.supportsStoredProcedures()).thenReturn(false);
+        lenient().when(metaData.supportsMultipleResultSets()).thenReturn(true);
+        lenient().when(metaData.supportsBatchUpdates()).thenReturn(true);
 
-        // Fix: mock getConnection() inside metaData
-        when(metaData.getConnection()).thenReturn(connection);
-        when(connection.getAutoCommit()).thenReturn(true);
+        lenient().when(metaData.getConnection()).thenReturn(connection);
+        lenient().when(connection.getAutoCommit()).thenReturn(true);
 
-        // Tables
-        ResultSet tables = mock(ResultSet.class);
-        when(metaData.getTables(null, null, "%", new String[]{"TABLE", "VIEW"})).thenReturn(tables);
-        when(tables.next()).thenReturn(true, false);
-        when(tables.getString("TABLE_NAME")).thenReturn("USERS");
-        when(tables.getString("TABLE_TYPE")).thenReturn("TABLE");
-        when(tables.getString("REMARKS")).thenReturn("User table");
+        // Create separate ResultSet mocks for each getTables() call
+        ResultSet tablesForListResources = mock(ResultSet.class);
+        ResultSet tablesForDataDictionary = mock(ResultSet.class);
+
+        // Mock getTables to return fresh ResultSet each time
+        lenient().when(metaData.getTables(null, null, "%", new String[]{"TABLE", "VIEW"}))
+                .thenReturn(tablesForListResources)
+                .thenReturn(tablesForDataDictionary);
+
+        // First ResultSet (for direct listResources call)
+        lenient().when(tablesForListResources.next()).thenReturn(true, false);
+        lenient().when(tablesForListResources.getString("TABLE_NAME")).thenReturn("USERS");
+        lenient().when(tablesForListResources.getString("TABLE_TYPE")).thenReturn("TABLE");
+        lenient().when(tablesForListResources.getString("REMARKS")).thenReturn("User table");
+
+        // Second ResultSet (for generateDataDictionary call)
+        lenient().when(tablesForDataDictionary.next()).thenReturn(true, false);
+        lenient().when(tablesForDataDictionary.getString("TABLE_NAME")).thenReturn("USERS");
+        lenient().when(tablesForDataDictionary.getString("TABLE_SCHEM")).thenReturn("PUBLIC");
+        lenient().when(tablesForDataDictionary.getString("TABLE_TYPE")).thenReturn("TABLE");
 
         // Schemas
         ResultSet schemas = mock(ResultSet.class);
-        when(metaData.getSchemas()).thenReturn(schemas);
-        when(schemas.next()).thenReturn(true, false);
-        when(schemas.getString("TABLE_SCHEM")).thenReturn("PUBLIC");
+        lenient().when(metaData.getSchemas()).thenReturn(schemas);
+        lenient().when(schemas.next()).thenReturn(true, false);
+        lenient().when(schemas.getString("TABLE_SCHEM")).thenReturn("PUBLIC");
 
         List<DatabaseResource> resources = service.listResources();
 
+        // Debug: Print what we actually got
+        //System.out.println("Actual resources count: " + resources.size());
+        //resources.forEach(r -> System.out.println("Resource URI: " + r.uri()));
+
         assertTrue(resources.stream().anyMatch(r -> r.uri().equals("database://info")));
+        assertTrue(resources.stream().anyMatch(r -> r.uri().equals("database://data-dictionary")));
         assertTrue(resources.stream().anyMatch(r -> r.uri().equals("database://table/USERS")));
         assertTrue(resources.stream().anyMatch(r -> r.uri().equals("database://schema/PUBLIC")));
     }
@@ -221,15 +239,11 @@ class DatabaseServiceTest {
         when(metaData.getDriverName()).thenReturn("H2 Driver");
         when(metaData.getDriverVersion()).thenReturn("1.4");
         when(metaData.isReadOnly()).thenReturn(false);
-        when(metaData.getDefaultTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
+        //when(metaData.getDefaultTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
         when(metaData.supportsTransactions()).thenReturn(true);
         when(metaData.supportsStoredProcedures()).thenReturn(false);
         when(metaData.supportsMultipleResultSets()).thenReturn(true);
         when(metaData.supportsBatchUpdates()).thenReturn(true);
-
-        // Fix for NPE
-        when(metaData.getConnection()).thenReturn(connection);
-        when(connection.getAutoCommit()).thenReturn(true);
 
         DatabaseResource info = service.readResource("database://info");
 

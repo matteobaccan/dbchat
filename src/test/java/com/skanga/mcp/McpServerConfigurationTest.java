@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.util.Map;
 
@@ -143,8 +145,8 @@ class McpServerConfigurationTest {
         String[] args = {"--http_mode=false"};
         
         // Mock stdin to provide empty input (causes immediate exit)
-        java.io.ByteArrayInputStream emptyInput = new java.io.ByteArrayInputStream(new byte[0]);
-        java.io.InputStream originalIn = System.in;
+        ByteArrayInputStream emptyInput = new ByteArrayInputStream(new byte[0]);
+        InputStream originalIn = System.in;
         
         try {
             System.setIn(emptyInput);

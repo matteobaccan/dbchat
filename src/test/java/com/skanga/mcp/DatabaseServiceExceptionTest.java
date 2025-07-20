@@ -378,14 +378,11 @@ class DatabaseServiceExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
         when(mockDataSource.getConnection()).thenReturn(mockConnection);
         when(mockConnection.getMetaData()).thenReturn(mockMetaData);
-        when(mockMetaData.getConnection()).thenReturn(mockConnection);
         when(mockMetaData.getDatabaseProductName()).thenReturn("H2");
         when(mockMetaData.getDatabaseProductVersion()).thenReturn("1.0");
         when(mockMetaData.getDriverName()).thenReturn("H2 Driver");
         when(mockMetaData.getDriverVersion()).thenReturn("1.0");
         when(mockMetaData.isReadOnly()).thenReturn(false);
-        when(mockConnection.getAutoCommit()).thenReturn(true);
-        when(mockMetaData.getDefaultTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
         when(mockMetaData.supportsTransactions()).thenReturn(true);
         when(mockMetaData.supportsStoredProcedures()).thenReturn(false);
         when(mockMetaData.supportsMultipleResultSets()).thenReturn(true);
@@ -410,9 +407,6 @@ class DatabaseServiceExceptionTest {
         
         // Mock successful database info and tables
         setupSuccessfulMetaDataMocks();
-
-        // Mock the connection returned by metadata
-        when(mockMetaData.getConnection()).thenReturn(mockConnection);
 
         // Mock empty tables result
         when(mockMetaData.getTables(null, null, "%", new String[]{"TABLE", "VIEW"}))
@@ -535,8 +529,8 @@ class DatabaseServiceExceptionTest {
         when(mockMetaData.getDriverName()).thenReturn("H2 Driver");
         when(mockMetaData.getDriverVersion()).thenReturn("1.0");
         when(mockMetaData.isReadOnly()).thenReturn(false);
-        when(mockConnection.getAutoCommit()).thenReturn(true);
-        when(mockMetaData.getDefaultTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
+        lenient().when(mockConnection.getAutoCommit()).thenReturn(true);
+        lenient().when(mockMetaData.getDefaultTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
         when(mockMetaData.supportsTransactions()).thenReturn(true);
         when(mockMetaData.supportsStoredProcedures()).thenReturn(false);
         when(mockMetaData.supportsMultipleResultSets()).thenReturn(true);

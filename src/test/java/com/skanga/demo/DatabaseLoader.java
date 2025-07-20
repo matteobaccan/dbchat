@@ -33,12 +33,13 @@ public class DatabaseLoader {
 
     public static void main(String[] args) {
         //String jdbcUrl = "jdbc:h2:mem:testdb";    // In-Memory Database (Recommended for Testing)
-        String jdbcUrl = "jdbc:h2:C:/Users/skanga/mydb";
+        //String jdbcUrl = "jdbc:h2:C:/Users/skanga/mydb";
         //String jdbcUrl = "jdbc:sqlite:memory";      // In-Memory Database (Recommended for Testing)
-        //String jdbcUrl = "jdbc:sqlite:C:/Users/skanga/testdb.db";
+        String jdbcUrl = "jdbc:sqlite:C:/Users/skanga/testdb.db";
         String user = "sa";
         String password = "";
         String schema = "invoices"; // Default schema name - Load *.sql from src/test/resources/<schema>
+        //String schema = "sqltutorial.org";
 
         // Parse command line arguments for schema
         if (args.length > 0) {

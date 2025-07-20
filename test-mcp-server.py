@@ -2,19 +2,25 @@
 """
 Cross-platform test script for Database MCP Server
 Supports Windows, macOS, and Linux
+Follows proper MCP initialization lifecycle
 """
 
-import json
-import subprocess
-import sys
 import os
+import sys
 import time
+import glob
+import json
 import platform
+import subprocess
 from typing import Dict, Any, Optional, List
 
 class DatabaseMcpTester:
     def __init__(self):
-        self.server_jar = "target/dbmcp-1.0.0.jar"
+        jars = glob.glob("target/dbmcp-*.jar")
+        if not jars:
+            print("❌ Error: No dbmcp JAR file found in target/. Please run 'mvn clean package'.")
+            sys.exit(1)
+        self.server_jar = jars[0]  # Use the first matching file
         # Use persistent H2 database for testing
         self.config = {
             "DB_URL": "jdbc:h2:file:./test-db/mcptest;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;CACHE_SIZE=65536",
@@ -81,8 +87,8 @@ class DatabaseMcpTester:
         print("Note: Using persistent H2 database for reliable testing")
         print("")
 
-    def send_mcp_requests_batch(self, requests: List[Dict[str, Any]], timeout: int = 30) -> List[Optional[Dict[str, Any]]]:
-        """Send multiple MCP requests to a single server instance"""
+    def send_mcp_requests_session(self, requests: List[Dict[str, Any]], timeout: int = 30) -> List[Optional[Dict[str, Any]]]:
+        """Send multiple MCP requests to a single server instance with proper session handling"""
         try:
             # Set environment variables
             env = os.environ.copy()
@@ -98,53 +104,107 @@ class DatabaseMcpTester:
                 env=env
             )
 
-            # Send all requests as separate lines
-            input_data = ""
-            for request in requests:
-                input_data += json.dumps(request) + "\n"
-
-            stdout, stderr = process.communicate(input=input_data, timeout=timeout)
-
-            if stderr and "Starting Database MCP Server" not in stderr:
-                print(f"Server stderr: {stderr}")
-
-            if not stdout.strip():
-                print("No response from server")
-                return [None] * len(requests)
-
-            # Parse each line of response
-            response_lines = stdout.strip().split('\n')
             responses = []
 
-            for i, line in enumerate(response_lines):
-                if line.strip():
-                    try:
-                        responses.append(json.loads(line.strip()))
-                    except json.JSONDecodeError as e:
-                        print(f"Failed to parse JSON response line {i+1}: {e}")
-                        print(f"Raw line: {line}")
+            # Send each request individually and read responses
+            for i, request in enumerate(requests):
+                request_json = json.dumps(request) + "\n"
+                process.stdin.write(request_json)
+                process.stdin.flush()
+
+                # Handle notifications (no id field) - expect no response
+                if "id" not in request:
+                    responses.append(None)
+                    continue
+
+                # Read response for requests with id
+                try:
+                    # Read one line of response
+                    response_line = process.stdout.readline()
+                    if response_line.strip():
+                        response = json.loads(response_line.strip())
+                        responses.append(response)
+                    else:
                         responses.append(None)
-                else:
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse JSON response for request {i+1}: {e}")
+                    print(f"Raw response: {response_line}")
+                    responses.append(None)
+                except Exception as e:
+                    print(f"Error reading response for request {i+1}: {e}")
                     responses.append(None)
 
-            # Pad with None if we got fewer responses than requests
-            while len(responses) < len(requests):
-                responses.append(None)
+            # Close stdin and wait for process to finish
+            process.stdin.close()
+
+            # Wait for process to complete
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
 
             return responses
 
         except subprocess.TimeoutExpired:
-            print(f"Batch request timed out after {timeout} seconds")
-            process.kill()
+            print(f"Session request timed out after {timeout} seconds")
+            if process:
+                process.kill()
             return [None] * len(requests)
         except Exception as e:
-            print(f"Error sending batch request: {e}")
+            print(f"Error in session request: {e}")
             return [None] * len(requests)
 
     def send_mcp_request(self, request: Dict[str, Any], timeout: int = 30) -> Optional[Dict[str, Any]]:
         """Send a single MCP request to the server"""
-        responses = self.send_mcp_requests_batch([request], timeout)
+        responses = self.send_mcp_requests_session([request], timeout)
         return responses[0] if responses else None
+
+    def validate_response(self, response: Dict[str, Any], expected_id: Any = None,
+                         expected_keys: List[str] = None, allow_error: bool = False) -> tuple[bool, str]:
+        """Validate MCP response format and content"""
+        if not response:
+            return False, "No response received"
+
+        # Check JSON-RPC 2.0 format
+        if response.get("jsonrpc") != "2.0":
+            return False, "Invalid or missing jsonrpc field"
+
+        # Check ID matches if expected
+        if expected_id is not None:
+            actual_id = response.get("id")
+            if actual_id != expected_id:
+                return False, f"ID mismatch: expected {expected_id}, got {actual_id}"
+
+        # Check for result or error
+        has_result = "result" in response
+        has_error = "error" in response
+
+        if not has_result and not has_error:
+            return False, "Response missing both result and error fields"
+
+        if has_result and has_error:
+            return False, "Response has both result and error fields"
+
+        # Handle error responses
+        if has_error:
+            if not allow_error:
+                error_info = response["error"]
+                if isinstance(error_info, dict):
+                    return False, f"Server error: {error_info.get('message', 'Unknown error')}"
+                else:
+                    return False, f"Server error: {error_info}"
+            else:
+                return True, ""  # Error was expected
+
+        # Validate expected keys in result
+        if expected_keys and has_result:
+            result = response["result"]
+            for key in expected_keys:
+                if key not in result:
+                    return False, f"Missing expected key in result: {key}"
+
+        return True, ""
 
     def run_test(self, test_name: str, request: Dict[str, Any],
                  expected_keys: list = None, allow_error: bool = False) -> bool:
@@ -154,35 +214,19 @@ class DatabaseMcpTester:
 
         response = self.send_mcp_request(request)
 
-        if response is None:
-            print("❌ FAILED: No response received")
-            self.test_results.append((test_name, False, "No response"))
+        if response is None and "id" not in request:
+            # This is a notification - no response expected
+            print("✅ PASSED (notification - no response expected)")
+            self.test_results.append((test_name, True, ""))
             print("")
-            return False
+            return True
 
-        print("Response:")
-        print(json.dumps(response, indent=2))
+        if response:
+            print("Response:")
+            print(json.dumps(response, indent=2))
 
-        # Check for basic JSON-RPC structure
-        success = True
-        error_msg = ""
-
-        if "jsonrpc" not in response:
-            success = False
-            error_msg = "Missing jsonrpc field"
-        elif "error" in response and not allow_error:
-            success = False
-            error_msg = f"Server error: {response['error']}"
-        elif "result" not in response and not allow_error:
-            success = False
-            error_msg = "Missing result field"
-        elif expected_keys and "result" in response:
-            result = response.get("result", {})
-            for key in expected_keys:
-                if key not in result:
-                    success = False
-                    error_msg = f"Missing expected key: {key} (found keys: {list(result.keys())})"
-                    break
+        expected_id = request.get("id")
+        success, error_msg = self.validate_response(response, expected_id, expected_keys, allow_error)
 
         status = "✅ PASSED" if success else "❌ FAILED"
         print(f"Status: {status}")
@@ -193,20 +237,14 @@ class DatabaseMcpTester:
         print("")
         return success
 
-    def run_batch_test(self, test_name: str, requests: List[Dict[str, Any]],
-                      expected_keys_list: List[List[str]] = None,
-                      allow_errors: List[bool] = None) -> bool:
+    def run_session_test(self, test_name: str, requests: List[Dict[str, Any]],
+                        expected_keys_list: List[List[str]] = None,
+                        allow_errors: List[bool] = None) -> bool:
         """Run multiple requests in a single server session"""
         print(f"=== {test_name} ===")
-        print(f"Sending {len(requests)} requests in batch...")
+        print(f"Sending {len(requests)} requests in session...")
 
-        responses = self.send_mcp_requests_batch(requests)
-
-        if not responses or all(r is None for r in responses):
-            print("❌ FAILED: No responses received")
-            self.test_results.append((test_name, False, "No responses"))
-            print("")
-            return False
+        responses = self.send_mcp_requests_session(requests)
 
         overall_success = True
         error_messages = []
@@ -215,39 +253,27 @@ class DatabaseMcpTester:
             print(f"\n--- Request {i+1} ---")
             print(f"Request: {json.dumps(request, indent=2)}")
 
-            if response is None:
-                print("❌ No response")
-                overall_success = False
-                error_messages.append(f"Request {i+1}: No response")
-                continue
+            # Handle notifications
+            if "id" not in request:
+                if response is None:
+                    print("✅ PASSED (notification - no response expected)")
+                    continue
+                else:
+                    print("❌ FAILED (notification should not have response)")
+                    overall_success = False
+                    error_messages.append(f"Request {i+1}: Unexpected response for notification")
+                    continue
 
-            print("Response:")
-            print(json.dumps(response, indent=2))
+            if response:
+                print("Response:")
+                print(json.dumps(response, indent=2))
 
             # Get expected keys and error allowance for this request
             expected_keys = expected_keys_list[i] if expected_keys_list and i < len(expected_keys_list) else []
             allow_error = allow_errors[i] if allow_errors and i < len(allow_errors) else False
 
-            # Check response
-            success = True
-            error_msg = ""
-
-            if "jsonrpc" not in response:
-                success = False
-                error_msg = "Missing jsonrpc field"
-            elif "error" in response and not allow_error:
-                success = False
-                error_msg = f"Server error: {response['error']}"
-            elif "result" not in response and not allow_error:
-                success = False
-                error_msg = "Missing result field"
-            elif expected_keys and "result" in response:
-                result = response.get("result", {})
-                for key in expected_keys:
-                    if key not in result:
-                        success = False
-                        error_msg = f"Missing expected key: {key}"
-                        break
+            expected_id = request.get("id")
+            success, error_msg = self.validate_response(response, expected_id, expected_keys, allow_error)
 
             status = "✅ PASSED" if success else "❌ FAILED"
             print(f"Status: {status}")
@@ -311,67 +337,87 @@ class DatabaseMcpTester:
         # Create test-db directory
         os.makedirs("test-db", exist_ok=True)
 
-        # Test 1: Basic MCP protocol tests (single requests)
-        basic_tests = [
+        # Test 1: Proper MCP Lifecycle in a single session
+        lifecycle_requests = [
+            # Step 1: Initialize
             {
-                "name": "Initialize Server",
-                "request": {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {},
-                        "clientInfo": {"name": "test-client", "version": "1.0.0"}
-                    }
-                },
-                "expected_keys": ["protocolVersion", "capabilities", "serverInfo"]
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-03-26",  # Updated protocol version
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {}
+                    },
+                    "clientInfo": {"name": "test-client", "version": "1.0.0"}
+                }
+            },
+            # Step 2: Send initialized notification
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            },
+            # Step 3: Now we can use other methods
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/list",
+                "params": {}
             },
             {
-                "name": "List Tools",
-                "request": {
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/list",
-                    "params": {}
-                },
-                "expected_keys": ["tools"]
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "resources/list",
+                "params": {}
             },
             {
-                "name": "List Resources",
-                "request": {
-                    "jsonrpc": "2.0",
-                    "id": 3,
-                    "method": "resources/list",
-                    "params": {}
-                },
-                "expected_keys": ["resources"]
-            },
-            {
-                "name": "Read Database Info",
-                "request": {
-                    "jsonrpc": "2.0",
-                    "id": 4,
-                    "method": "resources/read",
-                    "params": {"uri": "database://info"}
-                },
-                "expected_keys": ["contents"]
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "resources/read",
+                "params": {"uri": "database://info"}
             }
         ]
 
-        for test in basic_tests:
-            self.run_test(
-                test["name"],
-                test["request"],
-                test.get("expected_keys")
-            )
-            time.sleep(0.5)
+        lifecycle_expected_keys = [
+            ["protocolVersion", "capabilities", "serverInfo"],  # initialize
+            [],  # notification (no response)
+            ["tools"],  # tools/list
+            ["resources"],  # resources/list
+            ["contents"]  # resources/read
+        ]
+
+        self.run_session_test(
+            "MCP Lifecycle and Basic Operations",
+            lifecycle_requests,
+            lifecycle_expected_keys
+        )
 
         # Test 2: Database operations in a single session
         db_requests = [
+            # Initialize first
             {
                 "jsonrpc": "2.0",
                 "id": 10,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-03-26",
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {}
+                    },
+                    "clientInfo": {"name": "test-client", "version": "1.0.0"}
+                }
+            },
+            # Send initialized notification
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            },
+            # Create table
+            {
+                "jsonrpc": "2.0",
+                "id": 12,
                 "method": "tools/call",
                 "params": {
                     "name": "query",
@@ -380,9 +426,10 @@ class DatabaseMcpTester:
                     }
                 }
             },
+            # Insert data
             {
                 "jsonrpc": "2.0",
-                "id": 11,
+                "id": 13,
                 "method": "tools/call",
                 "params": {
                     "name": "query",
@@ -391,9 +438,10 @@ class DatabaseMcpTester:
                     }
                 }
             },
+            # Select data
             {
                 "jsonrpc": "2.0",
-                "id": 12,
+                "id": 14,
                 "method": "tools/call",
                 "params": {
                     "name": "query",
@@ -402,44 +450,73 @@ class DatabaseMcpTester:
                     }
                 }
             },
+            # Read table metadata
             {
                 "jsonrpc": "2.0",
-                "id": 13,
+                "id": 15,
                 "method": "resources/read",
                 "params": {"uri": "database://table/TEST_TABLE"}  # Use uppercase as H2 stores it
             }
         ]
 
         db_expected_keys = [
+            ["protocolVersion", "capabilities", "serverInfo"],  # initialize
+            [],        # notification
             ["content"],    # CREATE TABLE
             ["content"],    # INSERT
             ["content"],    # SELECT
             ["contents"]    # READ TABLE METADATA
         ]
 
-        self.run_batch_test(
+        self.run_session_test(
             "Database Operations (Single Session)",
             db_requests,
             db_expected_keys
         )
 
         # Test 3: Error handling test
-        error_test = {
-            "name": "Test Non-existent Table (Should Fail)",
-            "request": {
+        error_requests = [
+            # Initialize first
+            {
                 "jsonrpc": "2.0",
                 "id": 20,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-03-26",
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {}
+                    },
+                    "clientInfo": {"name": "test-client", "version": "1.0.0"}
+                }
+            },
+            # Send initialized notification
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            },
+            # Try to read non-existent table
+            {
+                "jsonrpc": "2.0",
+                "id": 22,
                 "method": "resources/read",
                 "params": {"uri": "database://table/nonexistent_table"}
-            },
-            "allow_error": True
-        }
+            }
+        ]
 
-        self.run_test(
-            error_test["name"],
-            error_test["request"],
-            [],
-            error_test.get("allow_error", False)
+        error_expected_keys = [
+            ["protocolVersion", "capabilities", "serverInfo"],  # initialize
+            [],  # notification
+            []   # error case - no expected keys
+        ]
+
+        error_allow_list = [False, False, True]  # Only allow error for the third request
+
+        self.run_session_test(
+            "Error Handling Test",
+            error_requests,
+            error_expected_keys,
+            error_allow_list
         )
 
         self.cleanup_required = True
@@ -474,8 +551,10 @@ class DatabaseMcpTester:
         print("To run the server interactively:")
         print(f"java -jar {self.server_jar}")
         print("")
-        print("Then send JSON-RPC requests via stdin, for example:")
-        print('{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}')
+        print("Example MCP session:")
+        print('{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "client", "version": "1.0"}}}')
+        print('{"jsonrpc": "2.0", "method": "notifications/initialized"}')
+        print('{"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}')
 
     def run(self):
         """Main test runner"""
