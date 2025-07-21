@@ -73,10 +73,10 @@ DBMCP works with virtually any database through JDBC drivers:
 ### Step 1: Download
 
 Download the latest release from [GitHub Releases](https://github.com/skanga/dbmcp/releases):
-- `dbmcp-2.0.0.jar` - Basic version (H2, SQLite, PostgreSQL, CSV)
-- `dbmcp-2.0.0-standard.jar` - With MySQL, MariaDB, ClickHouse
-- `dbmcp-2.0.0-enterprise.jar` - With Oracle, SQL Server, DB2
-- `dbmcp-2.0.0-full.jar` - All databases included (400MB+)
+- `dbmcp-2.0.1.jar` - Basic version (H2, SQLite, PostgreSQL, CSV)
+- `dbmcp-2.0.1.jar` - With MySQL, MariaDB, ClickHouse
+- `dbmcp-2.0.1.jar` - With Oracle, SQL Server, DB2
+- `dbmcp-2.0.1.jar` - All databases included (400MB+)
 
 NOTE: You can also build an efficient custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md)  for details
 
@@ -151,7 +151,7 @@ DB_DRIVER=org.h2.Driver
       "command": "java",
       "args": [
         "-jar", 
-        "/absolute/path/to/dbmcp-2.0.0.jar",
+        "/absolute/path/to/dbmcp-2.0.1.jar",
         "--config_file=/absolute/path/to/dbmcp.conf"
       ]
     }
@@ -165,7 +165,7 @@ DB_DRIVER=org.h2.Driver
   "mcpServers": {
     "database": {
       "command": "java",
-      "args": ["-jar", "/absolute/path/to/dbmcp-2.0.0.jar"],
+      "args": ["-jar", "/absolute/path/to/dbmcp-2.0.1.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://localhost:3306/your_database",
         "DB_USER": "your_username", 
@@ -185,7 +185,7 @@ DB_DRIVER=org.h2.Driver
       "command": "java",
       "args": [
         "-jar", 
-        "C:/Users/YourName/Downloads/dbmcp-2.0.0.jar",
+        "C:/Users/YourName/Downloads/dbmcp-2.0.1.jar",
         "--config_file=C:/Users/YourName/dbmcp.conf"
       ]
     }
@@ -200,7 +200,7 @@ DB_DRIVER=org.h2.Driver
   "mcpServers": {
     "production-db": {
       "command": "java",
-      "args": ["-jar", "/path/to/dbmcp-2.0.0.jar"],
+      "args": ["-jar", "/path/to/dbmcp-2.0.1.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://prod-server:3306/production",
         "DB_USER": "readonly_user",
@@ -211,7 +211,7 @@ DB_DRIVER=org.h2.Driver
     },
     "analytics-db": {
       "command": "java", 
-      "args": ["-jar", "/path/to/dbmcp-2.0.0.jar"],
+      "args": ["-jar", "/path/to/dbmcp-2.0.1.jar"],
       "env": {
         "DB_URL": "jdbc:postgresql://analytics:5432/warehouse",
         "DB_USER": "analyst",
@@ -368,7 +368,7 @@ This means command line arguments will always override config files, which overr
 **Use case**: Quick overrides, testing, one-time configurations
 
 ```bash
-java -jar dbmcp-2.0.0.jar \
+java -jar dbmcp-2.0.1.jar \
   --db_url="jdbc:mysql://localhost:3306/mydb" \
   --db_user="username" \
   --db_password="password" \
@@ -425,7 +425,7 @@ HTTP_PORT=8080
 
 **Usage:**
 ```bash
-java -jar dbmcp-2.0.0.jar --config_file=dbmcp.conf
+java -jar dbmcp-2.0.1.jar --config_file=dbmcp.conf
 ```
 
 **Config file features:**
@@ -448,7 +448,7 @@ export HTTP_MODE="true"
 export HTTP_PORT="8080"
 export SELECT_ONLY="true"
 
-java -jar dbmcp-2.0.0.jar
+java -jar dbmcp-2.0.1.jar
 ```
 
 **All environment variables:**
@@ -480,7 +480,7 @@ java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
      -Ddb.driver="com.mysql.cj.jdbc.Driver" \
      -Dhttp.mode="true" \
      -Dhttp.port="8080" \
-     -jar dbmcp-2.0.0.jar
+     -jar dbmcp-2.0.1.jar
 ```
 
 **Property naming**: Environment variable `DB_URL` becomes system property `db.url`
@@ -515,7 +515,7 @@ echo "HTTP_PORT=8080" > config.conf
 export HTTP_PORT=9090
 
 # Command line overrides both
-java -jar dbmcp-2.0.0.jar --config_file=config.conf --http_port=7070
+java -jar dbmcp-2.0.1.jar --config_file=config.conf --http_port=7070
 
 # Result: Uses port 7070 (command line wins)
 ```
@@ -531,7 +531,7 @@ echo "SELECT_ONLY=true" >> prod.conf
 export DB_PASSWORD="secure_password"
 
 # Override port via command line (for this run only)
-java -jar dbmcp-2.0.0.jar --config_file=prod.conf --http_port=9090
+java -jar dbmcp-2.0.1.jar --config_file=prod.conf --http_port=9090
 ```
 
 #### Example 3: Claude Desktop Configuration
@@ -541,7 +541,7 @@ java -jar dbmcp-2.0.0.jar --config_file=prod.conf --http_port=9090
     "database": {
       "command": "java",
       "args": [
-        "-jar", "/path/to/dbmcp-2.0.0.jar",
+        "-jar", "/path/to/dbmcp-2.0.1.jar",
         "--config_file=/path/to/production.conf",
         "--select_only=true"
       ],
@@ -584,14 +584,14 @@ java -jar dbmcp-2.0.0.jar --config_file=prod.conf --http_port=9090
 ```bash
 # ✅ Good: Use environment variables for passwords
 export DB_PASSWORD="secure_password"
-java -jar dbmcp-2.0.0.jar --config_file=app.conf
+java -jar dbmcp-2.0.1.jar --config_file=app.conf
 
 # ✅ Good: Use config file with restricted permissions
 chmod 600 secure.conf
-java -jar dbmcp-2.0.0.jar --config_file=secure.conf
+java -jar dbmcp-2.0.1.jar --config_file=secure.conf
 
 # ❌ Avoid: Passwords in command line (visible in process list)
-java -jar dbmcp-2.0.0.jar --db_password="visible_password"
+java -jar dbmcp-2.0.1.jar --db_password="visible_password"
 ```
 
 #### Configuration File Security
@@ -612,7 +612,7 @@ ls -la secure.conf
 #### Check Effective Configuration
 Enable debug logging to see which values are being used:
 ```bash
-java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.0.jar --config_file=myconfig.conf
+java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.1.jar --config_file=myconfig.conf
 ```
 
 #### Common Issues
@@ -624,7 +624,7 @@ java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.0.jar --config_file=myconfig.conf
 #### Validation Commands
 ```bash
 # Test database connection with current config
-java -jar dbmcp-2.0.0.jar --help
+java -jar dbmcp-2.0.1.jar --help
 
 # Verify config file syntax
 grep -v "^#" myconfig.conf | grep -v "^$"

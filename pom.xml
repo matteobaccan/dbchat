@@ -947,7 +947,16 @@
                 <groupId>com.google.code.maven-replacer-plugin</groupId>
                 <artifactId>replacer</artifactId>
                 <version>1.5.3</version>
+                <executions>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>replace</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
+                    <basedir>${project.basedir}</basedir>
                     <includes>
                         <include>README.md</include>
                         <include>INSTALL.md</include>

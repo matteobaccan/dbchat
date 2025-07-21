@@ -6,7 +6,7 @@ mvn versions:set -DnewVersion=2.0.0
 mvn versions:commit
 
 # 2. Commit and push to main
-git add pom.xml
+git add pom.xml DIR.md INSTALL.md
 git commit -m "Release version 2.0.0"
 git push origin main
 
