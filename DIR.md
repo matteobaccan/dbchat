@@ -26,7 +26,7 @@ database-mcp-server/
 │               └── skanga/
 │                   └── (test files)
 └── target/                                      # Build output (created by Maven)
-    └── dbmcp-2.0.1.jar                          # Executable JAR
+    └── dbmcp-2.0.2.jar                          # Executable JAR
 ```
 
 ## Key Components
