@@ -53,7 +53,7 @@ public final class SecurityUtils {
 
         // Check for excessively long content that might hide instructions
         if (stringValue.length() > 500) {
-            return "[LONG CONTENT]: " + truncateString(stringValue, 200) + "...";
+            return "[LONG CONTENT]: " + truncateString(stringValue, 200);
         }
 
         // Return original for normal content
@@ -81,7 +81,7 @@ public final class SecurityUtils {
 
         // Check for excessively long identifiers that might hide instructions
         if (identifier.length() > 100) {
-            return "[LONG_ID]: " + truncateString(identifier, 50) + "...";
+            return "[LONG_ID]: " + truncateString(identifier, 50);
         }
 
         return identifier;
@@ -96,6 +96,9 @@ public final class SecurityUtils {
      * @return Truncated string, or original if within limit
      */
     public static String truncateString(String input, int maxLength) {
+        if (maxLength <= 0) {
+            maxLength = 0;
+        }
         if (input == null || input.length() <= maxLength) {
             return input;
         }

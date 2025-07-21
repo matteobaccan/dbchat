@@ -149,7 +149,7 @@ public record ConfigParams(
      * @param inputValue The configuration value that may contain sensitive information
      * @return A masked version of the input value with sensitive parts replaced by "***"
      */
-    private String maskSensitive(String inputValue) {
+    String maskSensitive(String inputValue) {
         if (inputValue == null || inputValue.trim().isEmpty()) {
             return inputValue;
         }

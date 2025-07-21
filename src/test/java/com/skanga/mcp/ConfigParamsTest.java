@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ConfigParamsTest {
     @Test
@@ -38,6 +39,38 @@ class ConfigParamsTest {
         assertThat(config.maxConnections()).isEqualTo(maxConnections);
         assertThat(config.connectionTimeoutMs()).isEqualTo(connectionTimeout);
         assertThat(config.queryTimeoutSeconds()).isEqualTo(queryTimeout);
+    }
+
+    @Test
+    @DisplayName("Should throw appropriate exceptions")
+    void shouldThrow() {
+        // Given
+        String url = "jdbc:mysql://localhost:3306/test";
+        String username = "testuser";
+        String password = "testpass";
+        String driver = "com.mysql.cj.jdbc.Driver";
+        int maxConnections = 20;
+        int connectionTimeout = 60000;
+        int queryTimeout = 60;
+        boolean selectOnly = true;
+        int maxSqlLength = 10000;
+        int maxRowsLimit = 10000;
+        int idleTimeoutMs = 600000;
+        int maxLifetimeMs = 1800000;
+        int leakDetectionThresholdMs = 60000;
+
+        assertThrows(IllegalArgumentException.class, () -> new ConfigParams(url, username, password, driver,
+                -1, connectionTimeout, queryTimeout, selectOnly,
+                maxSqlLength, maxRowsLimit, idleTimeoutMs, maxLifetimeMs, leakDetectionThresholdMs));
+        assertThrows(IllegalArgumentException.class, () -> new ConfigParams(url, username, password, driver,
+                maxConnections, -1, queryTimeout, selectOnly,
+                maxSqlLength, maxRowsLimit, idleTimeoutMs, maxLifetimeMs, leakDetectionThresholdMs));
+        assertThrows(IllegalArgumentException.class, () -> new ConfigParams(url, username, password, driver,
+                maxConnections, connectionTimeout, -1, selectOnly,
+                maxSqlLength, maxRowsLimit, idleTimeoutMs, maxLifetimeMs, leakDetectionThresholdMs));
+        assertThrows(IllegalArgumentException.class, () -> new ConfigParams(url, username, password, driver,
+                maxConnections, connectionTimeout, queryTimeout, selectOnly,
+                -1, maxRowsLimit, idleTimeoutMs, maxLifetimeMs, leakDetectionThresholdMs));
     }
 
     @Test
@@ -159,6 +192,15 @@ class ConfigParamsTest {
             .contains("testuser")
             .contains("com.mysql.cj.jdbc.Driver")
             .contains("mysql");
+    }
+
+    @Test
+    @DisplayName("Should have meaningful toString representation")
+    void testMaskSensitive() {
+        ConfigParams config = ConfigParams.defaultConfig("a", "b", "c", "d");
+
+        assertThat(config.maskSensitive("test1_password")).isEqualTo("te***rd");
+        assertThat(config.maskSensitive(null)).isNull();
     }
 
     @Test
