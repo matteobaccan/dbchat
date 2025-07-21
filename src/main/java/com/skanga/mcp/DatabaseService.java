@@ -9,10 +9,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -386,11 +383,11 @@ public class DatabaseService {
      */
     public DatabaseResource readResource(String uri) throws SQLException {
         if (uri.equals("database://info")) {
-            try (Connection conn = getConnection()) {
-                DatabaseMetaData metaData = conn.getMetaData();
+            try (Connection dbConn = getConnection()) {
+                DatabaseMetaData metaData = dbConn.getMetaData();
                 String databaseInfo = getDatabaseInfo(metaData);
                 return new DatabaseResource(uri, "Database Information",
-                        "Database metadata", "text/plain", databaseInfo);
+                    "Database metadata", "text/plain", databaseInfo);
             }
         }
 
@@ -405,8 +402,8 @@ public class DatabaseService {
         }
 
         if (uri.equals("database://data-dictionary")) {
-            try (Connection conn = getConnection()) {
-                DatabaseMetaData metaData = conn.getMetaData();
+            try (Connection dbConn = getConnection()) {
+                DatabaseMetaData metaData = dbConn.getMetaData();
                 String dbType = configParams.getDatabaseType();
                 String dataDictionary = generateDataDictionary(metaData, dbType);
                 return new DatabaseResource(uri, "Data Dictionary & Schema Guide",
@@ -425,8 +422,8 @@ public class DatabaseService {
      * @throws SQLException if table metadata cannot be retrieved
      */
     private DatabaseResource getTableResource(String tableName) throws SQLException {
-        try (Connection conn = getConnection()) {
-            DatabaseMetaData metaData = conn.getMetaData();
+        try (Connection dbConn = getConnection()) {
+            DatabaseMetaData metaData = dbConn.getMetaData();
 
             // First check if the table actually exists
             boolean tableExists = false;
@@ -569,8 +566,8 @@ public class DatabaseService {
      * @throws SQLException if schema metadata cannot be retrieved
      */
     private DatabaseResource getSchemaResource(String schemaName) throws SQLException {
-        try (Connection conn = getConnection()) {
-            DatabaseMetaData metaData = conn.getMetaData();
+        try (Connection dbConn = getConnection()) {
+            DatabaseMetaData metaData = dbConn.getMetaData();
 
             // First check if the schema actually exists
             boolean schemaExists = false;
@@ -672,7 +669,7 @@ public class DatabaseService {
                 "\nCharacter Set & Encoding: " + getDatabaseCharsetInfo(dbType) +
                 "\nDate/Time Configuration: " + getDatabaseDateTimeInfo(dbType) +
                 // Add database-specific SQL syntax guidance
-                "\nSQL Dialect Guidelines:\n" + getSqlDialectGuidance(dbType) +
+                "\nSQL Dialect Guidelines:\n" + getSqlDialectGuidance(dbType, metaData.getConnection()) +
                 "\nSupported Features:\n" +
                 "\n- Transactions: " + metaData.supportsTransactions() +
                 "\n- Stored Procedures: " + metaData.supportsStoredProcedures() +
@@ -690,11 +687,11 @@ public class DatabaseService {
     private String getDatabaseCharsetInfo(String dbType) {
         StringBuilder charset = new StringBuilder();
 
-        try (Connection conn = getConnection()) {
+        try (Connection dbConn = getConnection()) {
             switch (dbType) {
                 case "mysql", "mariadb" -> {
                     charset.append("- Default Character Set: ");
-                    try (PreparedStatement stmt = conn.prepareStatement(
+                    try (PreparedStatement stmt = dbConn.prepareStatement(
                             "SELECT @@character_set_database, @@collation_database, @@character_set_server")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
@@ -711,7 +708,7 @@ public class DatabaseService {
 
                 case "postgresql" -> {
                     charset.append("- Server Encoding: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SHOW server_encoding")) {
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW server_encoding")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
                                 charset.append(rs.getString(1));
@@ -722,7 +719,7 @@ public class DatabaseService {
                     }
 
                     charset.append("\n- Client Encoding: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SHOW client_encoding")) {
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW client_encoding")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
                                 charset.append(rs.getString(1));
@@ -736,7 +733,7 @@ public class DatabaseService {
 
                 case "oracle" -> {
                     charset.append("- Database Character Set: ");
-                    try (PreparedStatement stmt = conn.prepareStatement(
+                    try (PreparedStatement stmt = dbConn.prepareStatement(
                             "SELECT value FROM nls_database_parameters WHERE parameter = 'NLS_CHARACTERSET'")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
@@ -748,7 +745,7 @@ public class DatabaseService {
                     }
 
                     charset.append("\n- National Character Set: ");
-                    try (PreparedStatement stmt = conn.prepareStatement(
+                    try (PreparedStatement stmt = dbConn.prepareStatement(
                             "SELECT value FROM nls_database_parameters WHERE parameter = 'NLS_NCHAR_CHARACTERSET'")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
@@ -763,7 +760,7 @@ public class DatabaseService {
 
                 case "sqlserver" -> {
                     charset.append("- Default Collation: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SELECT SERVERPROPERTY('Collation')")) {
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SELECT SERVERPROPERTY('Collation')")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
                                 charset.append(rs.getString(1));
@@ -807,11 +804,11 @@ public class DatabaseService {
     private String getDatabaseDateTimeInfo(String dbType) {
         StringBuilder dateTime = new StringBuilder();
 
-        try (Connection conn = getConnection()) {
+        try (Connection dbConn = getConnection()) {
             switch (dbType) {
                 case "mysql", "mariadb" -> {
                     dateTime.append("- Server Timezone: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SELECT @@global.time_zone, @@session.time_zone")) {
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SELECT @@global.time_zone, @@session.time_zone")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
                                 dateTime.append("Global=").append(rs.getString(1))
@@ -827,7 +824,7 @@ public class DatabaseService {
 
                 case "postgresql" -> {
                     dateTime.append("- Server Timezone: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SHOW timezone")) {
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW timezone")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
                                 dateTime.append(rs.getString(1));
@@ -838,7 +835,7 @@ public class DatabaseService {
                     }
 
                     dateTime.append("\n- Date Style: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SHOW datestyle")) {
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW datestyle")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
                                 dateTime.append(rs.getString(1));
@@ -851,8 +848,19 @@ public class DatabaseService {
                 }
 
                 case "oracle" -> {
+                    dateTime.append("- Database Timezone: ");
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SELECT DBTIMEZONE FROM DUAL")) {
+                        try (ResultSet rs = stmt.executeQuery()) {
+                            if (rs.next()) {
+                                dateTime.append(rs.getString(1));
+                            }
+                        }
+                    } catch (SQLException e) {
+                        dateTime.append("Unable to retrieve");
+                    }
+
                     dateTime.append("\n- Date Format: ");
-                    try (PreparedStatement stmt = conn.prepareStatement(
+                    try (PreparedStatement stmt = dbConn.prepareStatement(
                             "SELECT value FROM nls_session_parameters WHERE parameter = 'NLS_DATE_FORMAT'")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
@@ -863,19 +871,8 @@ public class DatabaseService {
                         }
                     }
 
-                    dateTime.append("\n- Database Timezone: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SELECT DBTIMEZONE FROM DUAL")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                dateTime.append(rs.getString(1));
-                            }
-                        }
-                    } catch (SQLException e) {
-                        dateTime.append("Unable to retrieve");
-                    }
-
                     dateTime.append("\n- Session Timezone: ");
-                    try (PreparedStatement stmt = conn.prepareStatement("SELECT SESSIONTIMEZONE FROM DUAL")) {
+                    try (PreparedStatement stmt = dbConn.prepareStatement("SELECT SESSIONTIMEZONE FROM DUAL")) {
                         try (ResultSet rs = stmt.executeQuery()) {
                             if (rs.next()) {
                                 dateTime.append(rs.getString(1));
@@ -895,7 +892,7 @@ public class DatabaseService {
                 }
 
                 case "h2" -> {
-                    dateTime.append("- Timezone: Uses JVM timezone (").append(java.util.TimeZone.getDefault().getID()).append(")\n");
+                    dateTime.append("- Timezone: Uses JVM timezone (").append(TimeZone.getDefault().getID()).append(")\n");
                     dateTime.append("- Date Format: YYYY-MM-DD, Timestamp Format: YYYY-MM-DD HH:MM:SS.nnnnnnnnn\n");
                     dateTime.append("- Note: H2 follows SQL standard for date/time handling\n");
                 }
@@ -909,19 +906,26 @@ public class DatabaseService {
 
                 default -> {
                     dateTime.append("- Date/time configuration not available for ").append(dbType).append("\n");
-                    dateTime.append("- Server Timezone: ").append(java.util.TimeZone.getDefault().getID()).append(" (JVM default)\n");
+                    dateTime.append("- Server Timezone: ").append(TimeZone.getDefault().getID()).append(" (JVM default)\n");
                     dateTime.append("- Check database documentation for specific date/time handling\n");
                 }
             }
         } catch (SQLException e) {
             dateTime.append("- Unable to retrieve date/time information: ").append(e.getMessage()).append("\n");
-            dateTime.append("- Server Timezone: ").append(java.util.TimeZone.getDefault().getID()).append(" (JVM default)\n");
+            dateTime.append("- Server Timezone: ").append(TimeZone.getDefault().getID()).append(" (JVM default)\n");
         }
 
         return dateTime.toString();
     }
 
-    private String getSqlDialectGuidance(String dbType) {
+    /**
+     * Gets SQL dialect guidance with database-specific syntax and examples.
+     *
+     * @param dbType The database type
+     * @param dbConn Database connection for additional queries (can be null)
+     * @return Formatted string with SQL dialect guidance
+     */
+    private String getSqlDialectGuidance(String dbType, Connection dbConn) {
         return switch (dbType) {
             case "mysql", "mariadb" ->
                 """
@@ -994,7 +998,7 @@ public class DatabaseService {
                 - String functions: CONCAT(), SUBSTRING(), LENGTH()
                 - Limit syntax: LIMIT count OFFSET offset
                 - Auto-increment: AUTO_INCREMENT or IDENTITY
-                """;
+                """ + (dbConn != null ? getH2CompatibilityMode(dbConn) : "\n- Compatibility Mode: Check H2 settings");
 
             default ->
                 """
@@ -1004,17 +1008,23 @@ public class DatabaseService {
         };
     }
 
-    private String getH2CompatibilityMode(Connection conn) {
-        try (PreparedStatement stmt = conn.prepareStatement("SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'MODE'")) {
+    /**
+     * Gets H2 database compatibility mode information.
+     *
+     * @param dbConn Database connection to use for the query
+     * @return Formatted string with H2 compatibility mode information
+     */
+    private String getH2CompatibilityMode(Connection dbConn) {
+        try (PreparedStatement stmt = dbConn.prepareStatement("SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'MODE'")) {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getString(1);
+                    return "- Compatibility Mode: " + rs.getString(1);
                 }
             }
         } catch (SQLException e) {
             logger.debug("Could not determine H2 mode", e);
         }
-        return "REGULAR";
+        return "- Compatibility Mode: REGULAR";
     }
 
     /**

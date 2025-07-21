@@ -371,14 +371,26 @@ class McpServerIntegrationTest {
 
     @Test
     @Timeout(5)
-    void testMainMethod_HttpModeFailure() {
-        // Test main method with invalid port that should cause IllegalArgumentException
-        String[] args = {"--http_mode=true", "--http_port=-1"};
+    void testStartHttpMode_InvalidPort() {
+        ConfigParams config = ConfigParams.defaultConfig(
+                "jdbc:h2:mem:test", "sa", "", "org.h2.Driver"
+        );
+        McpServer server = new McpServer(config);
 
-        // The actual exception thrown is IllegalArgumentException for invalid port
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> McpServer.main(args));
+        // Test various invalid ports
+        assertThrows(IllegalArgumentException.class, () -> server.startHttpMode(-1));
+        assertThrows(IllegalArgumentException.class, () -> server.startHttpMode(65536));
+    }
 
-        assertTrue(exception.getMessage().contains("port out of range"));
+    @Test
+    @Timeout(5)
+    void testHttpPortParsing_InvalidValues() {
+        // Test that configuration parsing handles invalid ports
+        String[] args1 = {"--http_port=not_a_number"};
+        assertThrows(NumberFormatException.class, () -> McpServer.getHttpPort(args1));
+
+        String[] args2 = {"--http_port="};
+        assertThrows(NumberFormatException.class, () -> McpServer.getHttpPort(args2));
     }
 
     private int findAvailablePort() throws IOException {

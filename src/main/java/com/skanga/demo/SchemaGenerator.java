@@ -847,9 +847,8 @@ public class SchemaGenerator {
 
     private void showResults() {
         System.out.println("\n=== Table Record Counts ===");
-        String[] tables = {"jobs", "departments", "employees", "dependents", "categories",
-                "products", "customers", "orders", "order_items", "warehouses",
-                "suppliers", "inventory"};
+        String[] tables = {"jobs", "departments", "employees", "dependents", "categories", "products",
+                "customers", "orders", "order_items", "warehouses", "suppliers", "inventory"};
 
         for (String table : tables) {
             try {
@@ -886,20 +885,19 @@ public class SchemaGenerator {
 
     private static void generateClaudeConfig(Config config) {
         String jsonTemplate = String.format("""
-                            "%s": {
-                              "command": "%s",
-                              "args": [
-                                "-jar",
-                                "%s"
-                              ],
-                              "env": {
-                                "DB_URL": "%s",
-                                "DB_USER": "%s",
-                                "DB_PASSWORD": "%s",
-                                "DB_DRIVER": "%s"
-                              }
-                            }""",
-                config.schema, getJava(), getJar(), config.dbUrl, config.dbUser, config.dbPassword, config.dbDriver);
+            "%s": {
+              "command": "%s",
+              "args": [
+                "-jar",
+                "%s"
+              ],
+              "env": {
+                "DB_URL": "%s",
+                "DB_USER": "%s",
+                "DB_PASSWORD": "%s",
+                "DB_DRIVER": "%s"
+              }
+            }""", config.schema, getJava(), getJar(), config.dbUrl, config.dbUser, config.dbPassword, config.dbDriver);
         System.out.println(jsonTemplate);
     }
 
@@ -978,7 +976,7 @@ public class SchemaGenerator {
     }
 
     private static void printUsage() {
-        System.out.println("Usage: java SimpleDBGenerator [options]");
+        System.out.println("Usage: java SchemaGenerator [options]");
         System.out.println("Options:");
         System.out.println("  --schema <hr|sales|inventory|combined>  Schema to generate (default: combined)");
         System.out.println("  --db-url <url>                          Database URL");
@@ -992,9 +990,9 @@ public class SchemaGenerator {
         System.out.println("  --help                                  Show this help");
         System.out.println();
         System.out.println("Examples:");
-        System.out.println("  java SimpleDBGenerator --schema hr --employees 100");
-        System.out.println("  java SimpleDBGenerator --schema sales --customers 150 --orders 300");
-        System.out.println("  java SimpleDBGenerator --db-url jdbc:sqlite:test.db --schema combined");
-        System.out.println("  java SimpleDBGenerator --db-url jdbc:mysql://localhost:3306/testdb --db-user admin --db-password secret");
+        System.out.println("  java SchemaGenerator --schema hr --employees 100");
+        System.out.println("  java SchemaGenerator --schema sales --customers 150 --orders 300");
+        System.out.println("  java SchemaGenerator --db-url jdbc:sqlite:test.db --schema combined");
+        System.out.println("  java SchemaGenerator --db-url jdbc:mysql://localhost:3306/testdb --db-user admin --db-password secret");
     }
 }

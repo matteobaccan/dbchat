@@ -176,7 +176,6 @@ class DatabaseServiceTest {
     @Test
     void testListResources() throws Exception {
         lenient().when(connection.getMetaData()).thenReturn(metaData);
-
         lenient().when(metaData.getDatabaseProductName()).thenReturn("H2");
         lenient().when(metaData.getDatabaseProductVersion()).thenReturn("1.4");
         lenient().when(metaData.getDriverName()).thenReturn("H2 Driver");
@@ -187,9 +186,17 @@ class DatabaseServiceTest {
         lenient().when(metaData.supportsStoredProcedures()).thenReturn(false);
         lenient().when(metaData.supportsMultipleResultSets()).thenReturn(true);
         lenient().when(metaData.supportsBatchUpdates()).thenReturn(true);
-
         lenient().when(metaData.getConnection()).thenReturn(connection);
         lenient().when(connection.getAutoCommit()).thenReturn(true);
+
+        // Mock H2 compatibility mode query
+        PreparedStatement h2ModeStmt = mock(PreparedStatement.class);
+        ResultSet h2ModeRs = mock(ResultSet.class);
+        lenient().when(connection.prepareStatement("SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'MODE'"))
+                .thenReturn(h2ModeStmt);
+        lenient().when(h2ModeStmt.executeQuery()).thenReturn(h2ModeRs);
+        lenient().when(h2ModeRs.next()).thenReturn(true);
+        lenient().when(h2ModeRs.getString(1)).thenReturn("REGULAR");
 
         // Create separate ResultSet mocks for each getTables() call
         ResultSet tablesForListResources = mock(ResultSet.class);
@@ -244,6 +251,16 @@ class DatabaseServiceTest {
         when(metaData.supportsStoredProcedures()).thenReturn(false);
         when(metaData.supportsMultipleResultSets()).thenReturn(true);
         when(metaData.supportsBatchUpdates()).thenReturn(true);
+        when(metaData.getConnection()).thenReturn(connection);
+
+        // Mock H2 compatibility mode query
+        PreparedStatement h2ModeStmt = mock(PreparedStatement.class);
+        ResultSet h2ModeRs = mock(ResultSet.class);
+        when(connection.prepareStatement("SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'MODE'"))
+                .thenReturn(h2ModeStmt);
+        when(h2ModeStmt.executeQuery()).thenReturn(h2ModeRs);
+        when(h2ModeRs.next()).thenReturn(true);
+        when(h2ModeRs.getString(1)).thenReturn("REGULAR");
 
         DatabaseResource info = service.readResource("database://info");
 

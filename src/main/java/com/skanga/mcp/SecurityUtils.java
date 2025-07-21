@@ -31,24 +31,24 @@ public final class SecurityUtils {
         // Check for instruction-like patterns
         boolean containsInstructions =
                 lowerValue.startsWith("ignore") ||
-                        lowerValue.startsWith("forget") ||
-                        lowerValue.startsWith("system:") ||
-                        lowerValue.startsWith("assistant:") ||
-                        lowerValue.startsWith("user:") ||
-                        lowerValue.contains("</instructions>") ||
-                        lowerValue.contains("<instructions>") ||
-                        lowerValue.contains("prompt:") ||
-                        lowerValue.contains("execute") ||
-                        lowerValue.contains("run the following") ||
-                        lowerValue.contains("new instructions") ||
-                        lowerValue.contains("override") ||
-                        lowerValue.contains("jailbreak") ||
-                        lowerValue.contains("roleplay") ||
-                        lowerValue.matches(".*\\b(act as|pretend to be|you are now)\\b.*");
+                lowerValue.startsWith("forget") ||
+                lowerValue.startsWith("system:") ||
+                lowerValue.startsWith("assistant:") ||
+                lowerValue.startsWith("user:") ||
+                lowerValue.contains("</instructions>") ||
+                lowerValue.contains("<instructions>") ||
+                lowerValue.contains("prompt:") ||
+                lowerValue.contains("execute") ||
+                lowerValue.contains("run the following") ||
+                lowerValue.contains("new instructions") ||
+                lowerValue.contains("override") ||
+                lowerValue.contains("jailbreak") ||
+                lowerValue.contains("roleplay") ||
+                lowerValue.matches(".*\\b(act as|pretend to be|you are now)\\b.*");
 
         // Mark suspicious content
         if (containsInstructions) {
-            return "⚠️[FLAGGED]: " + truncateString(stringValue, 100);
+            return "[FLAGGED]: " + truncateString(stringValue, 100);
         }
 
         // Check for excessively long content that might hide instructions
@@ -76,12 +76,12 @@ public final class SecurityUtils {
                 lower.contains("instruction") || lower.contains("prompt") ||
                 lower.contains("forget") || lower.contains("override") ||
                 lower.contains("execute") || lower.contains("jailbreak")) {
-            return "⚠️[FLAGGED_ID]: " + identifier;
+            return "️[FLAGGED_ID]: " + identifier;
         }
 
         // Check for excessively long identifiers that might hide instructions
         if (identifier.length() > 100) {
-            return "📝[LONG_ID]: " + truncateString(identifier, 50) + "...";
+            return "[LONG_ID]: " + truncateString(identifier, 50) + "...";
         }
 
         return identifier;
