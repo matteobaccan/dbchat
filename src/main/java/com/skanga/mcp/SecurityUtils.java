@@ -48,12 +48,12 @@ public final class SecurityUtils {
 
         // Mark suspicious content
         if (containsInstructions) {
-            return "[FLAGGED]: " + truncateString(stringValue, 100);
+            return "[FLAGGED CONTENT]: " + truncateString(stringValue, 100);
         }
 
         // Check for excessively long content that might hide instructions
         if (stringValue.length() > 500) {
-            return "📝[LONG]: " + truncateString(stringValue, 200) + "...";
+            return "[LONG CONTENT]: " + truncateString(stringValue, 200) + "...";
         }
 
         // Return original for normal content

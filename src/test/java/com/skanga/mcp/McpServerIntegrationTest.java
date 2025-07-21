@@ -1,11 +1,13 @@
 package com.skanga.mcp;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIf;
-
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -13,15 +15,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import static org.junit.jupiter.api.Assertions.*;
 
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpServerIntegrationTest {
-    private McpServer mcpServer;
-    private ConfigParams testConfig;
-    private ExecutorService executorService;
+    private static McpServer sharedMcpServer;
+    private static ConfigParams sharedTestConfig;
+    private static ExecutorService sharedExecutorService;
+    private static int sharedPort;
+    private static CompletableFuture<Void> sharedServerFuture;
 
-    // Only run these tests if we can create server sockets (network available)
     static boolean isNetworkAvailable() {
         try (ServerSocket socket = new ServerSocket(0)) {
             return true;
@@ -30,66 +33,67 @@ class McpServerIntegrationTest {
         }
     }
 
-    @BeforeEach
-    void setUp() {
-        testConfig = new ConfigParams(
-                "jdbc:h2:mem:testdb_" + System.currentTimeMillis(), // Unique DB per test
-                "sa", "", "org.h2.Driver",
+    @BeforeAll
+    static void setUpClass() throws Exception {
+        sharedTestConfig = new ConfigParams(
+                "jdbc:h2:mem:testdb_shared", "sa", "", "org.h2.Driver",
                 10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
         );
-        mcpServer = new McpServer(testConfig);
-        executorService = Executors.newCachedThreadPool();
+        sharedMcpServer = new McpServer(sharedTestConfig);
+        sharedExecutorService = Executors.newCachedThreadPool();
+
+        if (isNetworkAvailable()) {
+            sharedPort = findAvailablePort();
+            startSharedServer();
+        }
     }
 
-    @AfterEach
-    void tearDown() {
-        if (executorService != null) {
-            executorService.shutdownNow();
+    @AfterAll
+    static void tearDownClass() {
+        if (sharedServerFuture != null) {
+            sharedServerFuture.cancel(true);
+        }
+        if (sharedExecutorService != null) {
+            sharedExecutorService.shutdownNow();
             try {
-                if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                if (!sharedExecutorService.awaitTermination(2, TimeUnit.SECONDS)) {
                     System.err.println("Executor did not terminate gracefully");
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
-
-        if (mcpServer != null) {
-            // Ensure cleanup
+        if (sharedMcpServer != null) {
             try {
-                mcpServer.databaseService.close();
+                sharedMcpServer.databaseService.close();
             } catch (Exception e) {
-                // Ignore cleanup errors in tests
+                // Ignore cleanup errors
             }
         }
     }
 
-    @Test
-    @Timeout(15)
-    @EnabledIf("isNetworkAvailable")
-    void testHttpMode_PortAlreadyInUse() throws Exception {
-        // Find an available port
-        int port = findAvailablePort();
-
-        // Start first server
-        CompletableFuture<Void> server1 = CompletableFuture.runAsync(() -> {
+    private static void startSharedServer() throws Exception {
+        sharedServerFuture = CompletableFuture.runAsync(() -> {
             try {
-                mcpServer.startHttpMode(port);
+                sharedMcpServer.startHttpMode(sharedPort);
             } catch (IOException e) {
                 // Expected when we shut it down
             }
-        }, executorService);
+        }, sharedExecutorService);
 
-        // Wait for server to start with retry logic
-        waitForServerToStart(port, 10000); // 10 second timeout
+        waitForServerToStart(sharedPort, 5000);
+    }
 
+    @Test
+    @Order(1)
+    @Timeout(10)
+    @EnabledIf("isNetworkAvailable")
+    void testHttpMode_PortAlreadyInUse() throws Exception {
         // Try to start second server on same port - should fail
-        McpServer secondServer = new McpServer(testConfig);
+        McpServer secondServer = new McpServer(sharedTestConfig);
         try {
-            assertThrows(IOException.class, () -> secondServer.startHttpMode(port));
+            assertThrows(IOException.class, () -> secondServer.startHttpMode(sharedPort));
         } finally {
-            // Cleanup
-            server1.cancel(true);
             try {
                 secondServer.databaseService.close();
             } catch (Exception e) {
@@ -99,184 +103,116 @@ class McpServerIntegrationTest {
     }
 
     @Test
-    @Timeout(15)
+    @Order(2)
+    @Timeout(5)
     @EnabledIf("isNetworkAvailable")
     void testHttpRequest_InvalidMethod() throws Exception {
-        int port = findAvailablePort();
+        URL url = new URL("http://localhost:" + sharedPort + "/mcp");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(2000);
+        conn.setReadTimeout(2000);
+        conn.setRequestMethod("GET");
 
-        // Start server in background
-        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
-            try {
-                mcpServer.startHttpMode(port);
-            } catch (IOException e) {
-                // Expected when we shut it down
-            }
-        }, executorService);
+        int responseCode = conn.getResponseCode();
+        assertEquals(405, responseCode);
 
-        try {
-            // Wait for server to start
-            waitForServerToStart(port, 10000);
-
-            // Send GET request (should fail - only POST allowed)
-            URL url = new URL("http://localhost:" + port + "/mcp");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            conn.setRequestMethod("GET");
-
-            int responseCode = conn.getResponseCode();
-            assertEquals(405, responseCode); // Method Not Allowed
-
-            // Read error response
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(conn.getErrorStream()))) {
-                String response = reader.lines().reduce("", String::concat);
-                assertTrue(response.contains("Method not allowed"));
-            }
-
-        } finally {
-            serverFuture.cancel(true);
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getErrorStream()))) {
+            String response = reader.lines().reduce("", String::concat);
+            assertTrue(response.contains("Method not allowed"));
         }
     }
 
     @Test
-    @Timeout(15)
+    @Order(3)
+    @Timeout(5)
     @EnabledIf("isNetworkAvailable")
     void testHttpRequest_InvalidJson() throws Exception {
-        int port = findAvailablePort();
+        URL url = new URL("http://localhost:" + sharedPort + "/mcp");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(2000);
+        conn.setReadTimeout(2000);
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setDoOutput(true);
 
-        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
-            try {
-                mcpServer.startHttpMode(port);
-            } catch (IOException e) {
-                // Expected
-            }
-        }, executorService);
+        String invalidJson = "{ invalid json content }";
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(invalidJson.getBytes(StandardCharsets.UTF_8));
+        }
 
-        try {
-            waitForServerToStart(port, 10000);
+        int responseCode = conn.getResponseCode();
+        assertEquals(500, responseCode);
 
-            // Send invalid JSON
-            URL url = new URL("http://localhost:" + port + "/mcp");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setDoOutput(true);
-
-            String invalidJson = "{ invalid json content }";
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(invalidJson.getBytes(StandardCharsets.UTF_8));
-            }
-
-            int responseCode = conn.getResponseCode();
-            assertEquals(500, responseCode); // Internal Server Error
-
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(conn.getErrorStream()))) {
-                String response = reader.lines().reduce("", String::concat);
-                assertTrue(response.contains("Internal server error"));
-            }
-        } finally {
-            serverFuture.cancel(true);
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getErrorStream()))) {
+            String response = reader.lines().reduce("", String::concat);
+            assertTrue(response.contains("Internal server error"));
         }
     }
 
     @Test
-    @Timeout(15)
+    @Order(4)
+    @Timeout(5)
     @EnabledIf("isNetworkAvailable")
     void testHttpRequest_OptionsRequest() throws Exception {
-        int port = findAvailablePort();
+        URL url = new URL("http://localhost:" + sharedPort + "/mcp");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(2000);
+        conn.setReadTimeout(2000);
+        conn.setRequestMethod("OPTIONS");
 
-        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
-            try {
-                mcpServer.startHttpMode(port);
-            } catch (IOException e) {
-                // Expected
-            }
-        }, executorService);
+        int responseCode = conn.getResponseCode();
+        assertEquals(200, responseCode);
 
-        try {
-            waitForServerToStart(port, 10000);
-
-            // Send OPTIONS request (CORS preflight)
-            URL url = new URL("http://localhost:" + port + "/mcp");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            conn.setRequestMethod("OPTIONS");
-
-            int responseCode = conn.getResponseCode();
-            assertEquals(200, responseCode);
-
-            // Check CORS headers
-            assertEquals("*", conn.getHeaderField("Access-Control-Allow-Origin"));
-            assertEquals("POST, OPTIONS", conn.getHeaderField("Access-Control-Allow-Methods"));
-
-        } finally {
-            serverFuture.cancel(true);
-        }
+        assertEquals("*", conn.getHeaderField("Access-Control-Allow-Origin"));
+        assertEquals("POST, OPTIONS", conn.getHeaderField("Access-Control-Allow-Methods"));
     }
 
     @Test
-    @Timeout(15)
+    @Order(5)
+    @Timeout(5)
     @EnabledIf("isNetworkAvailable")
     void testHealthCheck_Endpoint() throws Exception {
-        int port = findAvailablePort();
+        URL url = new URL("http://localhost:" + sharedPort + "/health");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(2000);
+        conn.setReadTimeout(2000);
+        conn.setRequestMethod("GET");
 
-        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
-            try {
-                mcpServer.startHttpMode(port);
-            } catch (IOException e) {
-                // Expected
-            }
-        }, executorService);
+        int responseCode = conn.getResponseCode();
+        assertEquals(200, responseCode);
 
-        try {
-            waitForServerToStart(port, 10000);
-
-            // Test health check endpoint
-            URL url = new URL("http://localhost:" + port + "/health");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-            conn.setRequestMethod("GET");
-
-            int responseCode = conn.getResponseCode();
-            assertEquals(200, responseCode);
-
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(conn.getInputStream()))) {
-                String response = reader.lines().reduce("", String::concat);
-                assertTrue(response.contains("status"));
-                assertTrue(response.contains("healthy"));
-            }
-        } finally {
-            serverFuture.cancel(true);
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getInputStream()))) {
+            String response = reader.lines().reduce("", String::concat);
+            assertTrue(response.contains("status"));
+            assertTrue(response.contains("healthy"));
         }
     }
 
     @Test
-    @Timeout(10)
+    @Order(6)
+    @Timeout(5)
     void testStdioMode_MalformedInput() {
-        // Prepare malformed input
         String malformedInput = "not json at all\n{ incomplete json\n";
         ByteArrayInputStream inputStream = new ByteArrayInputStream(malformedInput.getBytes());
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        // Redirect system streams
         InputStream originalIn = System.in;
         PrintStream originalOut = System.out;
-
         try {
             System.setIn(inputStream);
             System.setOut(new PrintStream(outputStream));
 
-            // Run stdio mode - should handle malformed input gracefully
-            assertDoesNotThrow(() -> mcpServer.startStdioMode());
+            // Create separate server instance for stdio tests
+            McpServer stdioServer = new McpServer(new ConfigParams(
+                    "jdbc:h2:mem:stdio_test", "sa", "", "org.h2.Driver",
+                    10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
+            ));
 
-            // Verify no crash occurred and error responses were generated
+            assertDoesNotThrow(() -> stdioServer.startStdioMode());
+
             String output = outputStream.toString();
             // The output should contain error responses for malformed JSON
             assertNotNull(output);
@@ -287,29 +223,31 @@ class McpServerIntegrationTest {
     }
 
     @Test
-    @Timeout(10)
+    @Order(7)
+    @Timeout(5)
     void testStdioMode_NotificationWithError() {
         // Prepare input with notification that will cause an error
         String notificationJson = """
             {"method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
             """;
-
         ByteArrayInputStream inputStream = new ByteArrayInputStream(notificationJson.getBytes());
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         InputStream originalIn = System.in;
         PrintStream originalOut = System.out;
-
         try {
             System.setIn(inputStream);
             System.setOut(new PrintStream(outputStream));
 
-            assertDoesNotThrow(() -> mcpServer.startStdioMode());
+            McpServer stdioServer = new McpServer(new ConfigParams(
+                    "jdbc:h2:mem:stdio_test2", "sa", "", "org.h2.Driver",
+                    10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
+            ));
 
-            // For notifications, no response should be sent even on error
+            assertDoesNotThrow(() -> stdioServer.startStdioMode());
+
             String output = outputStream.toString().trim();
             assertFalse(output.contains("error"));
-
         } finally {
             System.setIn(originalIn);
             System.setOut(originalOut);
@@ -317,34 +255,37 @@ class McpServerIntegrationTest {
     }
 
     @Test
-    @Timeout(10)
+    @Order(8)
+    @Timeout(5)
     void testStdioMode_RequestWithError() {
         // Prepare input with proper MCP initialization sequence followed by error request
         String initializeRequest = """
         {"jsonrpc":"2.0","id":"init","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"tools":{},"resources":{}},"clientInfo":{"name":"TestClient","version":"1.0.0"}}}
         """;
-
         String initializedNotification = """
         {"jsonrpc":"2.0","method":"notifications/initialized"}
         """;
-
         String errorRequest = """
         {"jsonrpc":"2.0","id":"error","method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
         """;
 
         // Combine all requests with newlines (stdio mode expects line-separated JSON)
         String allRequests = initializeRequest + "\n" + initializedNotification + "\n" + errorRequest + "\n";
-
         ByteArrayInputStream inputStream = new ByteArrayInputStream(allRequests.getBytes());
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
         InputStream originalIn = System.in;
         PrintStream originalOut = System.out;
-
         try {
             System.setIn(inputStream);
             System.setOut(new PrintStream(outputStream));
 
-            assertDoesNotThrow(() -> mcpServer.startStdioMode());
+            McpServer stdioServer = new McpServer(new ConfigParams(
+                    "jdbc:h2:mem:stdio_test3", "sa", "", "org.h2.Driver",
+                    10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
+            ));
+
+            assertDoesNotThrow(() -> stdioServer.startStdioMode());
 
             String output = outputStream.toString().trim();
             String[] responses = output.split("\n");
@@ -362,7 +303,6 @@ class McpServerIntegrationTest {
             assertTrue(errorResponse.contains("\"error\""), "Should contain error");
             assertTrue(errorResponse.contains("SQL query cannot be empty"), "Should contain empty SQL error message");
             assertTrue(errorResponse.contains("\"id\":\"error\""), "Should have matching request ID");
-
         } finally {
             System.setIn(originalIn);
             System.setOut(originalOut);
@@ -370,7 +310,8 @@ class McpServerIntegrationTest {
     }
 
     @Test
-    @Timeout(5)
+    @Order(9)
+    @Timeout(2)
     void testStartHttpMode_InvalidPort() {
         ConfigParams config = ConfigParams.defaultConfig(
                 "jdbc:h2:mem:test", "sa", "", "org.h2.Driver"
@@ -383,7 +324,8 @@ class McpServerIntegrationTest {
     }
 
     @Test
-    @Timeout(5)
+    @Order(10)
+    @Timeout(2)
     void testHttpPortParsing_InvalidValues() {
         // Test that configuration parsing handles invalid ports
         String[] args1 = {"--http_port=not_a_number"};
@@ -393,7 +335,7 @@ class McpServerIntegrationTest {
         assertThrows(NumberFormatException.class, () -> McpServer.getHttpPort(args2));
     }
 
-    private int findAvailablePort() throws IOException {
+    private static int findAvailablePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
@@ -402,21 +344,19 @@ class McpServerIntegrationTest {
     /**
      * Wait for server to start accepting connections with retry logic
      */
-    private void waitForServerToStart(int port, long timeoutMs) throws Exception {
+    private static void waitForServerToStart(int port, long timeoutMs) throws Exception {
         long startTime = System.currentTimeMillis();
         long endTime = startTime + timeoutMs;
 
         while (System.currentTimeMillis() < endTime) {
             try (Socket testSocket = new Socket()) {
-                testSocket.connect(new InetSocketAddress("localhost", port), 1000);
+                testSocket.connect(new InetSocketAddress("localhost", port), 500);
                 // If we get here, server is accepting connections
                 return;
             } catch (ConnectException | SocketTimeoutException e) {
-                // Server not ready yet, wait and retry
-                Thread.sleep(250); // Wait 250ms before retry
+                Thread.sleep(100); // Reduced from 250ms to 100ms
             }
         }
-
         throw new AssertionError("Server did not start within " + timeoutMs + "ms on port " + port);
     }
 }
