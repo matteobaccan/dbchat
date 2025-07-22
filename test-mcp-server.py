@@ -345,7 +345,7 @@ class DatabaseMcpTester:
                 "id": 1,
                 "method": "initialize",
                 "params": {
-                    "protocolVersion": "2025-03-26",  # Updated protocol version
+                    "protocolVersion": "2025-06-18",  # Updated protocol version
                     "capabilities": {
                         "tools": {},
                         "resources": {}
@@ -401,7 +401,7 @@ class DatabaseMcpTester:
                 "id": 10,
                 "method": "initialize",
                 "params": {
-                    "protocolVersion": "2025-03-26",
+                    "protocolVersion": "2025-06-18",
                     "capabilities": {
                         "tools": {},
                         "resources": {}
@@ -482,7 +482,7 @@ class DatabaseMcpTester:
                 "id": 20,
                 "method": "initialize",
                 "params": {
-                    "protocolVersion": "2025-03-26",
+                    "protocolVersion": "2025-06-18",
                     "capabilities": {
                         "tools": {},
                         "resources": {}

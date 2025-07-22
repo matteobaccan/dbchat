@@ -382,7 +382,7 @@ class McpServerTest {
         initRequest.put("method", "initialize");
 
         ObjectNode initParams = objectMapper.createObjectNode();
-        initParams.put("protocolVersion", "2025-03-26");
+        initParams.put("protocolVersion", "2025-06-18");
         ObjectNode capabilities = objectMapper.createObjectNode();
         ObjectNode toolsCap = objectMapper.createObjectNode();
         toolsCap.put("listChanged", false);
@@ -574,7 +574,7 @@ class McpServerTest {
         request.put("method", "initialize");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("protocolVersion", "2025-03-26");
+        params.put("protocolVersion", "2025-06-18");
         // No capabilities field
         request.set("params", params);
 
@@ -621,72 +621,6 @@ class McpServerTest {
         assertTrue(result.has("timestamp"));
         assertTrue(result.has("state"));
         assertEquals("INITIALIZED", result.get("state").asText());
-    }
-
-    @Test
-    void testValidateClientSupportsFeature_Tools() {
-        // Initialize with limited capabilities
-        ObjectNode initRequest = objectMapper.createObjectNode();
-        initRequest.put("id", 1);
-        initRequest.put("method", "initialize");
-
-        ObjectNode params = objectMapper.createObjectNode();
-        params.put("protocolVersion", "2025-03-26");
-        ObjectNode capabilities = objectMapper.createObjectNode();
-        // Don't include tools capability
-        params.set("capabilities", capabilities);
-        initRequest.set("params", params);
-
-        mcpServer.handleRequest(initRequest);
-
-        // Send initialized notification
-        ObjectNode initializedRequest = objectMapper.createObjectNode();
-        initializedRequest.put("method", "notifications/initialized");
-        mcpServer.handleRequest(initializedRequest);
-
-        // Try to call tools/list without tools capability
-        ObjectNode toolsRequest = objectMapper.createObjectNode();
-        toolsRequest.put("id", 2);
-        toolsRequest.put("method", "tools/list");
-
-        JsonNode response = mcpServer.handleRequest(toolsRequest);
-
-        assertNotNull(response);
-        assertTrue(response.has("error"));
-        assertTrue(response.get("error").get("message").asText().contains("does not support tools"));
-    }
-
-    @Test
-    void testValidateClientSupportsFeature_Resources() {
-        // Initialize with limited capabilities
-        ObjectNode initRequest = objectMapper.createObjectNode();
-        initRequest.put("id", 1);
-        initRequest.put("method", "initialize");
-
-        ObjectNode params = objectMapper.createObjectNode();
-        params.put("protocolVersion", "2025-03-26");
-        ObjectNode capabilities = objectMapper.createObjectNode();
-        // Don't include resources capability
-        params.set("capabilities", capabilities);
-        initRequest.set("params", params);
-
-        mcpServer.handleRequest(initRequest);
-
-        // Send initialized notification
-        ObjectNode initializedRequest = objectMapper.createObjectNode();
-        initializedRequest.put("method", "notifications/initialized");
-        mcpServer.handleRequest(initializedRequest);
-
-        // Try to call resources/list without resources capability
-        ObjectNode resourcesRequest = objectMapper.createObjectNode();
-        resourcesRequest.put("id", 2);
-        resourcesRequest.put("method", "resources/list");
-
-        JsonNode response = mcpServer.handleRequest(resourcesRequest);
-
-        assertNotNull(response);
-        assertTrue(response.has("error"));
-        assertTrue(response.get("error").get("message").asText().contains("does not support resources"));
     }
 
     @Test

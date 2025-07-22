@@ -77,6 +77,7 @@ mvn clean package -P standard-databases,enterprise-databases
 **Additional drivers:**
 - Amazon Redshift JDBC Driver - AWS data warehouse
 - Snowflake JDBC Driver - Cloud data platform
+- Databricks JDBC Driver - Cloud data platform
 - Google BigQuery JDBC Driver - Google's analytics database
 
 **Build command:**
@@ -140,6 +141,7 @@ mvn clean package -P standard-databases,cloud-analytics
 | IBM DB2 | | | ✓ | | |
 | Redshift | | | | ✓ | |
 | Snowflake | | | | ✓ | |
+| Databricks | | | | ✓ | |
 | BigQuery | | | | ✓ | |
 | Hive | | | | | ✓ |
 | MongoDB | | | | | ✓ |
@@ -355,6 +357,14 @@ export DB_URL="jdbc:snowflake://account.snowflakecomputing.com/?warehouse=wareho
 export DB_USER="username"
 export DB_PASSWORD="password"
 export DB_DRIVER="net.snowflake.client.jdbc.SnowflakeDriver"
+```
+
+#### Databricks
+```bash
+export DB_URL="jdbc:spark://your-workspace.cloud.databricks.com:443/default;transportMode=http;ssl=1;httpPath=/sql/1.0/warehouses/warehouse-id"
+export DB_USER="token"
+export DB_PASSWORD="your-personal-access-token"
+export DB_DRIVER="com.simba.spark.jdbc.Driver"
 ```
 
 #### Google BigQuery

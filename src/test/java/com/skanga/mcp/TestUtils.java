@@ -215,7 +215,7 @@ public class TestUtils {
         initRequest.put("method", "initialize");
 
         ObjectNode initParams = objectMapper.createObjectNode();
-        initParams.put("protocolVersion", "2025-03-26");
+        initParams.put("protocolVersion", "2025-06-18");
         ObjectNode capabilities = objectMapper.createObjectNode();
         ObjectNode toolsCap = objectMapper.createObjectNode();
         toolsCap.put("listChanged", false);

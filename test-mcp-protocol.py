@@ -352,7 +352,7 @@ class MCPTester:
                     "id": 1,
                     "method": "initialize",
                     "params": {
-                        "protocolVersion": "2025-03-26",  # Updated to current version
+                        "protocolVersion": "2025-06-18",
                         "capabilities": {
                             "tools": {},
                             "resources": {}

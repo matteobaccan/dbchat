@@ -312,7 +312,7 @@ public class SchemaGenerator {
                             inventory_id INT PRIMARY KEY,
                             product_id INT NOT NULL%s,
                             warehouse_id INT NOT NULL%s,
-                            quantity_on_hand INT NOT NULL DEFAULT 0,
+                            quantity_on_hand INT DEFAULT 0 NOT NULL,
                             reorder_level INT DEFAULT 10
                         )""",
                 db.fk("FOREIGN KEY (product_id) REFERENCES products(product_id)"),
@@ -822,7 +822,7 @@ public class SchemaGenerator {
             try {
                 db.executeSQL("DROP TABLE IF EXISTS " + table);
             } catch (SQLException e) {
-                // Ignore if table doesn't exist
+                System.out.println("Warning: Failed to drop: " + table + " due to: " + e.getMessage());
             }
         }
     }
@@ -895,9 +895,11 @@ public class SchemaGenerator {
                 "DB_URL": "%s",
                 "DB_USER": "%s",
                 "DB_PASSWORD": "%s",
-                "DB_DRIVER": "%s"
+                "DB_DRIVER": "%s",
+                "SELECT_ONLY": true
               }
-            }""", config.schema, getJava(), getJar(), config.dbUrl, config.dbUser, config.dbPassword, config.dbDriver);
+            }""", config.schema + "-database", getJava().replace("\\", "/"), getJar().replace("\\", "/"), config.dbUrl, config.dbUser, config.dbPassword, config.dbDriver);
+        System.out.println("\nAdd this to claude_desktop_config.json inside the curly braces of the \"mcpServers\": {} node:\n");
         System.out.println(jsonTemplate);
     }
 

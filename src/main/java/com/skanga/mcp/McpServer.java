@@ -33,6 +33,7 @@ import java.util.Map;
  * Other features include query validation, connection pooling, and configurable access restrictions.
  */
 public class McpServer {
+    String serverProtocolVersion = "2025-06-18";
     private static final Logger logger = LoggerFactory.getLogger(McpServer.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -382,67 +383,6 @@ public class McpServer {
     }
 
     /**
-     * Checks if the client supports a specific capability.
-     *
-     * @param capabilityPath dot-separated path to capability (e.g., "tools.listChanged")
-     * @return true if client supports the capability, false otherwise
-     */
-    private boolean clientSupportsCapability(String capabilityPath) {
-        if (clientCapabilities == null) {
-            return false;
-        }
-
-        String[] pathParts = capabilityPath.split("\\.");
-        JsonNode currentNode = clientCapabilities;
-
-        for (String currentPart : pathParts) {
-            if (!currentNode.has(currentPart)) {
-                return false;
-            }
-            currentNode = currentNode.get(currentPart);
-        }
-
-        // Check if it's explicitly enabled (true) or an object (indicates support)
-        return currentNode.isBoolean() ? currentNode.asBoolean() : currentNode.isObject();
-    }
-
-    /**
-     * Validates that we only use features the client has declared support for.
-     * Should be called before sending responses that use optional features.
-     *
-     * @param featureName the feature being used
-     * @throws IllegalStateException if client doesn't support the feature
-     */
-    private void validateClientSupportsFeature(String featureName) {
-        ensureInitialized();
-
-        switch (featureName) {
-            case "tools" -> {
-                if (!clientSupportsCapability("tools")) {
-                    throw new IllegalStateException("Client does not support tools capability");
-                }
-            }
-            case "resources" -> {
-                if (!clientSupportsCapability("resources")) {
-                    throw new IllegalStateException("Client does not support resources capability");
-                }
-            }
-            // Add more feature validations as needed
-        }
-    }
-
-    /**
-     * Ensures the server is in the INITIALIZED state before processing requests.
-     *
-     * @throws IllegalStateException if server is not initialized
-     */
-    private void ensureInitialized() {
-        if (serverState != ServerState.INITIALIZED) {
-            throw new IllegalStateException("Server must be initialized before processing requests. Current state: " + serverState);
-        }
-    }
-
-    /**
      * Starts the server in stdio mode for direct process communication.
      * Reads JSON-RPC requests from stdin and writes responses to stdout.
      * Blocks the calling thread and processes requests until stdin is closed.
@@ -510,7 +450,6 @@ public class McpServer {
         // Validate protocol version
         String clientProtocolVersion = requestParams != null ?
                 requestParams.path("protocolVersion").asText("unknown") : "unknown";
-        String serverProtocolVersion = "2025-03-26";
 
         if (!clientProtocolVersion.equals(serverProtocolVersion)) {
             logger.warn("Protocol version mismatch. Client: {}, Server: {}",
@@ -536,8 +475,6 @@ public class McpServer {
      * @return JSON node containing the list of available tools with comprehensive safety declarations
      */
     private JsonNode handleListTools() {
-        validateClientSupportsFeature("tools");
-
         ArrayNode toolsNode = objectMapper.createArrayNode();
 
         // Query tool with enhanced safety declaration
@@ -677,8 +614,6 @@ public class McpServer {
      * @throws IllegalArgumentException if the tool is unknown or arguments are invalid
      */
     JsonNode handleCallTool(JsonNode paramsNode) throws SQLException {
-        validateClientSupportsFeature("tools");
-
         String toolName = paramsNode.path("name").asText();
         JsonNode arguments = paramsNode.path("arguments");
 
@@ -896,8 +831,6 @@ public class McpServer {
      * @throws SQLException if database metadata retrieval fails
      */
     private JsonNode handleListResources() throws SQLException {
-        validateClientSupportsFeature("resources");
-
         List<DatabaseResource> resourceList = databaseService.listResources();
 
         ArrayNode resourceArray = objectMapper.createArrayNode();
@@ -925,8 +858,6 @@ public class McpServer {
      * @throws IllegalArgumentException if the resource is not found
      */
     JsonNode handleReadResource(JsonNode paramsNode) throws SQLException {
-        validateClientSupportsFeature("resources");
-
         String uri = paramsNode.path("uri").asText();
 
         DatabaseResource databaseResource = databaseService.readResource(uri);

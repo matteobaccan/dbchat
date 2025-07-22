@@ -153,7 +153,7 @@ class McpServerConfigurationTest {
         String[] args = {"--http_mode=false", "--db_url=jdbc:h2:mem:testdb", "--db_driver=org.h2.Driver"};
 
         // Create input that sends a proper JSON-RPC request and then closes
-        String initRequest = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}\n";
+        String initRequest = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}\n";
         ByteArrayInputStream testInput = new ByteArrayInputStream(initRequest.getBytes());
 
         // Capture output
