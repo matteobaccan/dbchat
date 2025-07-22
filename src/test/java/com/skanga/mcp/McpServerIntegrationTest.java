@@ -75,7 +75,7 @@ class McpServerIntegrationTest {
     private static void startSharedServer() throws Exception {
         sharedServerFuture = CompletableFuture.runAsync(() -> {
             try {
-                sharedMcpServer.startHttpMode(sharedPort);
+                sharedMcpServer.startHttpMode("localhost", sharedPort);
             } catch (IOException e) {
                 // Expected when we shut it down
             }
@@ -92,7 +92,7 @@ class McpServerIntegrationTest {
         // Try to start second server on same port - should fail
         McpServer secondServer = new McpServer(sharedTestConfig);
         try {
-            assertThrows(IOException.class, () -> secondServer.startHttpMode(sharedPort));
+            assertThrows(IOException.class, () -> secondServer.startHttpMode("localhost", sharedPort));
         } finally {
             try {
                 secondServer.databaseService.close();
@@ -319,8 +319,8 @@ class McpServerIntegrationTest {
         McpServer server = new McpServer(config);
 
         // Test various invalid ports
-        assertThrows(IllegalArgumentException.class, () -> server.startHttpMode(-1));
-        assertThrows(IllegalArgumentException.class, () -> server.startHttpMode(65536));
+        assertThrows(IllegalArgumentException.class, () -> server.startHttpMode("localhost", -1));
+        assertThrows(IllegalArgumentException.class, () -> server.startHttpMode("localhost", 65536));
     }
 
     @Test

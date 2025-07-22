@@ -115,7 +115,7 @@ class HttpModeTest {
         sharedServerThread = new Thread(() -> {
             try {
                 serverStartLatch.countDown();
-                sharedServer.startHttpMode(TEST_PORT);
+                sharedServer.startHttpMode("localhost", TEST_PORT);
             } catch (IOException e) {
                 if (!Thread.currentThread().isInterrupted()) {
                     System.err.println("Failed to start shared HTTP server: " + e.getMessage());
@@ -662,7 +662,7 @@ class HttpModeTest {
 
         Thread violationThread = new Thread(() -> {
             try {
-                violationServer.startHttpMode(violationPort);
+                violationServer.startHttpMode("localhost", violationPort);
             } catch (IOException e) {
                 // Expected when test completes
             }
@@ -735,7 +735,7 @@ class HttpModeTest {
 
         Thread versionThread = new Thread(() -> {
             try {
-                versionServer.startHttpMode(versionPort);
+                versionServer.startHttpMode("localhost", versionPort);
             } catch (IOException e) {
                 // Expected when test completes
             }

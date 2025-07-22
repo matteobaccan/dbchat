@@ -1,5 +1,6 @@
 package com.skanga.mcp;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -86,20 +87,22 @@ public class McpServer {
     }
 
     /**
-     * Starts the server in HTTP mode on the specified port.
+     * Starts the server in HTTP mode on the specified address and port.
      * Creates HTTP endpoints for MCP requests (/mcp) and health checks (/health).
      * Blocks the calling thread until the server is stopped.
      *
+     * @param bindAddress The address to bind to (e.g., "localhost", "0.0.0.0", "192.168.1.100")
      * @param listenPort The port number to listen on
      * @throws IOException if the server cannot be started (e.g., port already in use)
      */
-    public void startHttpMode(int listenPort) throws IOException {
-        logger.info("Starting Database MCP Server in HTTP mode on port {}...", listenPort);
+    public void startHttpMode(String bindAddress, int listenPort) throws IOException {
+        logger.info("Starting Database MCP Server in HTTP mode on {}:{}...", bindAddress, listenPort);
 
         HttpServer httpServer = null;
         try {
             // Try to create the server - this will fail immediately if port is in use
-            httpServer = HttpServer.create(new InetSocketAddress(listenPort), 0);
+            InetSocketAddress socketAddress = new InetSocketAddress(bindAddress, listenPort);
+            httpServer = HttpServer.create(socketAddress, 0);
             httpServer.createContext("/mcp", new MCPHttpHandler());
             httpServer.createContext("/health", new HealthCheckHandler());
             httpServer.setExecutor(null); // Use default executor
@@ -107,9 +110,9 @@ public class McpServer {
             // Start the server
             httpServer.start();
 
-            logger.info("Database MCP Server HTTP mode started successfully on port {}", listenPort);
-            logger.info("MCP endpoint: http://localhost:{}/mcp", listenPort);
-            logger.info("Health check: http://localhost:{}/health", listenPort);
+            logger.info("Database MCP Server HTTP mode started successfully on {}:{}", bindAddress, listenPort);
+            logger.info("MCP endpoint: http://{}:{}/mcp", bindAddress, listenPort);
+            logger.info("Health check: http://{}:{}/health", bindAddress, listenPort);
             logger.info("Press Ctrl+C to stop the server");
 
             // Keep the main thread alive
@@ -145,20 +148,14 @@ public class McpServer {
     class MCPHttpHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange httpExchange) throws IOException {
-            // Set CORS headers (useful for testing with browser clients)
-            httpExchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-            httpExchange.getResponseHeaders().set("Access-Control-Allow-Methods", "POST, OPTIONS");
-            httpExchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+            setCorsHeaders(httpExchange);
 
-            // Handle preflight OPTIONS request
-            if ("OPTIONS".equals(httpExchange.getRequestMethod())) {
-                httpExchange.sendResponseHeaders(200, 0);
-                httpExchange.getResponseBody().close();
+            if (handleOptionsRequest(httpExchange)) {
                 return;
             }
 
             if (!"POST".equals(httpExchange.getRequestMethod())) {
-                sendErrorResponse(httpExchange, 405, "Method not allowed. Use POST.");
+                sendHttpError(httpExchange, 405, "Method not allowed. Use POST.");
                 return;
             }
 
@@ -172,26 +169,78 @@ public class McpServer {
                 JsonNode responseNode = handleRequest(requestNode);
 
                 // Send response (but only if not a notification)
-                if (responseNode != null) {
-                    String responseJson = objectMapper.writeValueAsString(responseNode);
-                    logger.debug("Sending HTTP response: {}", responseJson);
-
-                    httpExchange.getResponseHeaders().set("Content-Type", "application/json");
-                    byte[] responseBytes = responseJson.getBytes();
-                    httpExchange.sendResponseHeaders(200, responseBytes.length);
-
-                    try (OutputStream outputStream = httpExchange.getResponseBody()) {
-                        outputStream.write(responseBytes);
-                    }
-                } else {
-                    // Notification - send empty 204 response
-                    httpExchange.sendResponseHeaders(204, 0);
-                    httpExchange.getResponseBody().close();
-                }
+                sendHttpResponse(httpExchange, responseNode);
             } catch (Exception e) {
                 logger.error("Error handling HTTP request", e);
-                sendErrorResponse(httpExchange, 500, "Internal server error: " + e.getMessage());
+                sendHttpError(httpExchange, 500, "Internal server error: " + e.getMessage());
             }
+        }
+
+        // Set CORS headers (useful for testing with browser clients)
+        private void setCorsHeaders(HttpExchange httpExchange) {
+            httpExchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            httpExchange.getResponseHeaders().set("Access-Control-Allow-Methods", "POST, OPTIONS");
+            httpExchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+        }
+
+        // Handle preflight OPTIONS request
+        private boolean handleOptionsRequest(HttpExchange httpExchange) throws IOException {
+            if ("OPTIONS".equals(httpExchange.getRequestMethod())) {
+                httpExchange.sendResponseHeaders(200, 0);
+                httpExchange.getResponseBody().close();
+                return true;
+            }
+            return false;
+        }
+
+        // Send response (but only if not a notification)
+        private void sendHttpResponse(HttpExchange httpExchange, JsonNode responseNode) throws IOException {
+            if (responseNode != null) {
+                String responseJson = objectMapper.writeValueAsString(responseNode);
+                logger.debug("Sending HTTP response: {}", responseJson);
+
+                httpExchange.getResponseHeaders().set("Content-Type", "application/json");
+                byte[] responseBytes = responseJson.getBytes();
+                httpExchange.sendResponseHeaders(200, responseBytes.length);
+
+                try (OutputStream outputStream = httpExchange.getResponseBody()) {
+                    outputStream.write(responseBytes);
+                }
+            } else {
+                // Notification - send empty 204 response
+                httpExchange.sendResponseHeaders(204, 0);
+                httpExchange.getResponseBody().close();
+            }
+        }
+
+        private void sendHttpError(HttpExchange httpExchange, int statusCode, String errorMessage) throws IOException {
+            ObjectNode errorResponse = createHttpErrorResponse(errorMessage);
+            String responseJson = objectMapper.writeValueAsString(errorResponse);
+
+            httpExchange.getResponseHeaders().set("Content-Type", "application/json");
+            byte[] responseBytes = responseJson.getBytes();
+
+            try {
+                httpExchange.sendResponseHeaders(statusCode, responseBytes.length);
+                try (OutputStream outputStream = httpExchange.getResponseBody()) {
+                    outputStream.write(responseBytes);
+                }
+            } catch (Exception e) {
+                logger.error("Error sending HTTP error response", e);
+            }
+        }
+
+        private ObjectNode createHttpErrorResponse(String errorMessage) {
+            ObjectNode errorResponse = objectMapper.createObjectNode();
+            errorResponse.put("jsonrpc", "2.0");
+            errorResponse.putNull("id");
+
+            ObjectNode error = objectMapper.createObjectNode();
+            error.put("code", -32603); // Internal error
+            error.put("message", errorMessage);
+            errorResponse.set("error", error);
+
+            return errorResponse;
         }
 
         private String readRequestBody(HttpExchange exchange) throws IOException {
@@ -203,32 +252,6 @@ public class McpServer {
                     fullBody.append(bodyLine);
                 }
                 return fullBody.toString();
-            }
-        }
-
-        private void sendErrorResponse(HttpExchange httpExchange, int statusCode, String errorMessage) throws IOException {
-            // Use proper JSON-RPC 2.0 error format
-            ObjectNode errorResponse = objectMapper.createObjectNode();
-            errorResponse.put("jsonrpc", "2.0");
-            errorResponse.putNull("id"); // No ID for HTTP errors
-
-            ObjectNode error = objectMapper.createObjectNode();
-            error.put("code", -32603); // Internal error
-            error.put("message", errorMessage);
-            errorResponse.set("error", error);
-
-            String responseJson = objectMapper.writeValueAsString(errorResponse);
-            httpExchange.getResponseHeaders().set("Content-Type", "application/json");
-            byte[] responseBytes = responseJson.getBytes();
-
-            try {
-                httpExchange.sendResponseHeaders(statusCode, responseBytes.length);
-                try (OutputStream outputStream = httpExchange.getResponseBody()) {
-                    outputStream.write(responseBytes);
-                }
-            } catch (Exception e) {
-                logger.error("Error sending HTTP error response", e);
-                //e.printStackTrace();
             }
         }
     }
@@ -283,72 +306,116 @@ public class McpServer {
                 requestMethod, requestId, isNotification, serverState);
 
         try {
-            // Enforce lifecycle rules
-            if (serverState == ServerState.UNINITIALIZED && !requestMethod.equals("initialize")) {
-                throw new IllegalStateException("Server not initialized. First request must be 'initialize'");
-            }
+            enforceLifecycleRules(requestMethod);
+            JsonNode resultNode = executeMethod(requestMethod, requestParams);
 
-            if (serverState == ServerState.INITIALIZING && !requestMethod.equals("initialize") &&
-                    !requestMethod.equals("notifications/initialized")) {
-                throw new IllegalStateException("Server is initializing. Only 'initialize' response or 'initialized' notification allowed");
-            }
-
-            if (serverState == ServerState.SHUTDOWN) {
-                throw new IllegalStateException("Server is shut down");
-            }
-
-            JsonNode resultNode = switch (requestMethod) {
-                case "initialize" -> handleInitialize(requestParams);
-                case "notifications/initialized" -> handleNotificationInitialized();
-                case "tools/list" -> handleListTools();
-                case "tools/call" -> handleCallTool(requestParams);
-                case "resources/list" -> handleListResources();
-                case "resources/read" -> handleReadResource(requestParams);
-                case "ping" -> handlePing();
-                default -> throw new IllegalArgumentException("Method not found: " + requestMethod);
-            };
-
-            // For notifications, return null to indicate no response should be sent
-            if (isNotification) {
-                return null;
-            }
-
-            return createSuccessResponse(resultNode, requestId);
-        } catch (IllegalStateException e) {
-            logger.warn("Lifecycle violation: {}", e.getMessage());
-            if (isNotification) {
-                return null;
-            }
-            return createErrorResponse("invalid_request", e.getMessage(), requestId);
-        } catch (IllegalArgumentException e) {
-            if (e.getMessage().startsWith("Method not found:")) {
-                logger.warn("Method not found: {}", e.getMessage());
-                if (isNotification) {
-                    return null;
-                }
-                return createErrorResponse("method_not_found", e.getMessage(), requestId);
-            } else if (e.getMessage().startsWith("Unsupported protocol version:")) {
-                logger.warn("Protocol version mismatch: {}", e.getMessage());
-                if (isNotification) {
-                    return null;
-                }
-                return createErrorResponse("invalid_request", e.getMessage(), requestId);
-            } else {
-                // This handles parameter validation errors (empty SQL, etc.)
-                logger.warn("Invalid request parameters: {}", e.getMessage());
-                if (isNotification) {
-                    return null;
-                }
-                return createErrorResponse("invalid_params", e.getMessage(), requestId);
-            }
+            return isNotification ? null : createSuccessResponse(resultNode, requestId);
         } catch (Exception e) {
-            // This should only catch unexpected errors, not SQL errors, which should be
-            // handled within executeQuery as tool errors
-            logger.error("Unexpected error handling request", e);
-            if (isNotification) {
-                return null;
-            }
-            return createErrorResponse("internal_error", "Internal error: " + e.getMessage(), requestId);
+            return handleRequestException(e, requestMethod, isNotification, requestId);
+        }
+    }
+
+    /**
+     * Enforces server lifecycle rules for method execution.
+     *
+     * @param requestMethod The method being requested
+     * @throws IllegalStateException if the method is not allowed in the current state
+     */
+    private void enforceLifecycleRules(String requestMethod) {
+        if (serverState == ServerState.UNINITIALIZED && !requestMethod.equals("initialize")) {
+            throw new IllegalStateException("Server not initialized. First request must be 'initialize'");
+        }
+
+        if (serverState == ServerState.INITIALIZING && !requestMethod.equals("initialize") &&
+                !requestMethod.equals("notifications/initialized")) {
+            throw new IllegalStateException("Server is initializing. Only 'initialize' response or 'initialized' notification allowed");
+        }
+
+        if (serverState == ServerState.SHUTDOWN) {
+            throw new IllegalStateException("Server is shut down");
+        }
+    }
+
+    /**
+     * Executes the appropriate method based on the request.
+     *
+     * @param requestMethod The method to execute
+     * @param requestParams The parameters for the method
+     * @return The result of the method execution
+     * @throws Exception if the method execution fails
+     */
+    private JsonNode executeMethod(String requestMethod, JsonNode requestParams) throws Exception {
+        return switch (requestMethod) {
+            case "initialize" -> handleInitialize(requestParams);
+            case "notifications/initialized" -> handleNotificationInitialized();
+            case "tools/list" -> handleListTools();
+            case "tools/call" -> handleCallTool(requestParams);
+            case "resources/list" -> handleListResources();
+            case "resources/read" -> handleReadResource(requestParams);
+            case "ping" -> handlePing();
+            default -> throw new IllegalArgumentException("Method not found: " + requestMethod);
+        };
+    }
+
+    /**
+     * Handles exceptions that occur during request processing.
+     *
+     * @param exception The exception that occurred
+     * @param requestMethod The method that was being processed
+     * @param isNotification Whether this was a notification request
+     * @param requestId The request ID (null for notifications)
+     * @return Error response node, or null for notifications
+     */
+    private JsonNode handleRequestException(Exception exception, String requestMethod, boolean isNotification, Object requestId) {
+        if (isNotification) {
+            logExceptionForNotification(exception, requestMethod);
+            return null;
+        }
+
+        if (exception instanceof IllegalStateException) {
+            logger.warn("Lifecycle violation: {}", exception.getMessage());
+            return createErrorResponse("invalid_request", exception.getMessage(), requestId);
+        }
+
+        if (exception instanceof IllegalArgumentException) {
+            return handleIllegalArgumentException((IllegalArgumentException) exception, requestId);
+        }
+
+        logger.error("Unexpected error handling request", exception);
+        return createErrorResponse("internal_error", "Internal error: " + exception.getMessage(), requestId);
+    }
+
+    /**
+     * Handles IllegalArgumentException with specific error codes based on the message.
+     */
+    private JsonNode handleIllegalArgumentException(IllegalArgumentException e, Object requestId) {
+        String message = e.getMessage();
+
+        if (message.startsWith("Method not found:")) {
+            logger.warn("Method not found: {}", message);
+            return createErrorResponse("method_not_found", message, requestId);
+        }
+
+        if (message.startsWith("Unsupported protocol version:")) {
+            logger.warn("Protocol version mismatch: {}", message);
+            return createErrorResponse("invalid_request", message, requestId);
+        }
+
+        // Parameter validation errors
+        logger.warn("Invalid request parameters: {}", message);
+        return createErrorResponse("invalid_params", message, requestId);
+    }
+
+    /**
+     * Logs exceptions for notification requests (which don't return responses).
+     */
+    private void logExceptionForNotification(Exception exception, String requestMethod) {
+        if (exception instanceof IllegalStateException) {
+            logger.warn("Lifecycle violation in notification {}: {}", requestMethod, exception.getMessage());
+        } else if (exception instanceof IllegalArgumentException) {
+            logger.warn("Invalid notification {}: {}", requestMethod, exception.getMessage());
+        } else {
+            logger.error("Unexpected error in notification {}", requestMethod, exception);
         }
     }
 
@@ -397,40 +464,54 @@ public class McpServer {
 
             String currLine;
             while ((currLine = bufferedReader.readLine()) != null) {
-                try {
-                    JsonNode requestNode = objectMapper.readTree(currLine);
-                    JsonNode responseNode = handleRequest(requestNode);
-
-                    // Only send a response if it's not a notification
-                    if (responseNode != null) {
-                        printWriter.println(objectMapper.writeValueAsString(responseNode));
-                    }
-                } catch (Exception e) {
-                    logger.error("Error processing request: {}", currLine, e);
-
-                    // Try to determine if this was a notification AND extract the request ID
-                    boolean isNotification = false;
-                    Object requestId = null;  // ← Extract the actual ID
-
-                    try {
-                        JsonNode requestNode = objectMapper.readTree(currLine);
-                        isNotification = !requestNode.has("id");
-                        requestId = isNotification ? null : requestNode.get("id");  // ← Get the actual ID from request
-                    } catch (Exception parseException) {
-                        // If we can't parse the request, we can't determine ID
-                        // So requestId remains null, which is correct for unparseable requests
-                    }
-
-                    if (!isNotification) {
-                        JsonNode errorResponse = createErrorResponse("internal_error",
-                            "Internal server error: " + e.getMessage(), requestId);  // ← Use actual ID
-                        printWriter.println(objectMapper.writeValueAsString(errorResponse));
-                    }
-                }
+                processStdioRequest(currLine, printWriter);
             }
         }
 
         logger.info("Database MCP Server stopped.");
+    }
+
+    /**
+     * Processes a single stdio request and sends the response if needed.
+     */
+    private void processStdioRequest(String requestLine, PrintWriter printWriter) throws JsonProcessingException {
+        try {
+            JsonNode requestNode = objectMapper.readTree(requestLine);
+            JsonNode responseNode = handleRequest(requestNode);
+
+            // Only send a response if it's not a notification
+            if (responseNode != null) {
+                printWriter.println(objectMapper.writeValueAsString(responseNode));
+            }
+        } catch (Exception e) {
+            logger.error("Error processing request: {}", requestLine, e);
+
+            handleStdioException(requestLine, printWriter, e);
+        }
+    }
+
+    /**
+     * Handles exceptions during stdio request processing.
+     */
+    private void handleStdioException(String requestLine, PrintWriter printWriter, Exception e) throws JsonProcessingException {
+        // Try to determine if this was a notification AND extract the request ID
+        boolean isNotification = false;
+        Object requestId = null;  // Extract the actual ID
+
+        try {
+            JsonNode requestNode = objectMapper.readTree(requestLine);
+            isNotification = !requestNode.has("id");
+            requestId = isNotification ? null : requestNode.get("id");  // Get the actual ID from request
+        } catch (Exception parseException) {
+            // If we can't parse the request, we can't determine ID
+            // So requestId remains null, which is correct for unparseable requests
+        }
+
+        if (!isNotification) {
+            JsonNode errorResponse = createErrorResponse("internal_error",
+                "Internal server error: " + e.getMessage(), requestId);  // Use actual ID
+            printWriter.println(objectMapper.writeValueAsString(errorResponse));
+        }
     }
 
     private JsonNode handleInitialize(JsonNode requestParams) {
@@ -456,7 +537,7 @@ public class McpServer {
                     clientProtocolVersion, serverProtocolVersion);
             throw new IllegalArgumentException("Unsupported protocol version: " + clientProtocolVersion +
                 ". Supported versions: [" + serverProtocolVersion + "]");
-    }
+        }
 
         ObjectNode resultNode = objectMapper.createObjectNode();
         resultNode.put("protocolVersion", serverProtocolVersion);
@@ -1011,6 +1092,27 @@ public class McpServer {
     }
 
     /**
+     * Creates a JSON-RPC error response with the specified error details.
+     *
+     * @param code Error code string (mapped to numeric codes)
+     * @param message Error message description
+     * @param requestId The request ID from the original request
+     * @return JSON-RPC error response
+     */
+    JsonNode createErrorResponse(String code, String message, Object requestId) {
+        ObjectNode responseNode = objectMapper.createObjectNode();
+        responseNode.put("jsonrpc", "2.0");
+
+        ObjectNode errorNode = objectMapper.createObjectNode();
+        errorNode.put("code", getErrorCode(code));
+        errorNode.put("message", message);
+        responseNode.set("error", errorNode);
+        setRespId(requestId, responseNode);
+
+        return responseNode;
+    }
+
+    /**
      * Sets the response ID field to match the request ID exactly.
      * Handles different ID types (string, number, null) according to JSON-RPC spec.
      *
@@ -1030,28 +1132,6 @@ public class McpServer {
             JsonNode idNode = objectMapper.valueToTree(requestId);
             responseNode.set("id", idNode);
         }
-    }
-
-    /**
-     * Creates a JSON-RPC error response with the specified error details.
-     *
-     * @param code Error code string (mapped to numeric codes)
-     * @param message Error message description
-     * @param requestId The request ID from the original request
-     * @return JSON-RPC error response
-     */
-    JsonNode createErrorResponse(String code, String message, Object requestId) {
-        ObjectNode responseNode = objectMapper.createObjectNode();
-        responseNode.put("jsonrpc", "2.0");
-        
-        ObjectNode errorNode = objectMapper.createObjectNode();
-        errorNode.put("code", getErrorCode(code));
-        errorNode.put("message", message);
-        responseNode.set("error", errorNode);
-
-        setRespId(requestId, responseNode);
-
-        return responseNode;
     }
 
     /**
@@ -1258,6 +1338,17 @@ public class McpServer {
     }
 
     /**
+     * Gets the bind address from configuration.
+     *
+     * @param args Command line arguments
+     * @return Bind address for HTTP mode (default: "localhost")
+     */
+    static String getBindAddress(String[] args) {
+        Map<String, String> cliArgs = parseArgs(args);
+        return getConfigValue("BIND_ADDRESS", "localhost", cliArgs, null);
+    }
+
+    /**
      * Gets the HTTP port number from configuration.
      *
      * @param args Command line arguments
@@ -1372,8 +1463,9 @@ public class McpServer {
 
             // Check configuration for HTTP mode
             if (isHttpMode(args)) {
+                String bindAddress = getBindAddress(args);
                 int httpPort = getHttpPort(args);
-                mcpServer.startHttpMode(httpPort);
+                mcpServer.startHttpMode(bindAddress, httpPort);
             } else {
                 mcpServer.startStdioMode();
             }

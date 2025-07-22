@@ -46,21 +46,21 @@ LIMIT 10;
 
 ## 🗃️ Supported Databases
 
-DBMCP works with virtually any database through JDBC drivers:
+DBMCP works with virtually any database (as long as it has a JDBC driver)
 
 ### Popular Databases
 - **MySQL** / **MariaDB** - Web applications and e-commerce
-- **PostgreSQL** - Advanced applications and analytics
-- **SQLite** - Local applications and prototypes
 - **Oracle** - Enterprise applications
+- **PostgreSQL** - Advanced applications and analytics
 - **SQL Server** - Microsoft environments
 - **H2** - Testing and development
+- **SQLite** - Local applications and prototypes
 - **HSQLDB** - Testing and development
 
 ### Analytics & Cloud
-- **Amazon Redshift** - AWS data warehouse
 - **Snowflake** - Cloud data platform
 - **Databricks** - Cloud data platform
+- **Amazon Redshift** - AWS data warehouse
 - **Google BigQuery** - Google analytics
 - **ClickHouse** - Real-time analytics
 
@@ -75,10 +75,10 @@ DBMCP works with virtually any database through JDBC drivers:
 ### Step 1: Download
 
 Download the latest release from [GitHub Releases](https://github.com/skanga/dbmcp/releases):
-- `dbmcp-2.0.2.jar` - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)
-- `dbmcp-2.0.2.jar` - With MySQL, MariaDB, ClickHouse
-- `dbmcp-2.0.2.jar` - With Oracle, SQL Server, DB2
-- `dbmcp-2.0.2.jar` - All databases included (400MB+)
+- `dbmcp-2.0.3.jar` - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)
+- `dbmcp-2.0.3.jar` - Standard version (add MySQL, MariaDB, ClickHouse)
+- `dbmcp-2.0.3.jar` - Enterprise version (add Oracle, SQL Server, DB2)
+- `dbmcp-2.0.3.jar` - All databases included (400MB+)
 
 NOTE: You can also build an efficient custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md)  for details
 
@@ -88,7 +88,7 @@ IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you i
 
 1. Download [Claude Desktop](https://claude.ai/download) (free)
 2. Sign in with your Claude account
-3. **Important**: MCP only works with Claude Desktop. The Claude website does not support MCP
+3. **Important**: The Claude website does not support MCP. For MCP only with Anthropic models you need to use Claude Desktop.
 
 ### Step 3: Set Up Your Database Connection
 
@@ -153,7 +153,7 @@ DB_DRIVER=org.h2.Driver
       "command": "java",
       "args": [
         "-jar", 
-        "/absolute/path/to/dbmcp-2.0.2.jar",
+        "/absolute/path/to/dbmcp-2.0.3.jar",
         "--config_file=/absolute/path/to/dbmcp.conf"
       ]
     }
@@ -167,7 +167,7 @@ DB_DRIVER=org.h2.Driver
   "mcpServers": {
     "database": {
       "command": "java",
-      "args": ["-jar", "/absolute/path/to/dbmcp-2.0.2.jar"],
+      "args": ["-jar", "/absolute/path/to/dbmcp-2.0.3.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://localhost:3306/your_database",
         "DB_USER": "your_username", 
@@ -187,7 +187,7 @@ DB_DRIVER=org.h2.Driver
       "command": "java",
       "args": [
         "-jar", 
-        "C:/Users/YourName/Downloads/dbmcp-2.0.2.jar",
+        "C:/Users/YourName/Downloads/dbmcp-2.0.3.jar",
         "--config_file=C:/Users/YourName/dbmcp.conf"
       ]
     }
@@ -195,14 +195,16 @@ DB_DRIVER=org.h2.Driver
 }
 ```
 
+NOTE: If java is not in your PATH then use full path to java (JDK 17+) in the command.
 ### Step 5: Connect Multiple Databases
 
+You can use many databases concurrently!
 ```json
 {
   "mcpServers": {
     "production-db": {
       "command": "java",
-      "args": ["-jar", "/path/to/dbmcp-2.0.2.jar"],
+      "args": ["-jar", "/path/to/dbmcp-2.0.3.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://prod-server:3306/production",
         "DB_USER": "readonly_user",
@@ -213,7 +215,7 @@ DB_DRIVER=org.h2.Driver
     },
     "analytics-db": {
       "command": "java", 
-      "args": ["-jar", "/path/to/dbmcp-2.0.2.jar"],
+      "args": ["-jar", "/path/to/dbmcp-2.0.3.jar"],
       "env": {
         "DB_URL": "jdbc:postgresql://analytics:5432/warehouse",
         "DB_USER": "analyst",
@@ -344,21 +346,37 @@ MAX_SQL_LENGTH=10000
 Enable HTTP mode for web-based access:
 
 ```properties
+# Turn on HTTP listener
 HTTP_MODE=true
+# Listen on port 8080
 HTTP_PORT=8080
+# Bind to all interfaces (allows external access)
+BIND_ADDRESS=0.0.0.0
+# NOTE: If no bind address is given we bind to localhost only (default, most secure)
 ```
+Then access at `http://localhost:8080/`. For example try `http://localhost:8080/health` to check health status
 
-Then access at: `http://localhost:8080/` for example try: `http://localhost:8080/health` to check health status
+For similar config via CLI args use:
+```
+# Bind to localhost only (default, most secure)
+java -jar dbmcp-2.0.3.jar --http_mode=true --http_port=8080
 
+# Bind to all interfaces (allows external access)
+java -jar dbmcp-2.0.3.jar --http_mode=true --bind_address=0.0.0.0 --http_port=8080
+
+# Bind to specific interface
+java -jar dbmcp-2.0.3.jar --http_mode=true --bind_address=192.168.1.100 --http_port=8080
+```
 
 ## 🔧 Configuration Methods and Priority
 
-DBMCP supports multiple configuration methods for maximum flexibility. Understanding the priority order is crucial for troubleshooting and advanced setups.
+For maximum flexibility, DBMCP supports multiple configuration methods like CLI arguments, config file, Environment vars,
+System Properties and Built-in Defaults. Understanding the priority order is crucial for troubleshooting and advanced setups.
 
 ### Configuration Priority Order (Highest to Lowest)
 
 1. **Command Line Arguments** (Highest Priority)
-2. **Configuration Files**
+2. **Configuration File**
 3. **Environment Variables**
 4. **System Properties**
 5. **Built-in Defaults** (Lowest Priority)
@@ -370,7 +388,7 @@ This means command line arguments will always override config files, which overr
 **Use case**: Quick overrides, testing, one-time configurations
 
 ```bash
-java -jar dbmcp-2.0.2.jar \
+java -jar dbmcp-2.0.3.jar \
   --db_url="jdbc:mysql://localhost:3306/mydb" \
   --db_user="username" \
   --db_password="password" \
@@ -427,7 +445,7 @@ HTTP_PORT=8080
 
 **Usage:**
 ```bash
-java -jar dbmcp-2.0.2.jar --config_file=dbmcp.conf
+java -jar dbmcp-2.0.3.jar --config_file=dbmcp.conf
 ```
 
 **Config file features:**
@@ -450,7 +468,7 @@ export HTTP_MODE="true"
 export HTTP_PORT="8080"
 export SELECT_ONLY="true"
 
-java -jar dbmcp-2.0.2.jar
+java -jar dbmcp-2.0.3.jar
 ```
 
 **All environment variables:**
@@ -482,7 +500,7 @@ java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
      -Ddb.driver="com.mysql.cj.jdbc.Driver" \
      -Dhttp.mode="true" \
      -Dhttp.port="8080" \
-     -jar dbmcp-2.0.2.jar
+     -jar dbmcp-2.0.3.jar
 ```
 
 **Property naming**: Environment variable `DB_URL` becomes system property `db.url`
@@ -517,7 +535,7 @@ echo "HTTP_PORT=8080" > config.conf
 export HTTP_PORT=9090
 
 # Command line overrides both
-java -jar dbmcp-2.0.2.jar --config_file=config.conf --http_port=7070
+java -jar dbmcp-2.0.3.jar --config_file=config.conf --http_port=7070
 
 # Result: Uses port 7070 (command line wins)
 ```
@@ -533,7 +551,7 @@ echo "SELECT_ONLY=true" >> prod.conf
 export DB_PASSWORD="secure_password"
 
 # Override port via command line (for this run only)
-java -jar dbmcp-2.0.2.jar --config_file=prod.conf --http_port=9090
+java -jar dbmcp-2.0.3.jar --config_file=prod.conf --http_port=9090
 ```
 
 #### Example 3: Claude Desktop Configuration
@@ -543,7 +561,7 @@ java -jar dbmcp-2.0.2.jar --config_file=prod.conf --http_port=9090
     "database": {
       "command": "java",
       "args": [
-        "-jar", "/path/to/dbmcp-2.0.2.jar",
+        "-jar", "/path/to/dbmcp-2.0.3.jar",
         "--config_file=/path/to/production.conf",
         "--select_only=true"
       ],
@@ -584,16 +602,16 @@ java -jar dbmcp-2.0.2.jar --config_file=prod.conf --http_port=9090
 
 #### Credential Management
 ```bash
-# ✅ Good: Use environment variables for passwords
+# Good: Use environment variables for passwords
 export DB_PASSWORD="secure_password"
-java -jar dbmcp-2.0.2.jar --config_file=app.conf
+java -jar dbmcp-2.0.3.jar --config_file=app.conf
 
-# ✅ Good: Use config file with restricted permissions
+# Good: Use config file with restricted permissions
 chmod 600 secure.conf
-java -jar dbmcp-2.0.2.jar --config_file=secure.conf
+java -jar dbmcp-2.0.3.jar --config_file=secure.conf
 
-# ❌ Avoid: Passwords in command line (visible in process list)
-java -jar dbmcp-2.0.2.jar --db_password="visible_password"
+# Avoid: Passwords in command line (visible in process list)
+java -jar dbmcp-2.0.3.jar --db_password="visible_password"
 ```
 
 #### Configuration File Security
@@ -614,7 +632,7 @@ ls -la secure.conf
 #### Check Effective Configuration
 Enable debug logging to see which values are being used:
 ```bash
-java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.2.jar --config_file=myconfig.conf
+java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.3.jar --config_file=myconfig.conf
 ```
 
 #### Common Issues
@@ -626,7 +644,7 @@ java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.2.jar --config_file=myconfig.conf
 #### Validation Commands
 ```bash
 # Test database connection with current config
-java -jar dbmcp-2.0.2.jar --help
+java -jar dbmcp-2.0.3.jar --help
 
 # Verify config file syntax
 grep -v "^#" myconfig.conf | grep -v "^$"
@@ -699,7 +717,7 @@ env | grep -E "(DB_|HTTP_|MAX_|SELECT_)"
 
 ## 🚀 Ready to Transform Your Data Experience?
 
-1. **Download** the appropriate JAR file for your database
+1. **Download** the appropriate JAR file for your database(s)
 2. **Install** Claude Desktop (free)
 3. **Configure** your database connection
 4. **Add** DBMCP to Claude Desktop settings
