@@ -6,7 +6,6 @@ package com.skanga.mcp;
  * in database values, identifiers, and other user-supplied data.
  */
 public final class SecurityUtils {
-
     private SecurityUtils() {
         // Utility class - prevent instantiation
     }
@@ -76,7 +75,7 @@ public final class SecurityUtils {
                 lower.contains("instruction") || lower.contains("prompt") ||
                 lower.contains("forget") || lower.contains("override") ||
                 lower.contains("execute") || lower.contains("jailbreak")) {
-            return "️[FLAGGED_ID]: " + identifier;
+            return "[FLAGGED_ID]: " + identifier;
         }
 
         // Check for excessively long identifiers that might hide instructions

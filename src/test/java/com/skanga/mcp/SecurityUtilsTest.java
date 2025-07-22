@@ -147,7 +147,7 @@ class SecurityUtilsTest {
     @DisplayName("sanitizeIdentifier should flag suspicious identifier names")
     void sanitizeIdentifier_SuspiciousNames_ReturnsFlagged(String identifier) {
         String result = SecurityUtils.sanitizeIdentifier(identifier);
-        assertTrue(result.startsWith("️[FLAGGED_ID]:"));
+        assertTrue(result.startsWith("[FLAGGED_ID]:"));
         assertTrue(result.contains(identifier));
     }
 
@@ -156,7 +156,7 @@ class SecurityUtilsTest {
     void sanitizeIdentifier_CaseInsensitive_ReturnsFlagged() {
         String identifier = "IGNORE_TABLE";
         String result = SecurityUtils.sanitizeIdentifier(identifier);
-        assertTrue(result.startsWith("️[FLAGGED_ID]:"));
+        assertTrue(result.startsWith("[FLAGGED_ID]:"));
     }
 
     @Test
@@ -164,7 +164,7 @@ class SecurityUtilsTest {
     void sanitizeIdentifier_WithWhitespace_ReturnsFlagged() {
         String identifier = "  ignore_table  ";
         String result = SecurityUtils.sanitizeIdentifier(identifier);
-        assertTrue(result.startsWith("️[FLAGGED_ID]:"));
+        assertTrue(result.startsWith("[FLAGGED_ID]:"));
     }
 
     @Test
@@ -192,7 +192,7 @@ class SecurityUtilsTest {
         String longSuspiciousId = "ignore_" + "a".repeat(100);
         String result = SecurityUtils.sanitizeIdentifier(longSuspiciousId);
         
-        assertTrue(result.startsWith("️[FLAGGED_ID]:"));
+        assertTrue(result.startsWith("[FLAGGED_ID]:"));
         assertFalse(result.startsWith("[LONG_ID]:"));
     }
 
