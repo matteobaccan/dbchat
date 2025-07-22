@@ -16,9 +16,9 @@ from typing import Dict, Any, Optional, List
 
 class DatabaseMcpTester:
     def __init__(self):
-        jars = glob.glob("target/dbmcp-*.jar")
+        jars = glob.glob("target/dbchat-*.jar")
         if not jars:
-            print("❌ Error: No dbmcp JAR file found in target/. Please run 'mvn clean package'.")
+            print("❌ Error: No dbchat JAR file found in target/. Please run 'mvn clean package'.")
             sys.exit(1)
         self.server_jar = jars[0]  # Use the first matching file
         # Use persistent H2 database for testing

@@ -81,7 +81,7 @@ jobs:
         run: |
           VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "artifact_name=dbmcp-$VERSION-${{ matrix.variant.name }}" >> $GITHUB_OUTPUT
+          echo "artifact_name=dbchat-$VERSION-${{ matrix.variant.name }}" >> $GITHUB_OUTPUT
 
       - name: Build ${{ matrix.variant.name }} variant
         run: |
@@ -89,7 +89,7 @@ jobs:
 
       - name: Rename artifact
         run: |
-          mv target/dbmcp-${{ steps.version.outputs.version }}.jar \
+          mv target/dbchat-${{ steps.version.outputs.version }}.jar \
              target/${{ steps.version.outputs.artifact_name }}.jar
 
       - name: Get file size
@@ -179,11 +179,11 @@ jobs:
           name: Release ${{ steps.version.outputs.version }}
           body_path: changelog.md
           files: |
-            artifacts/dbmcp-${{ steps.version.outputs.version }}-basic/dbmcp-${{ steps.version.outputs.version }}-basic.jar
-            artifacts/dbmcp-${{ steps.version.outputs.version }}-standard/dbmcp-${{ steps.version.outputs.version }}-standard.jar
-            artifacts/dbmcp-${{ steps.version.outputs.version }}-enterprise/dbmcp-${{ steps.version.outputs.version }}-enterprise.jar
-            artifacts/dbmcp-${{ steps.version.outputs.version }}-cloud-analytics/dbmcp-${{ steps.version.outputs.version }}-cloud-analytics.jar
-            artifacts/dbmcp-${{ steps.version.outputs.version }}-all/dbmcp-${{ steps.version.outputs.version }}-all.jar
+            artifacts/dbchat-${{ steps.version.outputs.version }}-basic/dbchat-${{ steps.version.outputs.version }}-basic.jar
+            artifacts/dbchat-${{ steps.version.outputs.version }}-standard/dbchat-${{ steps.version.outputs.version }}-standard.jar
+            artifacts/dbchat-${{ steps.version.outputs.version }}-enterprise/dbchat-${{ steps.version.outputs.version }}-enterprise.jar
+            artifacts/dbchat-${{ steps.version.outputs.version }}-cloud-analytics/dbchat-${{ steps.version.outputs.version }}-cloud-analytics.jar
+            artifacts/dbchat-${{ steps.version.outputs.version }}-all/dbchat-${{ steps.version.outputs.version }}-all.jar
           draft: false
           prerelease: false
         env:

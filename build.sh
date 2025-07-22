@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# build.sh - Local build script for DBMCP variants
+# build.sh - Local build script for DBChat variants
 # Usage: ./build.sh [variant] [options]
 
 set -e
@@ -156,7 +156,7 @@ case $VARIANT in
 
             if [ $? -eq 0 ]; then
                 # Rename artifact
-                cp target/dbmcp-$VERSION.jar target/releases/dbmcp-$VERSION-$var.jar
+                cp target/dbchat-$VERSION.jar target/releases/dbchat-$VERSION-$var.jar
                 print_status "✓ $var variant built successfully"
             else
                 print_error "✗ $var variant build failed"
@@ -197,16 +197,16 @@ if [ $? -eq 0 ]; then
     # Show file size if requested
     if [ "$SHOW_SIZE" == "true" ]; then
         print_status "Artifact size:"
-        ls -lh target/dbmcp-$VERSION.jar
+        ls -lh target/dbchat-$VERSION.jar
     fi
 
     # Rename artifact to include variant name
     if [ "$VARIANT" != "basic" ]; then
-        cp target/dbmcp-$VERSION.jar target/dbmcp-$VERSION-$VARIANT.jar
-        print_status "Artifact renamed to: dbmcp-$VERSION-$VARIANT.jar"
+        cp target/dbchat-$VERSION.jar target/dbchat-$VERSION-$VARIANT.jar
+        print_status "Artifact renamed to: dbchat-$VERSION-$VARIANT.jar"
     fi
 
-    print_status "Build artifact: target/dbmcp-$VERSION$([ "$VARIANT" != "basic" ] && echo "-$VARIANT").jar"
+    print_status "Build artifact: target/dbchat-$VERSION$([ "$VARIANT" != "basic" ] && echo "-$VARIANT").jar"
 else
     print_error "✗ Build failed"
     exit 1
@@ -214,9 +214,9 @@ fi
 
 # Quick verification
 print_status "Verifying JAR contents..."
-jar -tf target/dbmcp-$VERSION$([ "$VARIANT" != "basic" ] && echo "-$VARIANT").jar | head -5
+jar -tf target/dbchat-$VERSION$([ "$VARIANT" != "basic" ] && echo "-$VARIANT").jar | head -5
 
 print_status "Build completed! 🎉"
 print_status ""
 print_status "To run:"
-print_status "  java -jar target/dbmcp-$VERSION$([ "$VARIANT" != "basic" ] && echo "-$VARIANT").jar"
+print_status "  java -jar target/dbchat-$VERSION$([ "$VARIANT" != "basic" ] && echo "-$VARIANT").jar"

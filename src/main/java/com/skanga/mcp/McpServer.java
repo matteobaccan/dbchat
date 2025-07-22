@@ -1017,11 +1017,11 @@ public class McpServer {
 
         // Custom security capabilities (extension to standard MCP)
         ObjectNode securityCaps = objectMapper.createObjectNode();
-        securityCaps.put("x-dbmcp-untrustedDataProtection", true);
-        securityCaps.put("x-dbmcp-contentSanitization", true);
-        securityCaps.put("x-dbmcp-injectionDetection", true);
-        securityCaps.put("x-dbmcp-queryValidation", true);
-        securityCaps.put("x-dbmcp-accessControls", true);
+        securityCaps.put("x-dbchat-untrustedDataProtection", true);
+        securityCaps.put("x-dbchat-contentSanitization", true);
+        securityCaps.put("x-dbchat-injectionDetection", true);
+        securityCaps.put("x-dbchat-queryValidation", true);
+        securityCaps.put("x-dbchat-accessControls", true);
         capabilitiesNode.set("security", securityCaps);
 
         return capabilitiesNode;
@@ -1047,7 +1047,7 @@ public class McpServer {
      */
     private Map<String, Object> createServerInfo() {
         Map<String, Object> infoMap = new HashMap<>();
-        infoMap.put("name", "DBMCP - Secure Database MCP Server");
+        infoMap.put("name", "DBChat - Secure Database MCP Server");
         infoMap.put("version", "1.2.0");
         infoMap.put("description", "Generic MCP server for database operations");
 

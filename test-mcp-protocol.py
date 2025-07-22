@@ -804,12 +804,12 @@ def main():
         jar_path = args[0]
         args = args[1:]
     else:
-        jars = sorted(glob.glob("target/dbmcp-*.jar"), key=os.path.getmtime, reverse=True)
+        jars = sorted(glob.glob("target/dbchat-*.jar"), key=os.path.getmtime, reverse=True)
         if jars:
             jar_path = jars[0]
             print(f"Auto-detected JAR: {jar_path}")
         else:
-            print("Error: No dbmcp JAR found in target/. Please run 'mvn clean package'.")
+            print("Error: No dbchat JAR found in target/. Please run 'mvn clean package'.")
             sys.exit(1)
 
     i = 0
@@ -825,7 +825,7 @@ def main():
             print("  --help                       Show this help message")
             print()
             print("Examples:")
-            print("  python test-mcp-protocol.py target/dbmcp-2.0.0.jar")
+            print("  python test-mcp-protocol.py target/dbchat-2.0.0.jar")
             print("  python test-mcp-protocol.py --mode http --port 9090")
             sys.exit(0)
         elif arg == "--mode" and i + 1 < len(args):

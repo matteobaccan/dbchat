@@ -1,7 +1,7 @@
-# DBMCP - Developer Installation Guide
+# DBChat - Developer Installation Guide
 ## Building and Deployment Documentation for Database MCP Server
 
-This guide is for developers who need to build DBMCP from source, understand build profiles, configure advanced deployment scenarios, or contribute to the project.
+This guide is for developers who need to build DBChat from source, understand build profiles, configure advanced deployment scenarios, or contribute to the project.
 
 **End users**: See [README.md](README.md) for simple setup instructions using pre-built JAR files.
 
@@ -23,13 +23,13 @@ git --version
 
 ### Clone Repository
 ```bash
-git clone https://github.com/skanga/dbmcp.git
-cd dbmcp
+git clone https://github.com/skanga/dbchat.git
+cd dbchat
 ```
 
 ### Understanding Build Profiles
 
-DBMCP uses Maven profiles to manage JDBC driver dependencies. This approach keeps JAR sizes manageable while supporting a wide range of databases.
+DBChat uses Maven profiles to manage JDBC driver dependencies. This approach keeps JAR sizes manageable while supporting a wide range of databases.
 
 #### Default Profile (No additional flags)
 **Included drivers:**
@@ -43,7 +43,7 @@ DBMCP uses Maven profiles to manage JDBC driver dependencies. This approach keep
 mvn clean package
 ```
 
-**Resulting JAR:** `target/dbmcp-2.0.4.jar` (~15MB)
+**Resulting JAR:** `target/dbchat-2.0.4.jar` (~15MB)
 
 #### Standard Databases Profile (`-P standard-databases`)
 **Additional drivers:**
@@ -56,7 +56,7 @@ mvn clean package
 mvn clean package -P standard-databases
 ```
 
-**Resulting JAR:** `target/dbmcp-2.0.4.jar` (~25MB)
+**Resulting JAR:** `target/dbchat-2.0.4.jar` (~25MB)
 
 #### Enterprise Databases Profile (`-P enterprise-databases`)
 **Additional drivers:**
@@ -69,7 +69,7 @@ mvn clean package -P standard-databases
 mvn clean package -P standard-databases,enterprise-databases
 ```
 
-**Resulting JAR:** `target/dbmcp-2.0.4.jar` (~60MB)
+**Resulting JAR:** `target/dbchat-2.0.4.jar` (~60MB)
 
 **Note:** Enterprise drivers require accepting additional licenses. Ensure compliance with vendor licensing terms.
 
@@ -85,7 +85,7 @@ mvn clean package -P standard-databases,enterprise-databases
 mvn clean package -P standard-databases,cloud-analytics
 ```
 
-**Resulting JAR:** `target/dbmcp-2.0.4.jar` (~80MB)
+**Resulting JAR:** `target/dbchat-2.0.4.jar` (~80MB)
 
 #### Big Data Profile (`-P big-data`)
 **Additional drivers:**
@@ -99,14 +99,14 @@ mvn clean package -P standard-databases,cloud-analytics
 mvn clean package -P standard-databases,big-data
 ```
 
-**Resulting JAR:** `target/dbmcp-2.0.4.jar` (~120MB)
+**Resulting JAR:** `target/dbchat-2.0.4.jar` (~120MB)
 
 #### Complete Build (All Profiles)
 ```bash
 mvn clean package -P standard-databases,enterprise-databases,cloud-analytics,big-data
 ```
 
-**Resulting JAR:** `target/dbmcp-2.0.4.jar` (~400MB)
+**Resulting JAR:** `target/dbchat-2.0.4.jar` (~400MB)
 
 ### Custom Profile Combinations
 
@@ -152,13 +152,13 @@ mvn clean package -P standard-databases,cloud-analytics
 
 ```bash
 # Check that the JAR file was created
-ls -la target/dbmcp-2.0.4.jar
+ls -la target/dbchat-2.0.4.jar
 
 # Check included drivers
-jar tf target/dbmcp-2.0.4.jar | grep -E "\.(jar|class)" | grep -E "(mysql|postgres|oracle)"
+jar tf target/dbchat-2.0.4.jar | grep -E "\.(jar|class)" | grep -E "(mysql|postgres|oracle)"
 
 # Quick test to see if it starts
-java -jar target/dbmcp-2.0.4.jar
+java -jar target/dbchat-2.0.4.jar
 
 Ctrl-C to stop it
 ```
@@ -397,7 +397,7 @@ export DB_DRIVER="com.mongodb.jdbc.MongoDriver"
 
 ### Transport Mode Architecture
 
-DBMCP supports two transport modes for different deployment scenarios:
+DBChat supports two transport modes for different deployment scenarios:
 
 #### stdio mode (Default)
 - **Use case**: Claude Desktop integration, command-line tools
@@ -416,25 +416,25 @@ DBMCP supports two transport modes for different deployment scenarios:
 #### stdio Development Mode
 ```bash
 # Basic stdio mode
-java -jar target/dbmcp-2.0.4.jar
+java -jar target/dbchat-2.0.4.jar
 
 # Debug mode with detailed logging
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-2.0.4.jar
+java -Dlogging.level.root=DEBUG -jar target/dbchat-2.0.4.jar
 
 # Test with manual input
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbmcp-2.0.4.jar
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbchat-2.0.4.jar
 ```
 
 #### HTTP Development Mode
 ```bash
 # Basic HTTP mode
-java -jar target/dbmcp-2.0.4.jar --http_mode=true
+java -jar target/dbchat-2.0.4.jar --http_mode=true
 
 # Custom port with debug logging
-java -Dlogging.level.root=DEBUG -jar target/dbmcp-2.0.4.jar --http_mode=true --http_port=9090
+java -Dlogging.level.root=DEBUG -jar target/dbchat-2.0.4.jar --http_mode=true --http_port=9090
 
 # Production-like settings
-java -jar target/dbmcp-2.0.4.jar \
+java -jar target/dbchat-2.0.4.jar \
   --http_mode=true \
   --http_port=8080 \
   --max_connections=50 \
@@ -495,13 +495,13 @@ HTTP_PORT=3001
 #### Usage:
 ```bash
 # Use specific config file
-java -jar target/dbmcp-2.0.4.jar --config_file=production.conf
+java -jar target/dbchat-2.0.4.jar --config_file=production.conf
 
 # Override specific settings
-java -jar target/dbmcp-2.0.4.jar --config_file=production.conf --http_port=9090
+java -jar target/dbchat-2.0.4.jar --config_file=production.conf --http_port=9090
 
 # Multiple config files for different environments
-java -jar target/dbmcp-2.0.4.jar --config_file=base.conf --config_file=env-specific.conf
+java -jar target/dbchat-2.0.4.jar --config_file=base.conf --config_file=env-specific.conf
 ```
 
 ### Advanced Configuration Options
@@ -590,25 +590,25 @@ mvn verify -P integration-tests
 #### stdio Mode Testing
 ```bash
 # Initialize protocol
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbmcp-2.0.4.jar
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | java -jar target/dbchat-2.0.4.jar
 
 # Send initialized notification
-echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' | java -jar target/dbmcp-2.0.4.jar
+echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' | java -jar target/dbchat-2.0.4.jar
 
 # List tools
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | java -jar target/dbmcp-2.0.4.jar
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | java -jar target/dbchat-2.0.4.jar
 
 # Execute query
-echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"query","arguments":{"sql":"SELECT 1 as test","maxRows":1}}}' | java -jar target/dbmcp-2.0.4.jar
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"query","arguments":{"sql":"SELECT 1 as test","maxRows":1}}}' | java -jar target/dbchat-2.0.4.jar
 
 # List resources
-echo '{"jsonrpc":"2.0","id":4,"method":"resources/list","params":{}}' | java -jar target/dbmcp-2.0.4.jar
+echo '{"jsonrpc":"2.0","id":4,"method":"resources/list","params":{}}' | java -jar target/dbchat-2.0.4.jar
 ```
 
 #### HTTP Mode Testing
 ```bash
 # Start server
-java -jar target/dbmcp-2.0.4.jar --http_mode=true &
+java -jar target/dbchat-2.0.4.jar --http_mode=true &
 SERVER_PID=$!
 
 # Wait for startup
@@ -674,7 +674,7 @@ def test_stdio_mode():
     }
     
     result = subprocess.run(
-        ["java", "-jar", "target/dbmcp-2.0.4.jar"],
+        ["java", "-jar", "target/dbchat-2.0.4.jar"],
         input=json.dumps(init_request),
         text=True,
         capture_output=True
@@ -695,7 +695,7 @@ def test_http_mode():
     
     # Start server
     process = subprocess.Popen([
-        "java", "-jar", "target/dbmcp-2.0.4.jar", 
+        "java", "-jar", "target/dbchat-2.0.4.jar", 
         "--http_mode=true", "--http_port=8081"
     ])
     
@@ -742,18 +742,18 @@ if __name__ == "__main__":
 #!/bin/bash
 set -e
 
-echo "Testing DBMCP build and functionality..."
+echo "Testing DBChat build and functionality..."
 
 # Test basic build
 echo "Testing basic build..."
 mvn clean package -q
-test -f target/dbmcp-2.0.4.jar || (echo "Build failed" && exit 1)
+test -f target/dbchat-2.0.4.jar || (echo "Build failed" && exit 1)
 echo "✓ Basic build successful"
 
 # Test standard databases build
 echo "Testing standard databases build..."
 mvn clean package -P standard-databases -q
-test -f target/dbmcp-2.0.4.jar || (echo "Standard build failed" && exit 1)
+test -f target/dbchat-2.0.4.jar || (echo "Standard build failed" && exit 1)
 echo "✓ Standard databases build successful"
 
 # Test enterprise databases build (if available)
@@ -767,7 +767,7 @@ fi
 # Test basic functionality
 echo "Testing basic functionality..."
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | \
-    timeout 10s java -jar target/dbmcp-2.0.4.jar > /dev/null || (echo "Functionality test failed" && exit 1)
+    timeout 10s java -jar target/dbchat-2.0.4.jar > /dev/null || (echo "Functionality test failed" && exit 1)
 echo "✓ Basic functionality test passed"
 
 echo "All tests completed successfully!"
@@ -784,24 +784,24 @@ FROM openjdk:17-jdk-slim
 WORKDIR /app
 
 # Copy built JAR
-COPY target/dbmcp-2.0.4.jar
+COPY target/dbchat-2.0.4.jar
 
 # Create non-root user
-RUN useradd -m -u 1000 dbmcp
-USER dbmcp
+RUN useradd -m -u 1000 dbchat
+USER dbchat
 
 # Expose HTTP port
 EXPOSE 8080
 
 # Default command
-CMD ["java", "-jar", "dbmcp.jar", "--http_mode=true", "--http_port=8080"]
+CMD ["java", "-jar", "dbchat.jar", "--http_mode=true", "--http_port=8080"]
 ```
 
 #### Docker Compose for Development
 ```yaml
 version: '3.8'
 services:
-  dbmcp:
+  dbchat:
     build: .
     ports:
       - "8080:8080"
@@ -815,7 +815,7 @@ services:
     depends_on:
       - postgres
     networks:
-      - dbmcp-network
+      - dbchat-network
 
   postgres:
     image: postgres:15
@@ -828,13 +828,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - dbmcp-network
+      - dbchat-network
 
 volumes:
   postgres_data:
 
 networks:
-  dbmcp-network:
+  dbchat-network:
 ```
 
 #### Usage
@@ -868,15 +868,15 @@ WORKDIR /app
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN useradd -m -u 1000 dbmcp
+RUN useradd -m -u 1000 dbchat
 
 # Copy JAR from build stage
-COPY --from=build /app/target/dbmcp-2.0.4.jar
+COPY --from=build /app/target/dbchat-2.0.4.jar
 
 # Change ownership
-RUN chown dbmcp:dbmcp dbmcp.jar
+RUN chown dbchat:dbchat dbchat.jar
 
-USER dbmcp
+USER dbchat
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -884,7 +884,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 EXPOSE 8080
 
-CMD ["java", "-jar", "dbmcp.jar", "--http_mode=true", "--http_port=8080"]
+CMD ["java", "-jar", "dbchat.jar", "--http_mode=true", "--http_port=8080"]
 ```
 
 ## 🔧 IDE Configuration
@@ -934,7 +934,7 @@ Create separate run configurations for different profiles:
             "name": "Launch McpServer (stdio)",
             "request": "launch",
             "mainClass": "com.skanga.mcp.McpServer",
-            "projectName": "dbmcp",
+            "projectName": "dbchat",
             "env": {
                 "DB_URL": "jdbc:h2:mem:testdb",
                 "DB_USER": "sa",
@@ -948,7 +948,7 @@ Create separate run configurations for different profiles:
             "name": "Launch McpServer (HTTP)",
             "request": "launch",
             "mainClass": "com.skanga.mcp.McpServer",
-            "projectName": "dbmcp",
+            "projectName": "dbchat",
             "args": ["--http_mode=true", "--http_port=8080"],
             "env": {
                 "DB_URL": "jdbc:h2:mem:testdb",
@@ -1003,7 +1003,7 @@ Create separate run configurations for different profiles:
 ### Local Development Deployment
 ```bash
 # Quick development setup
-java -jar target/dbmcp-2.0.4.jar \
+java -jar target/dbchat-2.0.4.jar \
   --config_file=dev.conf \
   --http_mode=true \
   --http_port=3001
@@ -1012,7 +1012,7 @@ java -jar target/dbmcp-2.0.4.jar \
 ### Staging Environment Deployment
 ```bash
 # Staging with PostgreSQL
-java -jar target/dbmcp-2.0.4.jar \
+java -jar target/dbchat-2.0.4.jar \
   --config_file=staging.conf \
   --http_mode=true \
   --http_port=8080 \
@@ -1022,29 +1022,29 @@ java -jar target/dbmcp-2.0.4.jar \
 
 ### Production Environment Deployment
 
-#### Systemd Service (`/etc/systemd/system/dbmcp.service`)
+#### Systemd Service (`/etc/systemd/system/dbchat.service`)
 ```ini
 [Unit]
-Description=DBMCP Database MCP Server
+Description=DBChat Database MCP Server
 After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=dbmcp
-Group=dbmcp
-WorkingDirectory=/opt/dbmcp
-ExecStart=/usr/bin/java -jar /opt/dbmcp/dbmcp-2.0.4.jar --config_file=/etc/dbmcp/production.conf
+User=dbchat
+Group=dbchat
+WorkingDirectory=/opt/dbchat
+ExecStart=/usr/bin/java -jar /opt/dbchat/dbchat-2.0.4.jar --config_file=/etc/dbchat/production.conf
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=dbmcp
+SyslogIdentifier=dbchat
 
 # Security settings
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/log/dbmcp
+ReadWritePaths=/var/log/dbchat
 
 [Install]
 WantedBy=multi-user.target
@@ -1056,29 +1056,29 @@ WantedBy=multi-user.target
 set -e
 
 # Create user
-sudo useradd -r -s /bin/false dbmcp
+sudo useradd -r -s /bin/false dbchat
 
 # Create directories
-sudo mkdir -p /opt/dbmcp
-sudo mkdir -p /etc/dbmcp
-sudo mkdir -p /var/log/dbmcp
+sudo mkdir -p /opt/dbchat
+sudo mkdir -p /etc/dbchat
+sudo mkdir -p /var/log/dbchat
 
 # Copy files
-sudo cp target/dbmcp-2.0.4.jar /opt/dbmcp/
-sudo cp production.conf /etc/dbmcp/
-sudo cp dbmcp.service /etc/systemd/system/
+sudo cp target/dbchat-2.0.4.jar /opt/dbchat/
+sudo cp production.conf /etc/dbchat/
+sudo cp dbchat.service /etc/systemd/system/
 
 # Set permissions
-sudo chown -R dbmcp:dbmcp /opt/dbmcp
-sudo chown -R dbmcp:dbmcp /var/log/dbmcp
-sudo chmod 600 /etc/dbmcp/production.conf
+sudo chown -R dbchat:dbchat /opt/dbchat
+sudo chown -R dbchat:dbchat /var/log/dbchat
+sudo chmod 600 /etc/dbchat/production.conf
 
 # Enable and start service
 sudo systemctl daemon-reload
-sudo systemctl enable dbmcp
-sudo systemctl start dbmcp
+sudo systemctl enable dbchat
+sudo systemctl start dbchat
 
-echo "DBMCP production service installed and started"
+echo "DBChat production service installed and started"
 ```
 
 ### Cloud Deployment (AWS)
@@ -1086,7 +1086,7 @@ echo "DBMCP production service installed and started"
 #### ECS Task Definition
 ```json
 {
-  "family": "dbmcp",
+  "family": "dbchat",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
@@ -1095,8 +1095,8 @@ echo "DBMCP production service installed and started"
   "taskRoleArn": "arn:aws:iam::account:role/ecsTaskRole",
   "containerDefinitions": [
     {
-      "name": "dbmcp",
-      "image": "your-account.dkr.ecr.region.amazonaws.com/dbmcp:2.0.0",
+      "name": "dbchat",
+      "image": "your-account.dkr.ecr.region.amazonaws.com/dbchat:2.0.0",
       "portMappings": [
         {
           "containerPort": 8080,
@@ -1116,21 +1116,21 @@ echo "DBMCP production service installed and started"
       "secrets": [
         {
           "name": "DB_URL",
-          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbmcp/db-url"
+          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbchat/db-url"
         },
         {
           "name": "DB_USER",
-          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbmcp/db-user"
+          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbchat/db-user"
         },
         {
           "name": "DB_PASSWORD",
-          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbmcp/db-password"
+          "valueFrom": "arn:aws:secretsmanager:region:account:secret:dbchat/db-password"
         }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/dbmcp",
+          "awslogs-group": "/ecs/dbchat",
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs"
         }
@@ -1178,10 +1178,10 @@ mvn clean install -U
 #### JDBC Driver Issues
 ```bash
 # Verify driver in JAR
-jar tf target/dbmcp-2.0.4.jar | grep -E "(mysql|postgres|oracle)"
+jar tf target/dbchat-2.0.4.jar | grep -E "(mysql|postgres|oracle)"
 
 # Test driver loading
-java -cp target/dbmcp-2.0.4.jar -e "Class.forName('com.mysql.cj.jdbc.Driver')"
+java -cp target/dbchat-2.0.4.jar -e "Class.forName('com.mysql.cj.jdbc.Driver')"
 
 # Check driver versions
 mvn dependency:list | grep -E "(mysql|postgres|oracle)"
@@ -1192,7 +1192,7 @@ mvn dependency:list | grep -E "(mysql|postgres|oracle)"
 #### Connection Problems
 ```bash
 # Test database connectivity
-java -cp target/dbmcp-2.0.4.jar -e "
+java -cp target/dbchat-2.0.4.jar -e "
 import java.sql.*;
 Connection conn = DriverManager.getConnection('$DB_URL', '$DB_USER', '$DB_PASSWORD');
 System.out.println('Connection successful');
@@ -1200,19 +1200,19 @@ conn.close();
 "
 
 # Verify JDBC URL format
-java -jar target/dbmcp-2.0.4.jar --db_url="$DB_URL" --help
+java -jar target/dbchat-2.0.4.jar --db_url="$DB_URL" --help
 ```
 
 #### Memory Issues
 ```bash
 # Monitor memory usage
-java -Xmx512m -XX:+PrintGCDetails -jar target/dbmcp-2.0.4.jar
+java -Xmx512m -XX:+PrintGCDetails -jar target/dbchat-2.0.4.jar
 
 # Profile memory allocation
-java -XX:+UseG1GC -XX:+PrintGCApplicationStoppedTime -jar target/dbmcp-2.0.4.jar
+java -XX:+UseG1GC -XX:+PrintGCApplicationStoppedTime -jar target/dbchat-2.0.4.jar
 
 # Enable heap dump on OOM
-java -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -jar target/dbmcp-2.0.4.jar
+java -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -jar target/dbchat-2.0.4.jar
 ```
 
 #### Performance Debugging
@@ -1222,10 +1222,10 @@ java -Dcom.sun.management.jmxremote \
      -Dcom.sun.management.jmxremote.port=9999 \
      -Dcom.sun.management.jmxremote.authenticate=false \
      -Dcom.sun.management.jmxremote.ssl=false \
-     -jar target/dbmcp-2.0.4.jar
+     -jar target/dbchat-2.0.4.jar
 
 # Profile with async-profiler
-java -jar target/dbmcp-2.0.4.jar &
+java -jar target/dbchat-2.0.4.jar &
 PID=$!
 ./profiler.sh -d 30 -f profile.html $PID
 ```
@@ -1259,4 +1259,4 @@ PID=$!
 
 ---
 
-This developer guide provides comprehensive information for building, testing, and deploying DBMCP. For end-user setup instructions, see [README.md](README.md).
+This developer guide provides comprehensive information for building, testing, and deploying DBChat. For end-user setup instructions, see [README.md](README.md).

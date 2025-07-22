@@ -114,7 +114,7 @@ for variant in "${variants[@]}"; do
     print_status "Building $name variant..."
     if [ "$DRY_RUN" == "false" ]; then
         mvn clean package $profiles -DskipTests
-        cp target/dbmcp-$VERSION.jar target/releases/dbmcp-$VERSION-$name.jar
+        cp target/dbchat-$VERSION.jar target/releases/dbchat-$VERSION-$name.jar
     fi
 done
 
@@ -161,8 +161,8 @@ EOF
             "all") desc="All database drivers (400MB+)" ;;
         esac
 
-        if [ -f "target/releases/dbmcp-$VERSION-$name.jar" ]; then
-            size=$(ls -lh target/releases/dbmcp-$VERSION-$name.jar | awk '{print $5}')
+        if [ -f "target/releases/dbchat-$VERSION-$name.jar" ]; then
+            size=$(ls -lh target/releases/dbchat-$VERSION-$name.jar | awk '{print $5}')
             echo "| $name | $desc | $size |" >> CHANGELOG-$VERSION.md
         fi
     done
@@ -175,25 +175,25 @@ Download the appropriate variant for your needs:
 
 \`\`\`bash
 # Basic variant (smallest)
-wget https://github.com/skanga/dbmcp/releases/download/v$VERSION/dbmcp-$VERSION-basic.jar
+wget https://github.com/skanga/dbchat/releases/download/v$VERSION/dbchat-$VERSION-basic.jar
 
 # Standard databases
-wget https://github.com/skanga/dbmcp/releases/download/v$VERSION/dbmcp-$VERSION-standard.jar
+wget https://github.com/skanga/dbchat/releases/download/v$VERSION/dbchat-$VERSION-standard.jar
 
 # Enterprise databases
-wget https://github.com/skanga/dbmcp/releases/download/v$VERSION/dbmcp-$VERSION-enterprise.jar
+wget https://github.com/skanga/dbchat/releases/download/v$VERSION/dbchat-$VERSION-enterprise.jar
 
 # Cloud analytics
-wget https://github.com/skanga/dbmcp/releases/download/v$VERSION/dbmcp-$VERSION-cloud-analytics.jar
+wget https://github.com/skanga/dbchat/releases/download/v$VERSION/dbchat-$VERSION-cloud-analytics.jar
 
 # All drivers (largest)
-wget https://github.com/skanga/dbmcp/releases/download/v$VERSION/dbmcp-$VERSION-all.jar
+wget https://github.com/skanga/dbchat/releases/download/v$VERSION/dbchat-$VERSION-all.jar
 \`\`\`
 
 ## Usage
 
 \`\`\`bash
-java -jar dbmcp-$VERSION-<variant>.jar
+java -jar dbchat-$VERSION-<variant>.jar
 \`\`\`
 EOF
 
@@ -221,7 +221,7 @@ if [ "$DRY_RUN" == "false" ]; then
     print_status "  - Publish to Maven Central (basic variant)"
 
     print_status "You can monitor the progress at:"
-    print_status "  https://github.com/skanga/dbmcp/actions"
+    print_status "  https://github.com/skanga/dbchat/actions"
 else
     print_status "DRY RUN: Would create release v$VERSION with the following variants:"
     for variant in "${variants[@]}"; do

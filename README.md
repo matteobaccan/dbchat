@@ -1,12 +1,12 @@
-# DBMCP - Talk to Your Database using AI
+# DBChat - Talk to Your Database using AI
 
 Transform your database into an intelligent conversational partner. Ask questions in plain English, get instant answers, and create beautiful visualizations - all through Claude Desktop.
 
-## 🌟 What is DBMCP?
+## 🌟 What is DBChat?
 
-DBMCP is a bridge that connects any MCP client like Claude Desktop to your database, enabling natural language database interactions. Instead of writing SQL queries, simply ask Claude questions about your data and get instant, intelligent responses.
+DBChat is a bridge that connects any MCP client like Claude Desktop to your database, enabling natural language database interactions. Instead of writing SQL queries, simply ask Claude questions about your data and get instant, intelligent responses.
 
-**Before DBMCP:**
+**Before DBChat:**
 ```sql
 SELECT c.name, COUNT(o.id) as order_count, SUM(o.total) as revenue 
 FROM customers c 
@@ -17,12 +17,12 @@ ORDER BY revenue DESC
 LIMIT 10;
 ```
 
-**With DBMCP:**
+**With DBChat:**
 ```
 "Show me our top 10 customers by revenue this year"
 ```
 
-## 🎯 Why Use DBMCP?
+## 🎯 Why Use DBChat?
 
 ### 🗣️ Natural Language Database Queries
 - **Ask questions in plain English**: "How many customers signed up last month?"
@@ -46,7 +46,7 @@ LIMIT 10;
 
 ## 🗃️ Supported Databases
 
-DBMCP works with virtually any database (as long as it has a JDBC driver)
+DBChat works with virtually any database (as long as it has a JDBC driver)
 
 ### Popular Databases
 - **MySQL** / **MariaDB** - Web applications and e-commerce
@@ -74,15 +74,15 @@ DBMCP works with virtually any database (as long as it has a JDBC driver)
 
 ### Step 1: Download
 
-Download the latest release from [GitHub Releases](https://github.com/skanga/dbmcp/releases):
-- `dbmcp-2.0.3.jar` - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)
-- `dbmcp-2.0.3.jar` - Standard version (add MySQL, MariaDB, ClickHouse)
-- `dbmcp-2.0.3.jar` - Enterprise version (add Oracle, SQL Server, DB2)
-- `dbmcp-2.0.3.jar` - All databases included (400MB+)
+Download the latest release from [GitHub Releases](https://github.com/skanga/dbchat/releases):
+- `dbchat-2.0.3.jar` - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)
+- `dbchat-2.0.3.jar` - Standard version (add MySQL, MariaDB, ClickHouse)
+- `dbchat-2.0.3.jar` - Enterprise version (add Oracle, SQL Server, DB2)
+- `dbchat-2.0.3.jar` - All databases included (400MB+)
 
 NOTE: You can also build an efficient custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md)  for details
 
-IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you install. The DBMCP license does not cover any third party code or binaries.
+IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you install. The DBChat license does not cover any third party code or binaries.
 
 ### Step 2: Install Claude Desktop (or any other MCP client)
 
@@ -92,7 +92,7 @@ IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you i
 
 ### Step 3: Set Up Your Database Connection
 
-Create a configuration file `dbmcp.conf`:
+Create a configuration file `dbchat.conf`:
 
 ```properties
 # Basic database connection
@@ -153,8 +153,8 @@ DB_DRIVER=org.h2.Driver
       "command": "java",
       "args": [
         "-jar", 
-        "/absolute/path/to/dbmcp-2.0.3.jar",
-        "--config_file=/absolute/path/to/dbmcp.conf"
+        "/absolute/path/to/dbchat-2.0.3.jar",
+        "--config_file=/absolute/path/to/dbchat.conf"
       ]
     }
   }
@@ -167,7 +167,7 @@ DB_DRIVER=org.h2.Driver
   "mcpServers": {
     "database": {
       "command": "java",
-      "args": ["-jar", "/absolute/path/to/dbmcp-2.0.3.jar"],
+      "args": ["-jar", "/absolute/path/to/dbchat-2.0.3.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://localhost:3306/your_database",
         "DB_USER": "your_username", 
@@ -187,8 +187,8 @@ DB_DRIVER=org.h2.Driver
       "command": "java",
       "args": [
         "-jar", 
-        "C:/Users/YourName/Downloads/dbmcp-2.0.3.jar",
-        "--config_file=C:/Users/YourName/dbmcp.conf"
+        "C:/Users/YourName/Downloads/dbchat-2.0.3.jar",
+        "--config_file=C:/Users/YourName/dbchat.conf"
       ]
     }
   }
@@ -204,7 +204,7 @@ You can use many databases concurrently!
   "mcpServers": {
     "production-db": {
       "command": "java",
-      "args": ["-jar", "/path/to/dbmcp-2.0.3.jar"],
+      "args": ["-jar", "/path/to/dbchat-2.0.3.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://prod-server:3306/production",
         "DB_USER": "readonly_user",
@@ -215,7 +215,7 @@ You can use many databases concurrently!
     },
     "analytics-db": {
       "command": "java", 
-      "args": ["-jar", "/path/to/dbmcp-2.0.3.jar"],
+      "args": ["-jar", "/path/to/dbchat-2.0.3.jar"],
       "env": {
         "DB_URL": "jdbc:postgresql://analytics:5432/warehouse",
         "DB_USER": "analyst",
@@ -301,7 +301,7 @@ Close and reopen Claude Desktop. You should see a database connection indicator 
 
 ## 📊 Data Visualization Examples
 
-DBMCP enables Claude to create stunning visualizations directly from your database:
+DBChat enables Claude to create stunning visualizations directly from your database:
 
 ### Sales Dashboard
 - **Monthly Revenue Trends**: Line charts showing growth over time
@@ -359,18 +359,18 @@ Then access at `http://localhost:8080/`. For example try `http://localhost:8080/
 For similar config via CLI args use:
 ```
 # Bind to localhost only (default, most secure)
-java -jar dbmcp-2.0.3.jar --http_mode=true --http_port=8080
+java -jar dbchat-2.0.3.jar --http_mode=true --http_port=8080
 
 # Bind to all interfaces (allows external access)
-java -jar dbmcp-2.0.3.jar --http_mode=true --bind_address=0.0.0.0 --http_port=8080
+java -jar dbchat-2.0.3.jar --http_mode=true --bind_address=0.0.0.0 --http_port=8080
 
 # Bind to specific interface
-java -jar dbmcp-2.0.3.jar --http_mode=true --bind_address=192.168.1.100 --http_port=8080
+java -jar dbchat-2.0.3.jar --http_mode=true --bind_address=192.168.1.100 --http_port=8080
 ```
 
 ## 🔧 Configuration Methods and Priority
 
-For maximum flexibility, DBMCP supports multiple configuration methods like CLI arguments, config file, Environment vars,
+For maximum flexibility, DBChat supports multiple configuration methods like CLI arguments, config file, Environment vars,
 System Properties and Built-in Defaults. Understanding the priority order is crucial for troubleshooting and advanced setups.
 
 ### Configuration Priority Order (Highest to Lowest)
@@ -388,7 +388,7 @@ This means command line arguments will always override config files, which overr
 **Use case**: Quick overrides, testing, one-time configurations
 
 ```bash
-java -jar dbmcp-2.0.3.jar \
+java -jar dbchat-2.0.3.jar \
   --db_url="jdbc:mysql://localhost:3306/mydb" \
   --db_user="username" \
   --db_password="password" \
@@ -417,7 +417,7 @@ java -jar dbmcp-2.0.3.jar \
 **Format**: `KEY=VALUE` (one per line)
 **Use case**: Production environments, complex configurations, version control
 
-Create a file (e.g., `dbmcp.conf`):
+Create a file (e.g., `dbchat.conf`):
 ```properties
 # Database Connection
 DB_URL=jdbc:postgresql://localhost:5432/myapp
@@ -445,7 +445,7 @@ HTTP_PORT=8080
 
 **Usage:**
 ```bash
-java -jar dbmcp-2.0.3.jar --config_file=dbmcp.conf
+java -jar dbchat-2.0.3.jar --config_file=dbchat.conf
 ```
 
 **Config file features:**
@@ -468,7 +468,7 @@ export HTTP_MODE="true"
 export HTTP_PORT="8080"
 export SELECT_ONLY="true"
 
-java -jar dbmcp-2.0.3.jar
+java -jar dbchat-2.0.3.jar
 ```
 
 **All environment variables:**
@@ -500,7 +500,7 @@ java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
      -Ddb.driver="com.mysql.cj.jdbc.Driver" \
      -Dhttp.mode="true" \
      -Dhttp.port="8080" \
-     -jar dbmcp-2.0.3.jar
+     -jar dbchat-2.0.3.jar
 ```
 
 **Property naming**: Environment variable `DB_URL` becomes system property `db.url`
@@ -535,7 +535,7 @@ echo "HTTP_PORT=8080" > config.conf
 export HTTP_PORT=9090
 
 # Command line overrides both
-java -jar dbmcp-2.0.3.jar --config_file=config.conf --http_port=7070
+java -jar dbchat-2.0.3.jar --config_file=config.conf --http_port=7070
 
 # Result: Uses port 7070 (command line wins)
 ```
@@ -551,7 +551,7 @@ echo "SELECT_ONLY=true" >> prod.conf
 export DB_PASSWORD="secure_password"
 
 # Override port via command line (for this run only)
-java -jar dbmcp-2.0.3.jar --config_file=prod.conf --http_port=9090
+java -jar dbchat-2.0.3.jar --config_file=prod.conf --http_port=9090
 ```
 
 #### Example 3: Claude Desktop Configuration
@@ -561,7 +561,7 @@ java -jar dbmcp-2.0.3.jar --config_file=prod.conf --http_port=9090
     "database": {
       "command": "java",
       "args": [
-        "-jar", "/path/to/dbmcp-2.0.3.jar",
+        "-jar", "/path/to/dbchat-2.0.3.jar",
         "--config_file=/path/to/production.conf",
         "--select_only=true"
       ],
@@ -604,14 +604,14 @@ java -jar dbmcp-2.0.3.jar --config_file=prod.conf --http_port=9090
 ```bash
 # Good: Use environment variables for passwords
 export DB_PASSWORD="secure_password"
-java -jar dbmcp-2.0.3.jar --config_file=app.conf
+java -jar dbchat-2.0.3.jar --config_file=app.conf
 
 # Good: Use config file with restricted permissions
 chmod 600 secure.conf
-java -jar dbmcp-2.0.3.jar --config_file=secure.conf
+java -jar dbchat-2.0.3.jar --config_file=secure.conf
 
 # Avoid: Passwords in command line (visible in process list)
-java -jar dbmcp-2.0.3.jar --db_password="visible_password"
+java -jar dbchat-2.0.3.jar --db_password="visible_password"
 ```
 
 #### Configuration File Security
@@ -632,7 +632,7 @@ ls -la secure.conf
 #### Check Effective Configuration
 Enable debug logging to see which values are being used:
 ```bash
-java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.3.jar --config_file=myconfig.conf
+java -Dlogging.level.root=DEBUG -jar dbchat-2.0.3.jar --config_file=myconfig.conf
 ```
 
 #### Common Issues
@@ -644,7 +644,7 @@ java -Dlogging.level.root=DEBUG -jar dbmcp-2.0.3.jar --config_file=myconfig.conf
 #### Validation Commands
 ```bash
 # Test database connection with current config
-java -jar dbmcp-2.0.3.jar --help
+java -jar dbchat-2.0.3.jar --help
 
 # Verify config file syntax
 grep -v "^#" myconfig.conf | grep -v "^$"
@@ -697,7 +697,7 @@ env | grep -E "(DB_|HTTP_|MAX_|SELECT_)"
 4. **Build complexity gradually**: Move to advanced analytics over time
 
 ### Security
-1. **Use dedicated database users**: Create read-only users for DBMCP
+1. **Use dedicated database users**: Create read-only users for DBChat
 2. **Limit access**: Only grant necessary table permissions
 3. **Monitor usage**: Review query logs regularly
 4. **Backup data**: Always maintain database backups
@@ -713,16 +713,16 @@ env | grep -E "(DB_|HTTP_|MAX_|SELECT_)"
 - **Model Context Protocol**: [modelcontextprotocol.io](https://modelcontextprotocol.io)
 - **Claude Desktop**: [claude.ai/download](https://claude.ai/download)
 - **Developer Guide**: See [INSTALL.md](INSTALL.md) for technical details
-- **GitHub Repository**: [github.com/skanga/dbmcp](https://github.com/skanga/dbmcp)
+- **GitHub Repository**: [github.com/skanga/dbchat](https://github.com/skanga/dbchat)
 
 ## 🚀 Ready to Transform Your Data Experience?
 
 1. **Download** the appropriate JAR file for your database(s)
 2. **Install** Claude Desktop (free)
 3. **Configure** your database connection
-4. **Add** DBMCP to Claude Desktop settings
+4. **Add** DBChat to Claude Desktop settings
 5. **Start asking** questions about your data!
 
-Transform your relationship with data. No more complex SQL queries, no more waiting for reports. Just natural conversations with your database, powered by Claude's intelligence and DBMCP's seamless integration.
+Transform your relationship with data. No more complex SQL queries, no more waiting for reports. Just natural conversations with your database, powered by Claude's intelligence and DBChat's seamless integration.
 
 **Get started today and discover what your data has been trying to tell you.**
