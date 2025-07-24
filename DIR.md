@@ -26,7 +26,7 @@ database-mcp-server/
 │               └── skanga/
 │                   └── (test files)
 └── target/                                      # Build output (created by Maven)
-    └── dbchat-2.0.5.jar                          # Executable JAR
+    └── dbchat-2.0.6.jar                          # Executable JAR
 ```
 
 ## Key Components
