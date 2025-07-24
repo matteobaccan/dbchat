@@ -444,8 +444,8 @@ public class McpServer {
      */
     private JsonNode handlePing() {
         ObjectNode result = objectMapper.createObjectNode();
-        result.put("timestamp", System.currentTimeMillis());
-        result.put("state", serverState.toString());
+        result.put("x-dbchat-timestamp", System.currentTimeMillis());
+        result.put("x-dbchat-state", serverState.toString());
         return result;
     }
 
@@ -821,7 +821,7 @@ public class McpServer {
         contentNode.add(textContent);
 
         responseNode.set("content", contentNode);
-        responseNode.put("isError", false); // This tells the LLM it's not an error
+        responseNode.put("x-dbchat-is-error", false); // This tells the LLM it's not an error
         // Is this an issue? isError is not part of MCP specification. Tool errors should
         // be returned as successful responses with error content.
 
@@ -830,7 +830,7 @@ public class McpServer {
         securityMeta.put("dataClassification", "UNTRUSTED_USER_INPUT");
         securityMeta.put("executionType", "ARBITRARY_CODE");
         securityMeta.put("requiresUserVerification", true);
-        responseNode.set("security", securityMeta);
+        responseNode.set("x-dbchat-security", securityMeta);
 
         return responseNode;
     }

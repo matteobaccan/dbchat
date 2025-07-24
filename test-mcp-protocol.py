@@ -58,13 +58,14 @@ class ModeResults:
     success_rate: float
 
 class MCPTester:
-    def __init__(self, jar_path: str, java_path: str = "java", port: int = 8080):
+    def __init__(self, jar_path: str, java_path: str = "java", port: int = 8080, debug: bool = False):
         self.jar_path = jar_path
         self.java_path = java_path
         self.port = port
         self.server_process = None
         self.test_cases = []
         self.is_initialized = False
+        self.debug = debug
 
     def print_header(self):
         """Print test header with system information"""
@@ -77,6 +78,7 @@ class MCPTester:
         print(f"JAR Path: {self.jar_path}")
         print(f"HTTP Port: {self.port}")
         print(f"Requests Library: {'Available' if HAS_REQUESTS else 'Not Available (HTTP tests will be skipped)'}")
+        print(f"Debug Mode: {'Enabled' if self.debug else 'Disabled'}")
         print()
 
     def get_java_version(self) -> str:
@@ -229,6 +231,26 @@ class MCPTester:
             print(f"Health check failed: {e}")
             return False
 
+    def print_debug_info(self, test_name: str, request: Dict[str, Any], response: Optional[Dict[str, Any]], mode: TransportMode):
+        """Print debug information for request/response pairs"""
+        if not self.debug:
+            return
+
+        print(f"\n{'='*60}")
+        print(f"DEBUG: {test_name} ({mode.value.upper()} mode)")
+        print(f"{'='*60}")
+
+        print("REQUEST:")
+        print(json.dumps(request, indent=2, sort_keys=True))
+
+        print("\nRESPONSE:")
+        if response is None:
+            print("None (no response expected or received)")
+        else:
+            print(json.dumps(response, indent=2, sort_keys=True))
+
+        print(f"{'='*60}\n")
+
     def send_http_request(self, request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Send MCP request via HTTP"""
         try:
@@ -375,12 +397,23 @@ class MCPTester:
                 should_have_response=False
             ),
 
-            # Step 3: Now we can use other methods
+            # Step 3: Test ping functionality (if supported)
+            TestCase(
+                name="Ping Test",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "ping"
+                },
+                expected_fields=["jsonrpc", "id", "result"]
+            ),
+
+            # Step 4: Now we can use other methods
             TestCase(
                 name="List Tools",
                 request={
                     "jsonrpc": "2.0",
-                    "id": 2,
+                    "id": 3,
                     "method": "tools/list",
                     "params": {}
                 },
@@ -390,7 +423,7 @@ class MCPTester:
                 name="List Resources",
                 request={
                     "jsonrpc": "2.0",
-                    "id": 3,
+                    "id": 4,
                     "method": "resources/list",
                     "params": {}
                 },
@@ -400,7 +433,7 @@ class MCPTester:
                 name="Call Query Tool",
                 request={
                     "jsonrpc": "2.0",
-                    "id": 4,
+                    "id": 5,
                     "method": "tools/call",
                     "params": {
                         "name": "query",
@@ -416,7 +449,7 @@ class MCPTester:
                 name="Read Database Info Resource",
                 request={
                     "jsonrpc": "2.0",
-                    "id": 5,
+                    "id": 6,
                     "method": "resources/read",
                     "params": {"uri": "database://info"}
                 },
@@ -428,7 +461,7 @@ class MCPTester:
                 name="Error Test - Invalid Method",
                 request={
                     "jsonrpc": "2.0",
-                    "id": 6,
+                    "id": 7,
                     "method": "invalid/method",
                     "params": {}
                 },
@@ -438,7 +471,7 @@ class MCPTester:
                 name="Error Test - Empty SQL",
                 request={
                     "jsonrpc": "2.0",
-                    "id": 7,
+                    "id": 8,
                     "method": "tools/call",
                     "params": {
                         "name": "query",
@@ -466,6 +499,26 @@ class MCPTester:
                     "id": "test-string-id",
                     "method": "tools/list",
                     "params": {}
+                },
+                expected_fields=["jsonrpc", "id", "result"]
+            ),
+
+            # Additional ping tests with different scenarios
+            TestCase(
+                name="Ping Test - String ID",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": "ping-test-string",
+                    "method": "ping"
+                },
+                expected_fields=["jsonrpc", "id", "result"]
+            ),
+            TestCase(
+                name="Ping Test - Null ID",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "method": "ping"
                 },
                 expected_fields=["jsonrpc", "id", "result"]
             )
@@ -508,6 +561,12 @@ class MCPTester:
                 if "message" not in error or not isinstance(error["message"], str):
                     errors.append("Error object missing or invalid 'message' field")
 
+        # Check for unexpected extra fields in root response
+        allowed_root_fields = {"jsonrpc", "id", "result", "error"}
+        extra_fields = set(response.keys()) - allowed_root_fields
+        if extra_fields:
+            errors.append(f"Unexpected extra fields in response: {', '.join(sorted(extra_fields))}")
+
         return errors
 
     def validate_expected_fields(self, response: Dict[str, Any], expected_fields: List[str]) -> List[str]:
@@ -527,6 +586,81 @@ class MCPTester:
 
         return errors
 
+    def is_vendor_extension(self, field_name: str) -> bool:
+        """Check if a field is a valid vendor extension (x- prefix)"""
+        return field_name.startswith("x-")
+
+    def validate_mcp_response_structure(self, response: Dict[str, Any], method: str) -> List[str]:
+        """Validate MCP-specific response structure based on method"""
+        errors = []
+
+        if "error" in response:
+            # Error responses are handled by validate_json_rpc
+            return errors
+
+        if "result" not in response:
+            return errors
+
+        result = response["result"]
+
+        # Method-specific validation
+        if method == "initialize":
+            required_fields = {"protocolVersion", "capabilities", "serverInfo"}
+            missing = required_fields - set(result.keys())
+            if missing:
+                errors.append(f"Initialize result missing required fields: {', '.join(missing)}")
+
+            # Check for unexpected fields in initialize result (allow x- extensions)
+            allowed_fields = {"protocolVersion", "capabilities", "serverInfo"}
+            extra_fields = {f for f in result.keys() if f not in allowed_fields and not self.is_vendor_extension(f)}
+            if extra_fields:
+                errors.append(f"Initialize result has unexpected fields: {', '.join(sorted(extra_fields))}")
+
+        elif method == "tools/list":
+            if not isinstance(result.get("tools"), list):
+                errors.append("tools/list result must contain 'tools' array")
+            # Check for unexpected fields (allow x- extensions)
+            allowed_fields = {"tools"}
+            extra_fields = {f for f in result.keys() if f not in allowed_fields and not self.is_vendor_extension(f)}
+            if extra_fields:
+                errors.append(f"tools/list result has unexpected fields: {', '.join(sorted(extra_fields))}")
+
+        elif method == "resources/list":
+            if not isinstance(result.get("resources"), list):
+                errors.append("resources/list result must contain 'resources' array")
+            # Check for unexpected fields (allow x- extensions)
+            allowed_fields = {"resources"}
+            extra_fields = {f for f in result.keys() if f not in allowed_fields and not self.is_vendor_extension(f)}
+            if extra_fields:
+                errors.append(f"resources/list result has unexpected fields: {', '.join(sorted(extra_fields))}")
+
+        elif method == "tools/call":
+            if "content" not in result:
+                errors.append("tools/call result must contain 'content' field")
+            # Check for unexpected fields (allow x- extensions)
+            allowed_fields = {"content", "isError"}  # isError is optional
+            extra_fields = {f for f in result.keys() if f not in allowed_fields and not self.is_vendor_extension(f)}
+            if extra_fields:
+                errors.append(f"tools/call result has unexpected fields: {', '.join(sorted(extra_fields))}")
+
+        elif method == "resources/read":
+            if "contents" not in result:
+                errors.append("resources/read result must contain 'contents' field")
+            # Check for unexpected fields (allow x- extensions)
+            allowed_fields = {"contents"}
+            extra_fields = {f for f in result.keys() if f not in allowed_fields and not self.is_vendor_extension(f)}
+            if extra_fields:
+                errors.append(f"resources/read result has unexpected fields: {', '.join(sorted(extra_fields))}")
+
+        elif method == "ping":
+            # Ping can have vendor extensions but no standard fields
+            allowed_fields = set()  # No standard fields for ping
+            extra_fields = {f for f in result.keys() if f not in allowed_fields and not self.is_vendor_extension(f)}
+            if extra_fields:
+                errors.append(f"ping result has unexpected standard fields: {', '.join(sorted(extra_fields))}")
+
+        return errors
+
     def run_test_case(self, test_case: TestCase, mode: TransportMode) -> TestCase:
         """Run a single test case and validate the response"""
         start_time = time.time()
@@ -541,6 +675,9 @@ class MCPTester:
         try:
             response = self.send_request(test_case.request, mode)
             result_case.execution_time = time.time() - start_time
+
+            # Print debug info if enabled
+            self.print_debug_info(test_case.name, test_case.request, response, mode)
 
             # Handle notifications (should have NO response)
             if test_case.is_notification and not test_case.should_have_response:
@@ -568,6 +705,10 @@ class MCPTester:
 
             errors.extend(self.validate_json_rpc(response, expected_id))
             errors.extend(self.validate_expected_fields(response, test_case.expected_fields))
+
+            # MCP-specific structure validation
+            method = test_case.request.get("method", "")
+            errors.extend(self.validate_mcp_response_structure(response, method))
 
             if errors:
                 result_case.result = TestResult.FAIL
@@ -625,6 +766,9 @@ class MCPTester:
 
                 for i, (test_case, response) in enumerate(zip(test_cases, responses), 1):
                     print(f"Test {i:2d}: {test_case.name}...", end=" ")
+
+                    # Print debug info if enabled
+                    self.print_debug_info(test_case.name, test_case.request, response, mode)
 
                     result = self.validate_test_response(test_case, response)
                     results.append(result)
@@ -703,6 +847,10 @@ class MCPTester:
 
         errors.extend(self.validate_json_rpc(response, expected_id))
         errors.extend(self.validate_expected_fields(response, test_case.expected_fields))
+
+        # MCP-specific structure validation
+        method = test_case.request.get("method", "")
+        errors.extend(self.validate_mcp_response_structure(response, method))
 
         if errors:
             result_case.result = TestResult.FAIL
@@ -791,109 +939,115 @@ class MCPTester:
         return stdio_results, http_results
 
 def main():
-    """Main function with comprehensive argument parsing"""
+   """Main function with comprehensive argument parsing"""
 
-    jar_path = None
-    mode = TransportMode.BOTH
-    java_path = "java"
-    port = 8080
+   jar_path = None
+   mode = TransportMode.BOTH
+   java_path = "java"
+   port = 8080
+   debug = False
 
-    # Parse args, allowing jar_path to be optional
-    args = sys.argv[1:]
-    if args and not args[0].startswith("--"):
-        jar_path = args[0]
-        args = args[1:]
-    else:
-        jars = sorted(glob.glob("target/dbchat-*.jar"), key=os.path.getmtime, reverse=True)
-        if jars:
-            jar_path = jars[0]
-            print(f"Auto-detected JAR: {jar_path}")
-        else:
-            print("Error: No dbchat JAR found in target/. Please run 'mvn clean package'.")
-            sys.exit(1)
+   # Parse args, allowing jar_path to be optional
+   args = sys.argv[1:]
+   if args and not args[0].startswith("--"):
+       jar_path = args[0]
+       args = args[1:]
+   else:
+       jars = sorted(glob.glob("target/dbchat-*.jar"), key=os.path.getmtime, reverse=True)
+       if jars:
+           jar_path = jars[0]
+           print(f"Auto-detected JAR: {jar_path}")
+       else:
+           print("Error: No dbchat JAR found in target/. Please run 'mvn clean package'.")
+           sys.exit(1)
 
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        if arg == "--help":
-            print("Usage: python test-mcp-protocol.py [jar_path] [options]")
-            print()
-            print("Options:")
-            print("  --mode <stdio|http|both>     Test mode (default: both)")
-            print("  --java <path>                Java executable path (default: java)")
-            print("  --port <number>              HTTP port for testing (default: 8080)")
-            print("  --help                       Show this help message")
-            print()
-            print("Examples:")
-            print("  python test-mcp-protocol.py target/dbchat-2.0.0.jar")
-            print("  python test-mcp-protocol.py --mode http --port 9090")
-            sys.exit(0)
-        elif arg == "--mode" and i + 1 < len(args):
-            try:
-                mode_str = args[i + 1].lower()
-                mode = TransportMode(mode_str) if mode_str != "both" else TransportMode.BOTH
-            except ValueError:
-                print(f"Invalid mode: {args[i + 1]}. Use stdio, http, or both")
-                sys.exit(1)
-            i += 2
-        elif arg == "--java" and i + 1 < len(args):
-            java_path = args[i + 1]
-            i += 2
-        elif arg == "--port" and i + 1 < len(args):
-            try:
-                port = int(args[i + 1])
-            except ValueError:
-                print(f"Invalid port: {args[i + 1]}")
-                sys.exit(1)
-            i += 2
-        else:
-            print(f"Unknown argument: {arg}")
-            sys.exit(1)
+   i = 0
+   while i < len(args):
+       arg = args[i]
+       if arg == "--help":
+           print("Usage: python test-mcp-protocol.py [jar_path] [options]")
+           print()
+           print("Options:")
+           print("  --mode <stdio|http|both>     Test mode (default: both)")
+           print("  --java <path>                Java executable path (default: java)")
+           print("  --port <number>              HTTP port for testing (default: 8080)")
+           print("  --debug                      Enable debug mode (show request/response)")
+           print("  --help                       Show this help message")
+           print()
+           print("Examples:")
+           print("  python test-mcp-protocol.py target/dbchat-2.0.0.jar")
+           print("  python test-mcp-protocol.py --mode http --port 9090")
+           print("  python test-mcp-protocol.py --debug --mode stdio")
+           sys.exit(0)
+       elif arg == "--mode" and i + 1 < len(args):
+           try:
+               mode_str = args[i + 1].lower()
+               mode = TransportMode(mode_str) if mode_str != "both" else TransportMode.BOTH
+           except ValueError:
+               print(f"Invalid mode: {args[i + 1]}. Use stdio, http, or both")
+               sys.exit(1)
+           i += 2
+       elif arg == "--java" and i + 1 < len(args):
+           java_path = args[i + 1]
+           i += 2
+       elif arg == "--port" and i + 1 < len(args):
+           try:
+               port = int(args[i + 1])
+           except ValueError:
+               print(f"Invalid port: {args[i + 1]}")
+               sys.exit(1)
+           i += 2
+       elif arg == "--debug":
+           debug = True
+           i += 1
+       else:
+           print(f"Unknown argument: {arg}")
+           sys.exit(1)
 
-    # Validate JAR file
-    if not os.path.exists(jar_path):
-        print(f"Error: JAR file not found: {jar_path}")
-        sys.exit(1)
+   # Validate JAR file
+   if not os.path.exists(jar_path):
+       print(f"Error: JAR file not found: {jar_path}")
+       sys.exit(1)
 
-    # Check for requests library if HTTP testing requested
-    if mode in [TransportMode.HTTP, TransportMode.BOTH] and not HAS_REQUESTS:
-        print("Warning: HTTP testing requires 'requests' library")
-        print("Install with: pip install requests")
-        if mode == TransportMode.HTTP:
-            print("Cannot run HTTP-only tests without requests library")
-            sys.exit(1)
+   # Check for requests library if HTTP testing requested
+   if mode in [TransportMode.HTTP, TransportMode.BOTH] and not HAS_REQUESTS:
+       print("Warning: HTTP testing requires 'requests' library")
+       print("Install with: pip install requests")
+       if mode == TransportMode.HTTP:
+           print("Cannot run HTTP-only tests without requests library")
+           sys.exit(1)
 
-    # Create tester and run tests
-    tester = MCPTester(jar_path=jar_path, java_path=java_path, port=port)
+   # Create tester and run tests
+   tester = MCPTester(jar_path=jar_path, java_path=java_path, port=port, debug=debug)
 
-    # Handle Ctrl+C gracefully
-    def signal_handler(sig, frame):
-        print("\n\nTest interrupted by user")
-        tester.stop_http_server()
-        sys.exit(1)
+   # Handle Ctrl+C gracefully
+   def signal_handler(sig, frame):
+       print("\n\nTest interrupted by user")
+       tester.stop_http_server()
+       sys.exit(1)
 
-    signal.signal(signal.SIGINT, signal_handler)
+   signal.signal(signal.SIGINT, signal_handler)
 
-    try:
-        stdio_results, http_results = tester.run_all_tests(mode)
+   try:
+       stdio_results, http_results = tester.run_all_tests(mode)
 
-        # Determine exit code
-        stdio_ok = stdio_results.total == 0 or stdio_results.success_rate == 100.0
-        http_ok = http_results.total == 0 or http_results.success_rate == 100.0
+       # Determine exit code
+       stdio_ok = stdio_results.total == 0 or stdio_results.success_rate == 100.0
+       http_ok = http_results.total == 0 or http_results.success_rate == 100.0
 
-        if stdio_ok and http_ok:
-            sys.exit(0)
-        else:
-            sys.exit(1)
+       if stdio_ok and http_ok:
+           sys.exit(0)
+       else:
+           sys.exit(1)
 
-    except KeyboardInterrupt:
-        print("\n\nTest interrupted by user")
-        tester.stop_http_server()
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\nUnexpected error: {e}")
-        tester.stop_http_server()
-        sys.exit(1)
+   except KeyboardInterrupt:
+       print("\n\nTest interrupted by user")
+       tester.stop_http_server()
+       sys.exit(1)
+   except Exception as e:
+       print(f"\n\nUnexpected error: {e}")
+       tester.stop_http_server()
+       sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+   main()

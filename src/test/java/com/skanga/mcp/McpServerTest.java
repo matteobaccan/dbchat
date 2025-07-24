@@ -618,9 +618,9 @@ class McpServerTest {
         assertNotNull(response);
         assertTrue(response.has("result"));
         JsonNode result = response.get("result");
-        assertTrue(result.has("timestamp"));
-        assertTrue(result.has("state"));
-        assertEquals("INITIALIZED", result.get("state").asText());
+        assertTrue(result.has("x-dbchat-timestamp"));
+        assertTrue(result.has("x-dbchat-state"));
+        assertEquals("INITIALIZED", result.get("x-dbchat-state").asText());
     }
 
     @Test
@@ -685,7 +685,7 @@ class McpServerTest {
         assertNotNull(response);
         assertTrue(response.has("result"));
         JsonNode result = response.get("result");
-        assertFalse(result.get("isError").asBoolean());
+        assertFalse(result.get("x-dbchat-is-error").asBoolean());
         assertTrue(result.has("content"));
 
         JsonNode content = result.get("content");

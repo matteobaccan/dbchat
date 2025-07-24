@@ -873,6 +873,8 @@ public class DatabaseService {
                                 dateTime.append("DD-MON-YY (default)");
                             }
                         }
+                    } catch (SQLException e) {
+                        dateTime.append("Unable to retrieve");
                     }
 
                     dateTime.append("\n- Session Timezone: ");

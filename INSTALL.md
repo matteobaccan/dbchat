@@ -146,6 +146,7 @@ mvn clean package -P standard-databases,cloud-analytics
 | Hive | | | | | ✓ |
 | MongoDB | | | | | ✓ |
 | Cassandra | | | | | ✓ |
+| Redis | | | | | ✓ |
 | Spark SQL | | | | | ✓ |
 
 ### Build Verification
@@ -391,6 +392,18 @@ export DB_URL="jdbc:mongodb://localhost:27017/database"
 export DB_USER="username"
 export DB_PASSWORD="password"
 export DB_DRIVER="com.mongodb.jdbc.MongoDriver"
+```
+
+#### Redis (via JDBC)
+```bash
+# Docker setup
+docker run -d --name redis-test -p 6379:6379 redis
+
+# Connection configuration
+export DB_URL="jdbc:redis://localhost:6379"
+export DB_USER=""
+export DB_PASSWORD="" # Set if your Redis instance requires a password
+export DB_DRIVER="com.dbvis.jdbc.redis.RedisDriver"
 ```
 
 ## 🚀 Transport Modes and Configuration

@@ -483,6 +483,13 @@
                     </exclusions>
                 </dependency>
 
+                <!-- Redis JDBC -->
+                <dependency>
+                    <groupId>com.dbvis</groupId>
+                    <artifactId>redis-jdbc</artifactId>
+                    <version>1.5</version>
+                </dependency>
+
                 <!-- MongoDB JDBC -->
                 <dependency>
                     <groupId>org.mongodb</groupId>
