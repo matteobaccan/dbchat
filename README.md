@@ -80,15 +80,19 @@ DBChat works with virtually any database (as long as it has a JDBC driver)
 ### Step 1: Download DBChat
 
 Download the latest release from [GitHub Releases](https://github.com/skanga/dbchat/releases):
-- [dbchat-3.0.0-basic.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-basic.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)
+- [dbchat-3.0.0-basic.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-basic.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)   `<-- Start here`
 - [dbchat-3.0.0-standard.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-standard.jar) - Standard version (add MySQL, MariaDB, ClickHouse)
 - [dbchat-3.0.0-enterprise.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-enterprise.jar) - Enterprise version (add Oracle, SQL Server, DB2)
 - [dbchat-3.0.0-cloud-analytics.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-cloud-analytics.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
 - [dbchat-3.0.0-all.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-all.jar) - All databases included (400MB+)
 
 (Optional) For simplicity rename the downloaded file to `dbchat-3.0.0.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
-
-NOTE: You can also build an efficient custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md) for details
+```agsl
+mv dbchat-3.0.0.jar dbchat.jar
+OR
+ren dbchat-3.0.0.jar dbchat.jar
+```
+NOTE: Advanced users can also build a custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md) for details.
 
 IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you install. The DBChat license does not cover any third party code or binaries.
 
@@ -109,12 +113,12 @@ DB_USER=your_username
 DB_PASSWORD=your_password
 DB_DRIVER=com.mysql.cj.jdbc.Driver
 
-# Optional: Enable web interface
+# Optional: Enable web interface (not needed for Claude desktop)
 HTTP_MODE=false
 HTTP_PORT=8080
 ```
 
-**Popular Database Examples:**
+**Examples for Common/Popular Databases:**
 
 **MySQL:**
 ```properties
