@@ -17,7 +17,7 @@ import java.util.*;
 public class CliUtils {
     private static final Logger logger = LoggerFactory.getLogger(CliUtils.class);
     static final String SERVER_NAME = "DBChat";
-    static final String SERVER_VERSION = "2.0.6";
+    static final String SERVER_VERSION = "3.0.0";
     static final String SERVER_DESCRIPTION = "Secure MCP server for database operations";
 
     /**
