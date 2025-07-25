@@ -140,7 +140,7 @@ DB_PASSWORD=
 DB_DRIVER=org.sqlite.JDBC
 ```
 
-**Testing with H2 (no database setup required):**
+**H2 database (in memory - no database setup required):**
 ```properties
 DB_URL=jdbc:h2:mem:testdb
 DB_USER=sa
@@ -148,7 +148,7 @@ DB_PASSWORD=
 DB_DRIVER=org.h2.Driver
 ```
 
-**Testing with Oracle:**
+**Oracle:**
 ```properties
 DB_URL=jdbc:oracle:thin:@localhost:1521:xe
 DB_USER=system
