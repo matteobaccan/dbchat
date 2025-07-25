@@ -102,7 +102,11 @@ IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you i
 2. Sign in with your Claude account
 3. **Important**: The Claude website does not support MCP. For MCP only with Anthropic models you need to use Claude Desktop.
 
-### Step 3: Set Up Your Database Connection
+### Step 2 (alternate): 
+
+If you are not using Claude Desktop but want to use another MCP client like Cursor, Windsurf, VS Code, Continue, etc then please refer to the [MCP Setup](MCP-SETUP.md) document for more details
+
+### Step 3: Set Up Your Database Connection 
 
 Create a configuration file `dbchat.conf`:
 
