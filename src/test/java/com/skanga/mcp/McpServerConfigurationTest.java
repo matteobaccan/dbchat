@@ -47,7 +47,7 @@ class McpServerConfigurationTest {
         // but we can test the system property precedence
         System.setProperty("db.url", "jdbc:test:sysprop");
 
-        ConfigParams config = McpServer.loadConfiguration(args);
+        ConfigParams config = CliUtils.loadConfiguration(args);
         assertEquals("jdbc:test:cli", config.dbUrl());
     }
 
@@ -57,7 +57,7 @@ class McpServerConfigurationTest {
 
         System.setProperty("db.url", "jdbc:test:sysprop");
 
-        ConfigParams config = McpServer.loadConfiguration(args);
+        ConfigParams config = CliUtils.loadConfiguration(args);
         assertEquals("jdbc:test:sysprop", config.dbUrl());
     }
 
@@ -65,8 +65,8 @@ class McpServerConfigurationTest {
     void testConfigurationPrecedence_DefaultValues() throws IOException {
         String[] args = {}; // No CLI args, no system properties
 
-        ConfigParams config = McpServer.loadConfiguration(args);
-        assertEquals("jdbc:h2:mem:testdb", config.dbUrl());
+        ConfigParams config = CliUtils.loadConfiguration(args);
+        assertEquals("jdbc:h2:mem:test", config.dbUrl());
         assertEquals("sa", config.dbUser());
         assertEquals("", config.dbPass());
         assertEquals("org.h2.Driver", config.dbDriver());
@@ -79,54 +79,62 @@ class McpServerConfigurationTest {
                 "--db_url=jdbc:test:url",
                 "--max_connections=20",
                 "--select_only=false",
-                "--invalid-format", // Should be ignored
-                "not-an-arg" // Should be ignored
+                "--some-flag", // Should not be ignored
+                "not-an-arg", // Should be ignored
+                "-h",
+                "--version",
+                "-xyz",
+                "ppp"
         };
 
-        Map<String, String> parsed = McpServer.parseArgs(args);
+        Map<String, String> parsed = CliUtils.parseArgs(args);
         assertEquals("jdbc:test:url", parsed.get("DB_URL"));
         assertEquals("20", parsed.get("MAX_CONNECTIONS"));
         assertEquals("false", parsed.get("SELECT_ONLY"));
-        assertFalse(parsed.containsKey("INVALID-FORMAT"));
+        assertTrue(parsed.containsKey("SOME-FLAG"));
         assertFalse(parsed.containsKey("NOT-AN-ARG"));
+        assertTrue(parsed.containsKey("HELP"));
+        assertTrue(parsed.containsKey("VERSION"));
+        assertFalse(parsed.containsKey("XYZ"));
+        assertFalse(parsed.containsKey("PPP"));
     }
 
     @Test
     void testParseArgs_EmptyArguments() {
         String[] args = {};
-        Map<String, String> parsed = McpServer.parseArgs(args);
+        Map<String, String> parsed = CliUtils.parseArgs(args);
         assertTrue(parsed.isEmpty());
     }
 
     @Test
     void testIsHttpMode_DefaultFalse() {
         String[] args = {};
-        assertFalse(McpServer.isHttpMode(args));
+        assertFalse(CliUtils.isHttpMode(args));
     }
 
     @Test
     void testIsHttpMode_CliArgument() {
         String[] args = {"--http_mode=true"};
-        assertTrue(McpServer.isHttpMode(args));
+        assertTrue(CliUtils.isHttpMode(args));
     }
 
     @Test
     void testIsHttpMode_SystemProperty() {
         String[] args = {};
         System.setProperty("http.mode", "true");
-        assertTrue(McpServer.isHttpMode(args));
+        assertTrue(CliUtils.isHttpMode(args));
     }
 
     @Test
     void testGetHttpPort_Default() {
         String[] args = {};
-        assertEquals(8080, McpServer.getHttpPort(args));
+        assertEquals(8080, CliUtils.getHttpPort(args));
     }
 
     @Test
     void testGetHttpPort_CliArgument() {
         String[] args = {"--http_port=9090"};
-        assertEquals(9090, McpServer.getHttpPort(args));
+        assertEquals(9090, CliUtils.getHttpPort(args));
     }
 
     @Test

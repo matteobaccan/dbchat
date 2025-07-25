@@ -174,9 +174,9 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>3.50.2.0</version>
+            <groupId>org.hsqldb</groupId>
+            <artifactId>hsqldb</artifactId>
+            <version>2.7.4</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -186,9 +186,9 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>org.hsqldb</groupId>
-            <artifactId>hsqldb</artifactId>
-            <version>2.7.4</version>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.50.2.0</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -285,6 +285,11 @@
                         <exclusion>
                             <groupId>org.slf4j</groupId>
                             <artifactId>slf4j-api</artifactId>
+                        </exclusion>
+                        <!-- Exclude conflicting LZ4 -->
+                        <exclusion>
+                            <groupId>net.jpountz.lz4</groupId>
+                            <artifactId>lz4</artifactId>
                         </exclusion>
                     </exclusions>
                 </dependency>
@@ -962,33 +967,57 @@
                 </executions>
             </plugin>
 
-            <!-- Use correct version of generated dbchat-x.y.z.jar in markdown docs -->
+            <!-- Use correct version of project in markdown docs & CliUtils -->
             <plugin>
                 <groupId>com.google.code.maven-replacer-plugin</groupId>
                 <artifactId>replacer</artifactId>
                 <version>1.5.3</version>
+
                 <executions>
+                    <!-- Replace dbchat-x.y.z.jar in Markdown files -->
                     <execution>
+                        <id>replace-docs-jar-name</id>
                         <phase>prepare-package</phase>
                         <goals>
                             <goal>replace</goal>
                         </goals>
+                        <configuration>
+                            <basedir>${project.basedir}</basedir>
+                            <includes>
+                                <include>README.md</include>
+                                <include>INSTALL.md</include>
+                                <include>DIR.md</include>
+                            </includes>
+                            <replacements>
+                                <replacement>
+                                    <token>dbchat-.*\.jar</token>
+                                    <value>dbchat-${project.version}.jar</value>
+                                </replacement>
+                            </replacements>
+                        </configuration>
+                    </execution>
+
+                    <!-- Replace static version string in CliUtils.java -->
+                    <execution>
+                        <id>replace-cliutils-version</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>replace</goal>
+                        </goals>
+                        <configuration>
+                            <basedir>${project.basedir}</basedir>
+                            <includes>
+                                <include>src/main/java/com/skanga/mcp/CliUtils.java</include>
+                            </includes>
+                            <replacements>
+                                <replacement>
+                                    <token>static final String SERVER_VERSION = ".*";</token>
+                                    <value>static final String SERVER_VERSION = "${project.version}";</value>
+                                </replacement>
+                            </replacements>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <basedir>${project.basedir}</basedir>
-                    <includes>
-                        <include>README.md</include>
-                        <include>INSTALL.md</include>
-                        <include>DIR.md</include>
-                    </includes>
-                    <replacements>
-                        <replacement>
-                            <token>dbchat-.*\.jar</token>
-                            <value>dbchat-${project.version}.jar</value>
-                        </replacement>
-                    </replacements>
-                </configuration>
             </plugin>
 
             <!-- Run unit tests -->

@@ -8,7 +8,7 @@ package com.skanga.mcp;
  * @param name Human-readable name of the resource
  * @param description Detailed description of what this resource contains
  * @param mimeType MIME type of the resource content (typically "text/plain")
- * @param content The actual content of the resource (may be null for lazy-loaded resources)
+ * @param content The actual content of the resource (may-be null for lazy-loaded resources)
  */
 public record DatabaseResource(
         String uri,

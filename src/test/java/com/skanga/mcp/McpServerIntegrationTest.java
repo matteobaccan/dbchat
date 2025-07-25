@@ -329,10 +329,10 @@ class McpServerIntegrationTest {
     void testHttpPortParsing_InvalidValues() {
         // Test that configuration parsing handles invalid ports
         String[] args1 = {"--http_port=not_a_number"};
-        assertThrows(NumberFormatException.class, () -> McpServer.getHttpPort(args1));
+        assertThrows(NumberFormatException.class, () -> CliUtils.getHttpPort(args1));
 
         String[] args2 = {"--http_port="};
-        assertThrows(NumberFormatException.class, () -> McpServer.getHttpPort(args2));
+        assertThrows(NumberFormatException.class, () -> CliUtils.getHttpPort(args2));
     }
 
     private static int findAvailablePort() throws IOException {

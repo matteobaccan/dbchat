@@ -1,10 +1,10 @@
 # DBChat - Talk to Your Database using AI
 
-Transform your database into an intelligent conversational partner. Ask questions in plain English, get instant answers, and create beautiful visualizations - all through Claude Desktop.
+Transform your database into an intelligent conversational partner. Ask questions in plain English, get instant answers, and create beautiful visualizations - all through Claude Desktop or any other MCP Client.
 
 ## 🌟 What is DBChat?
 
-DBChat is a bridge that connects any MCP client like Claude Desktop to your database, enabling natural language database interactions. Instead of writing SQL queries, simply ask Claude questions about your data and get instant, intelligent responses.
+DBChat is a bridge that connects any MCP client like Claude Desktop, Gemini-CLI, etc to your database, enabling natural language database interactions. Instead of writing SQL queries, simply ask the chatbot questions about your data and get instant, intelligent responses.
 
 **Before DBChat:**
 ```sql
@@ -26,7 +26,7 @@ LIMIT 10;
 
 ### 🗣️ Natural Language Database Queries
 - **Ask questions in plain English**: "How many customers signed up last month?"
-- **Get conversational responses**: Claude explains the data and provides insights
+- **Get conversational responses**: The LLM explains the data and provides insights
 - **No SQL knowledge required**: Perfect for business users and analysts
 
 ### 📊 Instant Data Visualizations
@@ -36,7 +36,7 @@ LIMIT 10;
 
 ### 🔍 Smart Data Exploration
 - **Database discovery**: "What tables do we have?" "Show me the customer table structure"
-- **Relationship understanding**: Claude explains how your tables connect
+- **Relationship understanding**: The AI model explains how your tables connect
 - **Data quality insights**: Find duplicates, missing data, and anomalies
 
 ### 💼 Business Intelligence Made Easy
@@ -80,19 +80,19 @@ DBChat works with virtually any database (as long as it has a JDBC driver)
 ### Step 1: Download DBChat
 
 Download the latest release from [GitHub Releases](https://github.com/skanga/dbchat/releases):
-- `dbchat-2.0.5.jar` - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)
-- `dbchat-2.0.5.jar` - Standard version (add MySQL, MariaDB, ClickHouse)
-- `dbchat-2.0.5.jar` - Enterprise version (add Oracle, SQL Server, DB2)
-- `dbchat-2.0.5.jar` - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
-- `dbchat-2.0.5.jar` - All databases included (400MB+)
+- `dbchat-2.0.6.jar` - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)
+- `dbchat-2.0.6.jar` - Standard version (add MySQL, MariaDB, ClickHouse)
+- `dbchat-2.0.6.jar` - Enterprise version (add Oracle, SQL Server, DB2)
+- `dbchat-2.0.6.jar` - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
+- `dbchat-2.0.6.jar` - All databases included (400MB+)
 
-(Optional) For simplicity rename it to `dbchat-2.0.5.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
+(Optional) For simplicity rename it to `dbchat-2.0.6.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
 
 NOTE: You can also build an efficient custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md) for details
 
 IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you install. The DBChat license does not cover any third party code or binaries.
 
-### Step 2: Install Claude Desktop (or any other MCP client)
+### Step 2: Install Claude Desktop (similar setup for any other MCP client)
 
 1. Download [Claude Desktop](https://claude.ai/download) (free)
 2. Sign in with your Claude account
@@ -177,7 +177,7 @@ DB_DRIVER=com.dbvis.jdbc.redis.RedisDriver
       "command": "java",
       "args": [
         "-jar", 
-        "/absolute/path/to/dbchat-2.0.5.jar",
+        "/absolute/path/to/dbchat-2.0.6.jar",
         "--config_file=/absolute/path/to/dbchat.conf"
       ]
     }
@@ -191,7 +191,7 @@ DB_DRIVER=com.dbvis.jdbc.redis.RedisDriver
   "mcpServers": {
     "database": {
       "command": "java",
-      "args": ["-jar", "/absolute/path/to/dbchat-2.0.5.jar"],
+      "args": ["-jar", "/absolute/path/to/dbchat-2.0.6.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://localhost:3306/your_database",
         "DB_USER": "your_username", 
@@ -211,7 +211,7 @@ DB_DRIVER=com.dbvis.jdbc.redis.RedisDriver
       "command": "java",
       "args": [
         "-jar", 
-        "C:/Users/YourName/Downloads/dbchat-2.0.5.jar",
+        "C:/Users/YourName/Downloads/dbchat-2.0.6.jar",
         "--config_file=C:/Users/YourName/dbchat.conf"
       ]
     }
@@ -228,7 +228,7 @@ You can use many databases concurrently!
   "mcpServers": {
     "production-db": {
       "command": "java",
-      "args": ["-jar", "/path/to/dbchat-2.0.5.jar"],
+      "args": ["-jar", "/path/to/dbchat-2.0.6.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://prod-server:3306/production",
         "DB_USER": "readonly_user",
@@ -239,7 +239,7 @@ You can use many databases concurrently!
     },
     "analytics-db": {
       "command": "java", 
-      "args": ["-jar", "/path/to/dbchat-2.0.5.jar"],
+      "args": ["-jar", "/path/to/dbchat-2.0.6.jar"],
       "env": {
         "DB_URL": "jdbc:postgresql://analytics:5432/warehouse",
         "DB_USER": "analyst",
@@ -383,13 +383,13 @@ Then access at `http://localhost:8080/`. For example try `http://localhost:8080/
 For similar config via CLI args use:
 ```
 # Bind to localhost only (default, most secure)
-java -jar dbchat-2.0.5.jar --http_mode=true --http_port=8080
+java -jar dbchat-2.0.6.jar --http_mode=true --http_port=8080
 
 # Bind to all interfaces (allows external access)
-java -jar dbchat-2.0.5.jar --http_mode=true --bind_address=0.0.0.0 --http_port=8080
+java -jar dbchat-2.0.6.jar --http_mode=true --bind_address=0.0.0.0 --http_port=8080
 
 # Bind to specific interface
-java -jar dbchat-2.0.5.jar --http_mode=true --bind_address=192.168.1.100 --http_port=8080
+java -jar dbchat-2.0.6.jar --http_mode=true --bind_address=192.168.1.100 --http_port=8080
 ```
 
 ## 🔧 Configuration Methods and Priority
@@ -412,7 +412,7 @@ This means command line arguments will always override config files, which overr
 **Use case**: Quick overrides, testing, one-time configurations
 
 ```bash
-java -jar dbchat-2.0.5.jar \
+java -jar dbchat-2.0.6.jar \
   --db_url="jdbc:mysql://localhost:3306/mydb" \
   --db_user="username" \
   --db_password="password" \
@@ -469,7 +469,7 @@ HTTP_PORT=8080
 
 **Usage:**
 ```bash
-java -jar dbchat-2.0.5.jar --config_file=dbchat.conf
+java -jar dbchat-2.0.6.jar --config_file=dbchat.conf
 ```
 
 **Config file features:**
@@ -492,7 +492,7 @@ export HTTP_MODE="true"
 export HTTP_PORT="8080"
 export SELECT_ONLY="true"
 
-java -jar dbchat-2.0.5.jar
+java -jar dbchat-2.0.6.jar
 ```
 
 **All environment variables:**
@@ -524,7 +524,7 @@ java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
      -Ddb.driver="com.mysql.cj.jdbc.Driver" \
      -Dhttp.mode="true" \
      -Dhttp.port="8080" \
-     -jar dbchat-2.0.5.jar
+     -jar dbchat-2.0.6.jar
 ```
 
 **Property naming**: Environment variable `DB_URL` becomes system property `db.url`
@@ -559,7 +559,7 @@ echo "HTTP_PORT=8080" > config.conf
 export HTTP_PORT=9090
 
 # Command line overrides both
-java -jar dbchat-2.0.5.jar --config_file=config.conf --http_port=7070
+java -jar dbchat-2.0.6.jar --config_file=config.conf --http_port=7070
 
 # Result: Uses port 7070 (command line wins)
 ```
@@ -575,17 +575,20 @@ echo "SELECT_ONLY=true" >> prod.conf
 export DB_PASSWORD="secure_password"
 
 # Override port via command line (for this run only)
-java -jar dbchat-2.0.5.jar --config_file=prod.conf --http_port=9090
+java -jar dbchat-2.0.6.jar --config_file=prod.conf --http_port=9090
 ```
 
 #### Example 3: Claude Desktop Configuration
+Note that most MCP clients use a similar configuration, but you'll need to refer to your MCP
+client docs for details on how it can be configured. It is safest not to assume any PATH settings
+and provide absolute paths for java, the dbchat jar and (optionally) the dbchat config file.
 ```json
 {
   "mcpServers": {
     "database": {
       "command": "java",
       "args": [
-        "-jar", "/path/to/dbchat-2.0.5.jar",
+        "-jar", "/path/to/dbchat-2.0.6.jar",
         "--config_file=/path/to/production.conf",
         "--select_only=true"
       ],
@@ -628,14 +631,14 @@ java -jar dbchat-2.0.5.jar --config_file=prod.conf --http_port=9090
 ```bash
 # Good: Use environment variables for passwords
 export DB_PASSWORD="secure_password"
-java -jar dbchat-2.0.5.jar --config_file=app.conf
+java -jar dbchat-2.0.6.jar --config_file=app.conf
 
 # Good: Use config file with restricted permissions
 chmod 600 secure.conf
-java -jar dbchat-2.0.5.jar --config_file=secure.conf
+java -jar dbchat-2.0.6.jar --config_file=secure.conf
 
 # Avoid: Passwords in command line (visible in process list)
-java -jar dbchat-2.0.5.jar --db_password="visible_password"
+java -jar dbchat-2.0.6.jar --db_password="visible_password"
 ```
 
 #### Configuration File Security
@@ -656,7 +659,7 @@ ls -la secure.conf
 #### Check Effective Configuration
 Enable debug logging to see which values are being used:
 ```bash
-java -Dlogging.level.root=DEBUG -jar dbchat-2.0.5.jar --config_file=myconfig.conf
+java -Dlogging.level.root=DEBUG -jar dbchat-2.0.6.jar --config_file=myconfig.conf
 ```
 
 #### Common Issues
@@ -668,7 +671,7 @@ java -Dlogging.level.root=DEBUG -jar dbchat-2.0.5.jar --config_file=myconfig.con
 #### Validation Commands
 ```bash
 # Test database connection with current config
-java -jar dbchat-2.0.5.jar --help
+java -jar dbchat-2.0.6.jar --help
 
 # Verify config file syntax
 grep -v "^#" myconfig.conf | grep -v "^$"
@@ -716,7 +719,7 @@ env | grep -E "(DB_|HTTP_|MAX_|SELECT_)"
 
 ### Getting Started
 1. **Start with read-only**: Use `SELECT_ONLY=true` initially
-2. **Test with sample data**: Try H2 database first
+2. **Test with sample data**: Try the H2 database first
 3. **Begin with simple questions**: Start with basic table exploration
 4. **Build complexity gradually**: Move to advanced analytics over time
 

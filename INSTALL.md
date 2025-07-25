@@ -113,7 +113,7 @@ mvn clean package -P standard-databases,enterprise-databases,cloud-analytics,big
 You can combine profiles as needed:
 
 ```bash
-# MySQL + PostgreSQL + Oracle only
+# Standard + Enterprise (no Cloud)
 mvn clean package -P standard-databases,enterprise-databases
 
 # Analytics databases only
@@ -413,7 +413,7 @@ export DB_DRIVER="com.dbvis.jdbc.redis.RedisDriver"
 DBChat supports two transport modes for different deployment scenarios:
 
 #### stdio mode (Default)
-- **Use case**: Claude Desktop integration, command-line tools
+- **Use case**: MCP Clients like Claude Desktop, Gemini-CLI, etc & integration with command-line tools
 - **Protocol**: JSON-RPC 2.0 over stdin/stdout
 - **Security**: Local process communication only
 - **Performance**: Direct process communication (fastest)
@@ -421,7 +421,7 @@ DBChat supports two transport modes for different deployment scenarios:
 #### HTTP mode
 - **Use case**: Web applications, remote access, API integration
 - **Protocol**: JSON-RPC 2.0 over HTTP POST
-- **Security**: HTTP with CORS support, local binding recommended
+- **Security**: HTTP with CORS support, local binding recommended, remote binding supports
 - **Performance**: HTTP overhead, suitable for web integration
 
 ### Development Server Modes

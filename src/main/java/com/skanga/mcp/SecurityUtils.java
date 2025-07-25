@@ -14,15 +14,15 @@ public final class SecurityUtils {
      * Sanitizes individual values to prevent injection and mark potentially dangerous content.
      * Detects instruction-like patterns and excessively long content that might hide malicious instructions.
      *
-     * @param value The value to sanitize (can be null)
+     * @param inputValue The value to sanitize (can be null)
      * @return Sanitized string with security markers if suspicious content is detected
      */
-    public static String sanitizeValue(Object value) {
-        if (value == null) {
+    public static String sanitizeValue(Object inputValue) {
+        if (inputValue == null) {
             return "NULL";
         }
 
-        String stringValue = value.toString();
+        String stringValue = inputValue.toString();
 
         // Detect and mark potentially dangerous content
         String lowerValue = stringValue.toLowerCase().trim();
@@ -63,44 +63,44 @@ public final class SecurityUtils {
      * Sanitizes database identifiers like table names, column names, index names, etc.
      * that might contain malicious content.
      *
-     * @param identifier The identifier to sanitize (can be null)
+     * @param inputIdentifier The identifier to sanitize (can be null)
      * @return Sanitized identifier with security markers if suspicious content is detected
      */
-    public static String sanitizeIdentifier(String identifier) {
-        if (identifier == null) return "NULL";
+    public static String sanitizeIdentifier(String inputIdentifier) {
+        if (inputIdentifier == null) return "NULL";
 
         // Check for suspicious patterns in identifier names
-        String lower = identifier.toLowerCase().trim();
+        String lower = inputIdentifier.toLowerCase().trim();
         if (lower.contains("ignore") || lower.contains("system") ||
                 lower.contains("instruction") || lower.contains("prompt") ||
                 lower.contains("forget") || lower.contains("override") ||
                 lower.contains("execute") || lower.contains("jailbreak")) {
-            return "[FLAGGED_ID]: " + identifier;
+            return "[FLAGGED_ID]: " + inputIdentifier;
         }
 
         // Check for excessively long identifiers that might hide instructions
-        if (identifier.length() > 100) {
-            return "[LONG_ID]: " + truncateString(identifier, 50);
+        if (inputIdentifier.length() > 100) {
+            return "[LONG_ID]: " + truncateString(inputIdentifier, 50);
         }
 
-        return identifier;
+        return inputIdentifier;
     }
 
     /**
      * Truncates a string to the specified maximum length.
      * Helper method for string sanitization operations.
      *
-     * @param input The string to truncate (can be null)
+     * @param inputString The string to truncate (can be null)
      * @param maxLength Maximum length allowed
      * @return Truncated string, or original if within limit
      */
-    public static String truncateString(String input, int maxLength) {
+    public static String truncateString(String inputString, int maxLength) {
         if (maxLength <= 0) {
             maxLength = 0;
         }
-        if (input == null || input.length() <= maxLength) {
-            return input;
+        if (inputString == null || inputString.length() <= maxLength) {
+            return inputString;
         }
-        return input.substring(0, maxLength) + "...";
+        return inputString.substring(0, maxLength) + "...";
     }
 }

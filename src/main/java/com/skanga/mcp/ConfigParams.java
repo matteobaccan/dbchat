@@ -4,7 +4,7 @@ package com.skanga.mcp;
  * Database configuration holder that encapsulates all database connection and operational parameters.
  * This record provides immutable configuration with validation and utility methods for database operations.
  *
- * @param dbUrl The JDBC database URL (e.g., "jdbc:mysql://localhost:3306/mydb")
+ * @param dbUrl The JDBC database URL (e.g., "jdbc:mysql://localhost:3306/database")
  * @param dbUser The database username for authentication
  * @param dbPass The database password for authentication
  * @param dbDriver The fully qualified JDBC driver class name (e.g., "com.mysql.cj.jdbc.Driver")

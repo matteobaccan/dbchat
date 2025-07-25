@@ -3,6 +3,7 @@
 Cross-platform test script for Database MCP Server
 Supports Windows, macOS, and Linux
 Follows proper MCP initialization lifecycle
+Run a DBChat server with a file based H2 database and execute a basic MCP lifecycle
 """
 
 import os

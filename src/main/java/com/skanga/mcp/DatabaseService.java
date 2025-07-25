@@ -189,20 +189,20 @@ public class DatabaseService {
 
             // Add table resources
             String[] tableTypes = {"TABLE", "VIEW"};
-            try (ResultSet tables = metaData.getTables(null, null, "%", tableTypes)) {
-                while (tables.next()) {
-                    String tableName = tables.getString("TABLE_NAME");
-                    String tableType = tables.getString("TABLE_TYPE");
-                    String remarks = tables.getString("REMARKS");
+            try (ResultSet resultSet = metaData.getTables(null, null, "%", tableTypes)) {
+                while (resultSet.next()) {
+                    String tableName = resultSet.getString("TABLE_NAME");
+                    String tableType = resultSet.getString("TABLE_TYPE");
+                    String tableRemarks = resultSet.getString("REMARKS");
 
-                    String uri = String.format("database://table/%s", tableName);
-                    String description = String.format("%s: %s", tableType,
-                            remarks != null ? remarks : "No description");
+                    String tableUri = String.format("database://table/%s", tableName);
+                    String tableDescription = String.format("%s: %s", tableType,
+                            tableRemarks != null ? tableRemarks : "No description");
 
                     databaseResources.add(new DatabaseResource(
-                            uri,
+                            tableUri,
                             tableName,
-                            description,
+                            tableDescription,
                             "text/plain",
                             null // Content will be loaded on demand
                     ));
@@ -210,13 +210,13 @@ public class DatabaseService {
             }
 
             // Add schema resources if supported
-            try (ResultSet schemaResources = metaData.getSchemas()) {
-                while (schemaResources.next()) {
-                    String schemaName = schemaResources.getString("TABLE_SCHEM");
+            try (ResultSet resultSet = metaData.getSchemas()) {
+                while (resultSet.next()) {
+                    String schemaName = resultSet.getString("TABLE_SCHEM");
                     if (schemaName != null && !schemaName.trim().isEmpty()) {
-                        String uri = String.format("database://schema/%s", schemaName);
+                        String schemaUri = String.format("database://schema/%s", schemaName);
                         databaseResources.add(new DatabaseResource(
-                                uri,
+                                schemaUri,
                                 schemaName,
                                 "Database schema: " + schemaName,
                                 "text/plain",
@@ -234,50 +234,50 @@ public class DatabaseService {
     }
 
     private String generateDataDictionary(DatabaseMetaData metaData, String dbType) throws SQLException {
-        StringBuilder dict = new StringBuilder();
+        StringBuilder dataDictionary = new StringBuilder();
 
-        dict.append("=".repeat(60)).append("\n");
-        dict.append("DATA DICTIONARY & QUERY GUIDE\n");
-        dict.append("Database Type: ").append(dbType.toUpperCase()).append("\n");
-        dict.append("=".repeat(60)).append("\n\n");
+        dataDictionary.append("=".repeat(60)).append("\n");
+        dataDictionary.append("DATA DICTIONARY & QUERY GUIDE\n");
+        dataDictionary.append("Database Type: ").append(dbType.toUpperCase()).append("\n");
+        dataDictionary.append("=".repeat(60)).append("\n\n");
 
         // Schema overview
-        dict.append("SCHEMA OVERVIEW\n");
-        dict.append("-".repeat(20)).append("\n");
+        dataDictionary.append("SCHEMA OVERVIEW\n");
+        dataDictionary.append("-".repeat(20)).append("\n");
 
         Map<String, List<String>> schemaToTables = new HashMap<>();
 
-        try (ResultSet tables = metaData.getTables(null, null, "%", new String[]{"TABLE", "VIEW"})) {
-            while (tables.next()) {
-                String tableName = tables.getString("TABLE_NAME");
-                String schema = tables.getString("TABLE_SCHEM");
-                String tableType = tables.getString("TABLE_TYPE");
+        try (ResultSet resultSet = metaData.getTables(null, null, "%", new String[]{"TABLE", "VIEW"})) {
+            while (resultSet.next()) {
+                String tableName = resultSet.getString("TABLE_NAME");
+                String schemaName = resultSet.getString("TABLE_SCHEM");
+                String tableType = resultSet.getString("TABLE_TYPE");
 
-                schema = (schema != null) ? schema : "default";
-                schemaToTables.computeIfAbsent(schema, k -> new ArrayList<>())
+                schemaName = (schemaName != null) ? schemaName : "default";
+                schemaToTables.computeIfAbsent(schemaName, k -> new ArrayList<>())
                         .add(String.format("%s (%s)", tableName, tableType));
             }
         }
 
-        for (Map.Entry<String, List<String>> entry : schemaToTables.entrySet()) {
-            dict.append("Schema: ").append(entry.getKey()).append("\n");
-            for (String table : entry.getValue()) {
-                dict.append("  * ").append(table).append("\n");
+        for (Map.Entry<String, List<String>> schemaEntry : schemaToTables.entrySet()) {
+            dataDictionary.append("Schema: ").append(schemaEntry.getKey()).append("\n");
+            for (String table : schemaEntry.getValue()) {
+                dataDictionary.append("  * ").append(table).append("\n");
             }
-            dict.append("\n");
+            dataDictionary.append("\n");
         }
 
         // Add database-specific query examples
-        dict.append("COMMON QUERY PATTERNS FOR ").append(dbType.toUpperCase()).append("\n");
-        dict.append("-".repeat(40)).append("\n");
-        dict.append(getQueryExamples(dbType));
+        dataDictionary.append("COMMON QUERY PATTERNS FOR ").append(dbType.toUpperCase()).append("\n");
+        dataDictionary.append("-".repeat(40)).append("\n");
+        dataDictionary.append(getQueryExamples(dbType));
 
         // Add data type mapping
-        dict.append("\nDATA TYPES\n");
-        dict.append("-".repeat(15)).append("\n");
-        dict.append(getDataTypeInfo(dbType));
+        dataDictionary.append("\nDATA TYPES\n");
+        dataDictionary.append("-".repeat(15)).append("\n");
+        dataDictionary.append(getDataTypeInfo(dbType));
 
-        return dict.toString();
+        return dataDictionary.toString();
     }
 
     private String getQueryExamples(String dbType) {
@@ -381,36 +381,36 @@ public class DatabaseService {
      * Reads the content of a specific database resource by its URI.
      * Supports different resource types: info, tables, and schemas.
      *
-     * @param uri The resource URI (e.g., "database://table/users", "database://info")
+     * @param resourceUri The resource URI (e.g., "database://table/users", "database://info")
      * @return DatabaseResource with populated content, or null if resource not found
      * @throws SQLException if database metadata cannot be retrieved
      */
-    public DatabaseResource readResource(String uri) throws SQLException {
-        if (uri.equals("database://info")) {
+    public DatabaseResource readResource(String resourceUri) throws SQLException {
+        if (resourceUri.equals("database://info")) {
             try (Connection dbConn = getConnection()) {
                 DatabaseMetaData metaData = dbConn.getMetaData();
                 String databaseInfo = getDatabaseInfo(metaData);
-                return new DatabaseResource(uri, "Database Information",
+                return new DatabaseResource(resourceUri, "Database Information",
                     "Database metadata", "text/plain", databaseInfo);
             }
         }
 
-        if (uri.startsWith("database://table/")) {
-            String tableName = uri.substring("database://table/".length());
+        if (resourceUri.startsWith("database://table/")) {
+            String tableName = resourceUri.substring("database://table/".length());
             return getTableResource(tableName);
         }
 
-        if (uri.startsWith("database://schema/")) {
-            String schemaName = uri.substring("database://schema/".length());
+        if (resourceUri.startsWith("database://schema/")) {
+            String schemaName = resourceUri.substring("database://schema/".length());
             return getSchemaResource(schemaName);
         }
 
-        if (uri.equals("database://data-dictionary")) {
+        if (resourceUri.equals("database://data-dictionary")) {
             try (Connection dbConn = getConnection()) {
                 DatabaseMetaData metaData = dbConn.getMetaData();
                 String dbType = configParams.getDatabaseType();
                 String dataDictionary = generateDataDictionary(metaData, dbType);
-                return new DatabaseResource(uri, "Data Dictionary & Schema Guide",
+                return new DatabaseResource(resourceUri, "Data Dictionary & Schema Guide",
                         "Complete schema overview with database-specific syntax examples",
                         "text/plain", dataDictionary);
             }
@@ -431,8 +431,8 @@ public class DatabaseService {
 
             // First check if the table actually exists
             boolean tableExists = false;
-            try (ResultSet tables = metaData.getTables(null, null, tableName, new String[]{"TABLE", "VIEW"})) {
-                if (tables.next()) {
+            try (ResultSet resultSet = metaData.getTables(null, null, tableName, new String[]{"TABLE", "VIEW"})) {
+                if (resultSet.next()) {
                     tableExists = true;
                 }
             }
@@ -453,28 +453,28 @@ public class DatabaseService {
 
             // Table columns with sanitization
             tableContent.append("Columns:\n");
-            try (ResultSet columns = metaData.getColumns(null, null, tableName, null)) {
-                while (columns.next()) {
-                    String columnName = SecurityUtils.sanitizeIdentifier(columns.getString("COLUMN_NAME"));
-                    String dataType = columns.getString("TYPE_NAME");
-                    int columnSize = columns.getInt("COLUMN_SIZE");
-                    String nullable = columns.getString("IS_NULLABLE");
-                    String defaultValue = columns.getString("COLUMN_DEF");
-                    String remarks = columns.getString("REMARKS");
+            try (ResultSet resultSet = metaData.getColumns(null, null, tableName, null)) {
+                while (resultSet.next()) {
+                    String columnName = SecurityUtils.sanitizeIdentifier(resultSet.getString("COLUMN_NAME"));
+                    String dataType = resultSet.getString("TYPE_NAME");
+                    int columnSize = resultSet.getInt("COLUMN_SIZE");
+                    String colNullable = resultSet.getString("IS_NULLABLE");
+                    String defaultValue = resultSet.getString("COLUMN_DEF");
+                    String colRemarks = resultSet.getString("REMARKS");
 
                     tableContent.append(String.format("  - %s (%s", columnName, dataType));
                     if (columnSize > 0) {
                         tableContent.append(String.format("(%d)", columnSize));
                     }
                     tableContent.append(")");
-                    if ("NO".equals(nullable)) {
+                    if ("NO".equals(colNullable)) {
                         tableContent.append(" NOT NULL");
                     }
                     if (defaultValue != null) {
                         tableContent.append(" DEFAULT ").append(SecurityUtils.sanitizeValue(defaultValue));
                     }
-                    if (remarks != null && !remarks.trim().isEmpty()) {
-                        tableContent.append(" -- [COMMENT]: ").append(SecurityUtils.sanitizeValue(remarks));
+                    if (colRemarks != null && !colRemarks.trim().isEmpty()) {
+                        tableContent.append(" -- [COMMENT]: ").append(SecurityUtils.sanitizeValue(colRemarks));
                     }
                     tableContent.append("\n");
                 }
@@ -518,19 +518,19 @@ public class DatabaseService {
 
             // Indexes
             tableContent.append("\nIndexes:\n");
-            try (ResultSet indexes = metaData.getIndexInfo(null, null, tableName, false, false)) {
+            try (ResultSet resultSet = metaData.getIndexInfo(null, null, tableName, false, false)) {
                 String currentIndexName = null;
                 List<String> seenIndexes = new ArrayList<>();
 
-                while (indexes.next()) {
-                    String indexName = indexes.getString("INDEX_NAME");
+                while (resultSet.next()) {
+                    String indexName = resultSet.getString("INDEX_NAME");
                     if (indexName != null && !indexName.equals(currentIndexName)) {
                         String sanitizedIndexName = SecurityUtils.sanitizeIdentifier(indexName);
 
                         // Avoid duplicates (some databases return duplicate index entries)
                         if (!seenIndexes.contains(sanitizedIndexName)) {
-                            boolean nonUnique = indexes.getBoolean("NON_UNIQUE");
-                            String indexType = indexes.getString("TYPE");
+                            boolean nonUnique = resultSet.getBoolean("NON_UNIQUE");
+                            String indexType = resultSet.getString("TYPE");
 
                             tableContent.append(String.format("  - %s (%s", sanitizedIndexName, nonUnique ? "NON-UNIQUE" : "UNIQUE"));
 
@@ -605,8 +605,8 @@ public class DatabaseService {
                 }
             }
 
-            String uri = "database://schema/" + schemaName;
-            return new DatabaseResource(uri, schemaName, "Schema information",
+            String schemaUri = "database://schema/" + schemaName;
+            return new DatabaseResource(schemaUri, schemaName, "Schema information",
                     "text/plain", schemaContent.toString());
         }
     }
@@ -633,9 +633,9 @@ public class DatabaseService {
                 "alter", "grant", "revoke", "exec", "execute", "call"
         };
 
-        for (String operation : dangerousOperations) {
-            if (normalizedSql.startsWith(operation + " ") || normalizedSql.equals(operation)) {
-                throw new SQLException("Operation not allowed: " + operation.toUpperCase());
+        for (String operationName : dangerousOperations) {
+            if (normalizedSql.startsWith(operationName + " ") || normalizedSql.equals(operationName)) {
+                throw new SQLException("Operation not allowed: " + operationName.toUpperCase());
             }
         }
 
@@ -689,113 +689,113 @@ public class DatabaseService {
      * @return Formatted string with character set information
      */
     private String getDatabaseCharsetInfo(String dbType) {
-        StringBuilder charset = new StringBuilder();
+        StringBuilder dbCharset = new StringBuilder();
 
         try (Connection dbConn = getConnection()) {
             switch (dbType) {
                 case "mysql", "mariadb" -> {
-                    charset.append("- Default Character Set: ");
+                    dbCharset.append("- Default Character Set: ");
                     try (PreparedStatement stmt = dbConn.prepareStatement(
                             "SELECT @@character_set_database, @@collation_database, @@character_set_server")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                charset.append(rs.getString(1))
-                                    .append("\n- Default Collation: ").append(rs.getString(2))
-                                    .append("\n- Server Character Set: ").append(rs.getString(3));
+                        try (ResultSet resultSet = stmt.executeQuery()) {
+                            if (resultSet.next()) {
+                                dbCharset.append(resultSet.getString(1))
+                                    .append("\n- Default Collation: ").append(resultSet.getString(2))
+                                    .append("\n- Server Character Set: ").append(resultSet.getString(3));
                             }
                         }
                     } catch (SQLException e) {
-                        charset.append("Unable to retrieve (").append(e.getMessage()).append(")");
+                        dbCharset.append("Unable to retrieve (").append(e.getMessage()).append(")");
                     }
-                    charset.append("\n- Note: MySQL/MariaDB supports per-column character sets\n");
+                    dbCharset.append("\n- Note: MySQL/MariaDB supports per-column character sets\n");
                 }
 
                 case "postgresql" -> {
-                    charset.append("- Server Encoding: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW server_encoding")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
+                    dbCharset.append("- Server Encoding: ");
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement("SHOW server_encoding")) {
+                        try (ResultSet rs = preparedStatement.executeQuery()) {
                             if (rs.next()) {
-                                charset.append(rs.getString(1));
+                                dbCharset.append(rs.getString(1));
                             }
                         }
                     } catch (SQLException e) {
-                        charset.append("Unable to retrieve (").append(e.getMessage()).append(")");
+                        dbCharset.append("Unable to retrieve (").append(e.getMessage()).append(")");
                     }
 
-                    charset.append("\n- Client Encoding: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW client_encoding")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                charset.append(rs.getString(1));
+                    dbCharset.append("\n- Client Encoding: ");
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement("SHOW client_encoding")) {
+                        try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                            if (resultSet.next()) {
+                                dbCharset.append(resultSet.getString(1));
                             }
                         }
                     } catch (SQLException e) {
-                        charset.append("Unable to retrieve");
+                        dbCharset.append("Unable to retrieve");
                     }
-                    charset.append("\n- Note: PostgreSQL uses Unicode (UTF-8) by default\n");
+                    dbCharset.append("\n- Note: PostgreSQL uses Unicode (UTF-8) by default\n");
                 }
 
                 case "oracle" -> {
-                    charset.append("- Database Character Set: ");
+                    dbCharset.append("- Database Character Set: ");
                     try (PreparedStatement stmt = dbConn.prepareStatement(
                             "SELECT value FROM nls_database_parameters WHERE parameter = 'NLS_CHARACTERSET'")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                charset.append(rs.getString(1));
+                        try (ResultSet resultSet = stmt.executeQuery()) {
+                            if (resultSet.next()) {
+                                dbCharset.append(resultSet.getString(1));
                             }
                         }
                     } catch (SQLException e) {
-                        charset.append("Unable to retrieve (").append(e.getMessage()).append(")");
+                        dbCharset.append("Unable to retrieve (").append(e.getMessage()).append(")");
                     }
 
-                    charset.append("\n- National Character Set: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement(
+                    dbCharset.append("\n- National Character Set: ");
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement(
                             "SELECT value FROM nls_database_parameters WHERE parameter = 'NLS_NCHAR_CHARACTERSET'")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
+                        try (ResultSet rs = preparedStatement.executeQuery()) {
                             if (rs.next()) {
-                                charset.append(rs.getString(1));
+                                dbCharset.append(rs.getString(1));
                             }
                         }
                     } catch (SQLException e) {
-                        charset.append("Unable to retrieve");
+                        dbCharset.append("Unable to retrieve");
                     }
-                    charset.append("\n");
+                    dbCharset.append("\n");
                 }
 
                 case "sqlserver" -> {
-                    charset.append("- Default Collation: ");
+                    dbCharset.append("- Default Collation: ");
                     try (PreparedStatement stmt = dbConn.prepareStatement("SELECT SERVERPROPERTY('Collation')")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                charset.append(rs.getString(1));
+                        try (ResultSet resultSet = stmt.executeQuery()) {
+                            if (resultSet.next()) {
+                                dbCharset.append(resultSet.getString(1));
                             }
                         }
                     } catch (SQLException e) {
-                        charset.append("Unable to retrieve (").append(e.getMessage()).append(")");
+                        dbCharset.append("Unable to retrieve (").append(e.getMessage()).append(")");
                     }
-                    charset.append("\n- Note: SQL Server uses UTF-16 internally for Unicode data\n");
+                    dbCharset.append("\n- Note: SQL Server uses UTF-16 internally for Unicode data\n");
                 }
 
                 case "h2" -> {
-                    charset.append("- Character Set: UTF-8 (default)\n");
-                    charset.append("- Note: H2 uses UTF-8 encoding by default\n");
+                    dbCharset.append("- Character Set: UTF-8 (default)\n");
+                    dbCharset.append("- Note: H2 uses UTF-8 encoding by default\n");
                 }
 
                 case "sqlite" -> {
-                    charset.append("- Character Set: UTF-8 (always)\n");
-                    charset.append("- Note: SQLite stores all text as UTF-8\n");
+                    dbCharset.append("- Character Set: UTF-8 (always)\n");
+                    dbCharset.append("- Note: SQLite stores all text as UTF-8\n");
                 }
 
                 default -> {
-                    charset.append("- Character set information not available for ").append(dbType).append("\n");
-                    charset.append("- Check database documentation for encoding details\n");
+                    dbCharset.append("- Character set information not available for ").append(dbType).append("\n");
+                    dbCharset.append("- Check database documentation for encoding details\n");
                 }
             }
         } catch (SQLException e) {
-            charset.append("- Unable to retrieve character set information: ").append(e.getMessage()).append("\n");
+            dbCharset.append("- Unable to retrieve character set information: ").append(e.getMessage()).append("\n");
         }
 
-        return charset.toString();
+        return dbCharset.toString();
     }
 
     /**
@@ -813,10 +813,10 @@ public class DatabaseService {
                 case "mysql", "mariadb" -> {
                     dateTime.append("- Server Timezone: ");
                     try (PreparedStatement stmt = dbConn.prepareStatement("SELECT @@global.time_zone, @@session.time_zone")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                dateTime.append("Global=").append(rs.getString(1))
-                                        .append(", Session=").append(rs.getString(2));
+                        try (ResultSet resultSet = stmt.executeQuery()) {
+                            if (resultSet.next()) {
+                                dateTime.append("Global=").append(resultSet.getString(1))
+                                        .append(", Session=").append(resultSet.getString(2));
                             }
                         }
                     } catch (SQLException e) {
@@ -828,10 +828,10 @@ public class DatabaseService {
 
                 case "postgresql" -> {
                     dateTime.append("- Server Timezone: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW timezone")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                dateTime.append(rs.getString(1));
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement("SHOW timezone")) {
+                        try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                            if (resultSet.next()) {
+                                dateTime.append(resultSet.getString(1));
                             }
                         }
                     } catch (SQLException e) {
@@ -839,10 +839,10 @@ public class DatabaseService {
                     }
 
                     dateTime.append("\n- Date Style: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement("SHOW datestyle")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                dateTime.append(rs.getString(1));
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement("SHOW datestyle")) {
+                        try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                            if (resultSet.next()) {
+                                dateTime.append(resultSet.getString(1));
                             }
                         }
                     } catch (SQLException e) {
@@ -853,10 +853,10 @@ public class DatabaseService {
 
                 case "oracle" -> {
                     dateTime.append("- Database Timezone: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement("SELECT DBTIMEZONE FROM DUAL")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                dateTime.append(rs.getString(1));
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement("SELECT DBTIMEZONE FROM DUAL")) {
+                        try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                            if (resultSet.next()) {
+                                dateTime.append(resultSet.getString(1));
                             }
                         }
                     } catch (SQLException e) {
@@ -864,11 +864,11 @@ public class DatabaseService {
                     }
 
                     dateTime.append("\n- Date Format: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement(
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement(
                             "SELECT value FROM nls_session_parameters WHERE parameter = 'NLS_DATE_FORMAT'")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                dateTime.append(rs.getString(1));
+                        try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                            if (resultSet.next()) {
+                                dateTime.append(resultSet.getString(1));
                             } else {
                                 dateTime.append("DD-MON-YY (default)");
                             }
@@ -878,10 +878,10 @@ public class DatabaseService {
                     }
 
                     dateTime.append("\n- Session Timezone: ");
-                    try (PreparedStatement stmt = dbConn.prepareStatement("SELECT SESSIONTIMEZONE FROM DUAL")) {
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            if (rs.next()) {
-                                dateTime.append(rs.getString(1));
+                    try (PreparedStatement preparedStatement = dbConn.prepareStatement("SELECT SESSIONTIMEZONE FROM DUAL")) {
+                        try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                            if (resultSet.next()) {
+                                dateTime.append(resultSet.getString(1));
                             }
                         }
                     } catch (SQLException e) {
@@ -1021,10 +1021,10 @@ public class DatabaseService {
      * @return Formatted string with H2 compatibility mode information
      */
     private String getH2CompatibilityMode(Connection dbConn) {
-        try (PreparedStatement stmt = dbConn.prepareStatement("SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'MODE'")) {
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return "- Compatibility Mode: " + rs.getString(1);
+        try (PreparedStatement preparedStatement = dbConn.prepareStatement("SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'MODE'")) {
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next()) {
+                    return "- Compatibility Mode: " + resultSet.getString(1);
                 }
             }
         } catch (SQLException e) {

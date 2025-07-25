@@ -553,7 +553,7 @@ class McpServerTest {
         request.put("method", "initialize");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("protocolVersion", "2025-03-26");
+        params.put("protocolVersion", "2025-06-18");
         request.set("params", params);
 
         // Act
@@ -1026,7 +1026,7 @@ class McpServerTest {
         };
 
         // Act
-        ConfigParams config = McpServer.loadConfiguration(args);
+        ConfigParams config = CliUtils.loadConfiguration(args);
 
         // Assert
         assertEquals("jdbc:h2:mem:testdb", config.dbUrl());
@@ -1042,45 +1042,47 @@ class McpServerTest {
                 "--db_url=jdbc:h2:mem:test",
                 "--max_connections=15",
                 "invalid-arg",
-                "--malformed",
-                "--key=value"
+                "--some_flag",
+                "--key=value",
+                "x"
         };
 
         // Act
-        Map<String, String> parsed = McpServer.parseArgs(args);
+        Map<String, String> parsed = CliUtils.parseArgs(args);
 
         // Assert
         assertEquals("jdbc:h2:mem:test", parsed.get("DB_URL"));
         assertEquals("15", parsed.get("MAX_CONNECTIONS"));
         assertEquals("value", parsed.get("KEY"));
         assertFalse(parsed.containsKey("INVALID-ARG"));
-        assertFalse(parsed.containsKey("MALFORMED"));
+        assertTrue(parsed.containsKey("SOME_FLAG"));
+        assertFalse(parsed.containsKey("X"));
     }
 
     @Test
     void testIsHttpMode() {
         // Test default (false)
         String[] args1 = {};
-        assertFalse(McpServer.isHttpMode(args1));
+        assertFalse(CliUtils.isHttpMode(args1));
 
         // Test with HTTP mode enabled
         String[] args2 = {"--http_mode=true"};
-        assertTrue(McpServer.isHttpMode(args2));
+        assertTrue(CliUtils.isHttpMode(args2));
 
         // Test with HTTP mode disabled
         String[] args3 = {"--http_mode=false"};
-        assertFalse(McpServer.isHttpMode(args3));
+        assertFalse(CliUtils.isHttpMode(args3));
     }
 
     @Test
     void testGetHttpPort() {
         // Test default port
         String[] args1 = {};
-        assertEquals(8080, McpServer.getHttpPort(args1));
+        assertEquals(8080, CliUtils.getHttpPort(args1));
 
         // Test custom port
         String[] args2 = {"--http_port=9090"};
-        assertEquals(9090, McpServer.getHttpPort(args2));
+        assertEquals(9090, CliUtils.getHttpPort(args2));
     }
 
     @Test
@@ -1170,7 +1172,7 @@ class McpServerTest {
         }
 
         // Act
-        Map<String, String> config = McpServer.loadConfigFile(tempFile.getAbsolutePath());
+        Map<String, String> config = CliUtils.loadConfigFile(tempFile.getAbsolutePath());
 
         // Assert
         assertEquals("jdbc:postgresql://localhost:5432/testdb", config.get("DB_URL"));
@@ -1187,7 +1189,7 @@ class McpServerTest {
     @Test
     void testLoadConfigFile_FileNotFound() {
         // Act & Assert
-        assertThrows(IOException.class, () -> McpServer.loadConfigFile("/nonexistent/config/file.properties"));
+        assertThrows(IOException.class, () -> CliUtils.loadConfigFile("/nonexistent/config/file.properties"));
     }
 
     @Test
@@ -1209,7 +1211,7 @@ class McpServerTest {
         }
 
         // Act
-        Map<String, String> config = McpServer.loadConfigFile(tempFile.getAbsolutePath());
+        Map<String, String> config = CliUtils.loadConfigFile(tempFile.getAbsolutePath());
 
         // Assert - only valid lines should be loaded
         assertEquals("valid_value", config.get("VALID_KEY"));
@@ -1246,7 +1248,7 @@ class McpServerTest {
         };
 
         // Act
-        ConfigParams config = McpServer.loadConfiguration(args);
+        ConfigParams config = CliUtils.loadConfiguration(args);
 
         // Assert
         assertEquals("jdbc:mysql://localhost:3306/configdb", config.dbUrl()); // From file
@@ -1272,7 +1274,7 @@ class McpServerTest {
             };
 
             // Act
-            ConfigParams config = McpServer.loadConfiguration(args);
+            ConfigParams config = CliUtils.loadConfiguration(args);
 
             // Assert
             assertEquals("cliuser", config.dbUser()); // CLI wins
@@ -1405,7 +1407,7 @@ class McpServerTest {
                     // select_only should come from system property
             };
 
-            ConfigParams config = McpServer.loadConfiguration(args);
+            ConfigParams config = CliUtils.loadConfiguration(args);
 
             // CLI should override system property
             assertEquals(90, config.queryTimeoutSeconds());
@@ -1425,10 +1427,10 @@ class McpServerTest {
         // Test with no configuration provided - should use all defaults
         String[] args = {}; // No arguments
 
-        ConfigParams config = McpServer.loadConfiguration(args);
+        ConfigParams config = CliUtils.loadConfiguration(args);
 
         // Assert all defaults
-        assertEquals("jdbc:h2:mem:testdb", config.dbUrl());
+        assertEquals("jdbc:h2:mem:test", config.dbUrl());
         assertEquals("sa", config.dbUser());
         assertEquals("", config.dbPass());
         assertEquals("org.h2.Driver", config.dbDriver());
@@ -1459,7 +1461,7 @@ class McpServerTest {
             writer.write(configContent);
         }
 
-        Map<String, String> config = McpServer.loadConfigFile(tempFile.getAbsolutePath());
+        Map<String, String> config = CliUtils.loadConfigFile(tempFile.getAbsolutePath());
 
         // Should only contain the two valid configuration lines
         assertEquals(2, config.size());

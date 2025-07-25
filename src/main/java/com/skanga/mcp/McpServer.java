@@ -6,25 +6,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpExchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.BindException;
 import java.net.InetSocketAddress;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 /**
  * Generic MCP Server for Database Operations that supports multiple database types through JDBC drivers.
  * Implements the Model Context Protocol (MCP) specification for exposing database functionality
@@ -34,7 +28,7 @@ import java.util.Map;
  * Other features include query validation, connection pooling, and configurable access restrictions.
  */
 public class McpServer {
-    String serverProtocolVersion = "2025-06-18";
+    static String serverProtocolVersion = "2025-06-18";
     private static final Logger logger = LoggerFactory.getLogger(McpServer.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -103,8 +97,8 @@ public class McpServer {
             // Try to create the server - this will fail immediately if port is in use
             InetSocketAddress socketAddress = new InetSocketAddress(bindAddress, listenPort);
             httpServer = HttpServer.create(socketAddress, 0);
-            httpServer.createContext("/mcp", new MCPHttpHandler());
-            httpServer.createContext("/health", new HealthCheckHandler());
+            httpServer.createContext("/mcp", new McpHttpHandler(this));
+            httpServer.createContext("/health", new HealthCheckHandler(this));
             httpServer.setExecutor(null); // Use default executor
 
             // Start the server
@@ -138,151 +132,6 @@ public class McpServer {
                 } catch (Exception e) {
                     logger.warn("Error stopping HTTP server: {}", e.getMessage());
                 }
-            }
-        }
-    }
-
-    /**
-     * HTTP handler for MCP requests
-     */
-    class MCPHttpHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange httpExchange) throws IOException {
-            setCorsHeaders(httpExchange);
-
-            if (handleOptionsRequest(httpExchange)) {
-                return;
-            }
-
-            if (!"POST".equals(httpExchange.getRequestMethod())) {
-                sendHttpError(httpExchange, 405, "Method not allowed. Use POST.");
-                return;
-            }
-
-            try {
-                // Read request body
-                String requestBody = readRequestBody(httpExchange);
-                logger.debug("Received HTTP request: {}", requestBody);
-
-                // Parse and handle the MCP request
-                JsonNode requestNode = objectMapper.readTree(requestBody);
-                JsonNode responseNode = handleRequest(requestNode);
-
-                // Send response (but only if not a notification)
-                sendHttpResponse(httpExchange, responseNode);
-            } catch (Exception e) {
-                logger.error("Error handling HTTP request", e);
-                sendHttpError(httpExchange, 500, "Internal server error: " + e.getMessage());
-            }
-        }
-
-        // Set CORS headers (useful for testing with browser clients)
-        private void setCorsHeaders(HttpExchange httpExchange) {
-            httpExchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-            httpExchange.getResponseHeaders().set("Access-Control-Allow-Methods", "POST, OPTIONS");
-            httpExchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
-        }
-
-        // Handle preflight OPTIONS request
-        private boolean handleOptionsRequest(HttpExchange httpExchange) throws IOException {
-            if ("OPTIONS".equals(httpExchange.getRequestMethod())) {
-                httpExchange.sendResponseHeaders(200, 0);
-                httpExchange.getResponseBody().close();
-                return true;
-            }
-            return false;
-        }
-
-        // Send response (but only if not a notification)
-        private void sendHttpResponse(HttpExchange httpExchange, JsonNode responseNode) throws IOException {
-            if (responseNode != null) {
-                String responseJson = objectMapper.writeValueAsString(responseNode);
-                logger.debug("Sending HTTP response: {}", responseJson);
-
-                httpExchange.getResponseHeaders().set("Content-Type", "application/json");
-                byte[] responseBytes = responseJson.getBytes();
-                httpExchange.sendResponseHeaders(200, responseBytes.length);
-
-                try (OutputStream outputStream = httpExchange.getResponseBody()) {
-                    outputStream.write(responseBytes);
-                }
-            } else {
-                // Notification - send empty 204 response
-                httpExchange.sendResponseHeaders(204, 0);
-                httpExchange.getResponseBody().close();
-            }
-        }
-
-        private void sendHttpError(HttpExchange httpExchange, int statusCode, String errorMessage) throws IOException {
-            ObjectNode errorResponse = createHttpErrorResponse(errorMessage);
-            String responseJson = objectMapper.writeValueAsString(errorResponse);
-
-            httpExchange.getResponseHeaders().set("Content-Type", "application/json");
-            byte[] responseBytes = responseJson.getBytes();
-
-            try {
-                httpExchange.sendResponseHeaders(statusCode, responseBytes.length);
-                try (OutputStream outputStream = httpExchange.getResponseBody()) {
-                    outputStream.write(responseBytes);
-                }
-            } catch (Exception e) {
-                logger.error("Error sending HTTP error response", e);
-            }
-        }
-
-        private ObjectNode createHttpErrorResponse(String errorMessage) {
-            ObjectNode errorResponse = objectMapper.createObjectNode();
-            errorResponse.put("jsonrpc", "2.0");
-            errorResponse.putNull("id");
-
-            ObjectNode error = objectMapper.createObjectNode();
-            error.put("code", -32603); // Internal error
-            error.put("message", errorMessage);
-            errorResponse.set("error", error);
-
-            return errorResponse;
-        }
-
-        private String readRequestBody(HttpExchange exchange) throws IOException {
-            try (BufferedReader bufferedReader = new BufferedReader(
-                    new InputStreamReader(exchange.getRequestBody()))) {
-                StringBuilder fullBody = new StringBuilder();
-                String bodyLine;
-                while ((bodyLine = bufferedReader.readLine()) != null) {
-                    fullBody.append(bodyLine);
-                }
-                return fullBody.toString();
-            }
-        }
-    }
-
-    /**
-     * Health check handler
-     */
-    class HealthCheckHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange httpExchange) throws IOException {
-            ObjectNode healthResponse = objectMapper.createObjectNode();
-            healthResponse.put("status", "healthy");
-            healthResponse.put("server", "Database MCP Server");
-            healthResponse.put("timestamp", System.currentTimeMillis());
-            healthResponse.put("state", serverState.toString());
-
-            // Test database connection
-            try (Connection ignored = databaseService.getConnection()) {
-                // Connection test successful
-                healthResponse.put("database", "connected");
-            } catch (Exception e) {
-                healthResponse.put("database", "error: " + e.getMessage());
-            }
-
-            String responseJson = objectMapper.writeValueAsString(healthResponse);
-            httpExchange.getResponseHeaders().set("Content-Type", "application/json");
-            byte[] responseBytes = responseJson.getBytes();
-
-            httpExchange.sendResponseHeaders(200, responseBytes.length);
-            try (OutputStream outputStream = httpExchange.getResponseBody()) {
-                outputStream.write(responseBytes);
             }
         }
     }
@@ -705,6 +554,10 @@ public class McpServer {
         };
     }
 
+    String getServerState() {
+        return serverState.toString();
+    }
+
     /**
      * Executes a SQL query using the 'query' tool.
      * Validates parameters, executes the query, and formats results for MCP response.
@@ -1030,14 +883,14 @@ public class McpServer {
     /**
      * Logs security-relevant events for audit purposes.
      *
-     * @param event the security event type
-     * @param details additional details about the event
+     * @param securityEvent the security event type
+     * @param eventDetails additional details about the event
      */
-    private void logSecurityEvent(String event, String details) {
+    private void logSecurityEvent(String securityEvent, String eventDetails) {
         // Use a specific logger for security events that could be configured
         // to write to a separate audit log file
         Logger securityLogger = LoggerFactory.getLogger("SECURITY." + McpServer.class.getName());
-        securityLogger.warn("SECURITY_EVENT: {} - {}", event, details);
+        securityLogger.warn("SECURITY_EVENT: {} - {}", securityEvent, eventDetails);
     }
 
     /**
@@ -1047,9 +900,9 @@ public class McpServer {
      */
     private Map<String, Object> createServerInfo() {
         Map<String, Object> infoMap = new HashMap<>();
-        infoMap.put("name", "DBChat - Secure Database MCP Server");
-        infoMap.put("version", "1.2.0");
-        infoMap.put("description", "Generic MCP server for database operations");
+        infoMap.put("name", CliUtils.SERVER_NAME);
+        infoMap.put("version", CliUtils.SERVER_VERSION);
+        infoMap.put("description", CliUtils.SERVER_DESCRIPTION);
 
         // Detailed capability information
         Map<String, Object> capabilityInfo = new HashMap<>();
@@ -1216,213 +1069,6 @@ public class McpServer {
     }
 
     /**
-     * Loads configuration parameters from a file.
-     * Each line should be in KEY=VALUE format. Lines starting with # are treated as comments.
-     * Empty lines are ignored.
-     *
-     * @param configFilePath Path to the configuration file
-     * @return Map of configuration key-value pairs
-     * @throws IOException if the file cannot be read
-     */
-    static Map<String, String> loadConfigFile(String configFilePath) throws IOException {
-        Map<String, String> configMap = new HashMap<>();
-
-        try (BufferedReader bufferedReader = new BufferedReader(new FileReader(configFilePath))) {
-            String currLine;
-            int lineNumber = 0;
-
-            while ((currLine = bufferedReader.readLine()) != null) {
-                lineNumber++;
-                currLine = currLine.trim();
-
-                // Skip empty lines and comments
-                if (currLine.isEmpty() || currLine.startsWith("#")) {
-                    continue;
-                }
-
-                // Parse KEY=VALUE format
-                String[] lineParts = currLine.split("=", 2);
-                if (lineParts.length != 2) {
-                    logger.warn("Invalid config line {} in file {}: {}", lineNumber, configFilePath, currLine);
-                    continue;
-                }
-
-                String paramKey = lineParts[0].trim().toUpperCase();
-                String paramValue = lineParts[1].trim();
-
-                // Validate that key is not empty after trimming
-                if (paramKey.isEmpty()) {
-                    logger.warn("Key cannot be empty. Invalid config on line {} in file {}:\n{}", lineNumber, configFilePath, currLine);
-                    continue;
-                }
-
-                // Remove quotes if present
-                if (paramValue.startsWith("\"") && paramValue.endsWith("\"")) {
-                    paramValue = paramValue.substring(1, paramValue.length() - 1);
-                } else if (paramValue.startsWith("'") && paramValue.endsWith("'")) {
-                    paramValue = paramValue.substring(1, paramValue.length() - 1);
-                }
-
-                configMap.put(paramKey, paramValue);
-                logger.debug("Loaded config: {} = {}", paramKey, paramKey.contains("PASSWORD") ? "***" : paramValue);
-            }
-        }
-
-        logger.info("Loaded {} configuration parameters from file: {}", configMap.size(), configFilePath);
-        return configMap;
-    }
-
-    /**
-     * Loads configuration from command line arguments, config file, environment variables, and system properties.
-     * Uses priority order: CLI args (--db_url) > config file > environment variables (DB_URL) > system properties (-Ddb.url=) > hard coded defaults.
-     * Keys are case-insensitive for args but uppercase for environment variables (as per convention).
-     *
-     * @param args Command line arguments in --key=value format
-     * @return Configured ConfigParams instance
-     * @throws IOException if config file cannot be read
-     * @throws NumberFormatException if numeric parameters cannot be parsed
-     */
-    static ConfigParams loadConfiguration(String[] args) throws IOException {
-        Map<String, String> cliArgs = parseArgs(args);
-
-        // Load config file if specified
-        Map<String, String> fileConfig = null;
-        String configFile = getConfigValue("CONFIG_FILE", null, cliArgs, null); // No file config for CONFIG_FILE itself
-        if (configFile != null) {
-            try {
-                fileConfig = loadConfigFile(configFile);
-                logger.info("Configuration file loaded: {}", configFile);
-            } catch (IOException e) {
-                logger.error("Failed to load configuration file: {}", configFile, e);
-                throw new IOException("Failed to load configuration file: " + configFile, e);
-            }
-        }
-
-        // Load configuration values with proper priority order
-        String dbUrl = getConfigValue("DB_URL", "jdbc:h2:mem:testdb", cliArgs, fileConfig);
-        String dbUser = getConfigValue("DB_USER", "sa", cliArgs, fileConfig);
-        String dbPassword = getConfigValue("DB_PASSWORD", "", cliArgs, fileConfig);
-        String dbDriver = getConfigValue("DB_DRIVER", "org.h2.Driver", cliArgs, fileConfig);
-        String maxConnections = getConfigValue("MAX_CONNECTIONS", "10", cliArgs, fileConfig);
-        String connectionTimeoutMs = getConfigValue("CONNECTION_TIMEOUT_MS", "30000", cliArgs, fileConfig);
-        String queryTimeoutSeconds = getConfigValue("QUERY_TIMEOUT_SECONDS", "30", cliArgs, fileConfig);
-        String selectOnly = getConfigValue("SELECT_ONLY", "true", cliArgs, fileConfig);
-        String maxSql = getConfigValue("MAX_SQL", "10000", cliArgs, fileConfig);
-        String maxRowsLimit = getConfigValue("MAX_ROWS_LIMIT", "10000", cliArgs, fileConfig);
-        String idleTimeoutMs = getConfigValue("IDLE_TIMEOUT_MS", "600000", cliArgs, fileConfig);
-        String maxLifetimeMs = getConfigValue("MAX_LIFETIME_MS", "1800000", cliArgs, fileConfig);
-        String leakDetectionThresholdMs = getConfigValue("LEAK_DETECTION_THRESHOLD_MS", "60000", cliArgs, fileConfig);
-
-        return new ConfigParams(dbUrl, dbUser, dbPassword, dbDriver,
-                Integer.parseInt(maxConnections),
-                Integer.parseInt(connectionTimeoutMs),
-                Integer.parseInt(queryTimeoutSeconds),
-                Boolean.parseBoolean(selectOnly),
-                Integer.parseInt(maxSql),
-                Integer.parseInt(maxRowsLimit),
-                Integer.parseInt(idleTimeoutMs),
-                Integer.parseInt(maxLifetimeMs),
-                Integer.parseInt(leakDetectionThresholdMs));
-    }
-
-    /**
-     * Determines if the server should run in HTTP mode based on configuration.
-     *
-     * @param args Command line arguments
-     * @return true if HTTP mode is enabled, false for stdio mode
-     */
-    static boolean isHttpMode(String[] args) {
-        Map<String, String> cliArgs = parseArgs(args);
-        String httpMode = getConfigValue("HTTP_MODE", "false", cliArgs, null);
-        return Boolean.parseBoolean(httpMode);
-    }
-
-    /**
-     * Gets the bind address from configuration.
-     *
-     * @param args Command line arguments
-     * @return Bind address for HTTP mode (default: "localhost")
-     */
-    static String getBindAddress(String[] args) {
-        Map<String, String> cliArgs = parseArgs(args);
-        return getConfigValue("BIND_ADDRESS", "localhost", cliArgs, null);
-    }
-
-    /**
-     * Gets the HTTP port number from configuration.
-     *
-     * @param args Command line arguments
-     * @return Port number for HTTP mode (default: 8080)
-     */
-    static int getHttpPort(String[] args) {
-        Map<String, String> cliArgs = parseArgs(args);
-        String httpPort = getConfigValue("HTTP_PORT", "8080", cliArgs, null);
-        return Integer.parseInt(httpPort);
-    }
-
-    /**
-     * Parses command line arguments into a key-value map.
-     * Expects arguments in --key=value format and converts keys to uppercase.
-     *
-     * @param args Command line arguments array
-     * @return Map of uppercase keys to values
-     */
-    static Map<String, String> parseArgs(String[] args) {
-        Map<String, String> argsMap = new HashMap<>();
-        for (String currArg : args) {
-            if (currArg.startsWith("--")) {
-                String[] argParts = currArg.substring(2).split("=", 2);
-                if (argParts.length == 2) {
-                    argsMap.put(argParts[0].toUpperCase(), argParts[1]);
-                }
-            }
-        }
-        return argsMap;
-    }
-
-    /**
-     * Gets a configuration value using the priority order:
-     * CLI args > config file > env vars > system properties > default.
-     * Config file parameter is optional - if null, it's skipped in the priority chain.
-     *
-     * @param varName Config parameter name (uppercase)
-     * @param defaultValue Default value if not found in any source
-     * @param cliArgs Parsed command line arguments
-     * @param fileConfig Configuration from file (can be null if no config file)
-     * @return The configuration value from the highest priority source
-     */
-    private static String getConfigValue(String varName, String defaultValue, Map<String, String> cliArgs, Map<String, String> fileConfig) {
-        // 1. CLI arguments (highest priority)
-        String cliValue = cliArgs.get(varName.toUpperCase());
-        if (cliValue != null) {
-            return cliValue;
-        }
-
-        // 2. Config file (if provided)
-        if (fileConfig != null) {
-            String fileValue = fileConfig.get(varName.toUpperCase());
-            if (fileValue != null) {
-                return fileValue;
-            }
-        }
-
-        // 3. Environment variable
-        String envValue = System.getenv(varName);
-        if (envValue != null) {
-            return envValue;
-        }
-
-        // 4. System property (envVar.lower().replace('_', '.'))
-        String propValue = System.getProperty(varName.toLowerCase().replace('_', '.'));
-        if (propValue != null) {
-            return propValue;
-        }
-
-        // 5. Default
-        return defaultValue;
-    }
-
-    /**
      * Gracefully shuts down the server and releases resources.
      * This method is idempotent and safe to call multiple times.
      */
@@ -1450,9 +1096,13 @@ public class McpServer {
      * @throws IOException if server startup or config file loading fails
      */
     public static void main(String[] args) throws IOException {
+        // Handle help and version arguments first
+        if (CliUtils.handleHelpAndVersion(args)) {
+            System.exit(0);
+        }
         try {
             // Load configuration from environment or args
-            ConfigParams configParams = loadConfiguration(args);
+            ConfigParams configParams = CliUtils.loadConfiguration(args);
             McpServer mcpServer = new McpServer(configParams);
 
             // Add shutdown hook for clean resource cleanup
@@ -1462,9 +1112,9 @@ public class McpServer {
             }));
 
             // Check configuration for HTTP mode
-            if (isHttpMode(args)) {
-                String bindAddress = getBindAddress(args);
-                int httpPort = getHttpPort(args);
+            if (CliUtils.isHttpMode(args)) {
+                String bindAddress = CliUtils.getBindAddress(args);
+                int httpPort = CliUtils.getHttpPort(args);
                 mcpServer.startHttpMode(bindAddress, httpPort);
             } else {
                 mcpServer.startStdioMode();
