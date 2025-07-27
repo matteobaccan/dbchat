@@ -20,6 +20,11 @@ public class CliUtils {
     static final String SERVER_VERSION = "3.0.0";
     static final String SERVER_DESCRIPTION = "Secure MCP server for database operations";
 
+    static String DEFAULT_DB_URL = "jdbc:h2:mem:test";
+    static String DEFAULT_DB_USER = "sa";
+    static String DEFAULT_DB_PASSWORD = "";
+    static String DEFAULT_DB_DRIVER = "org.h2.Driver";
+
     /**
      * Maps short form arguments to their long form equivalents.
      *
@@ -360,10 +365,10 @@ public class CliUtils {
         }
 
         // Load configuration values with proper priority order
-        String dbUrl = getConfigValue("DB_URL", "jdbc:h2:mem:test", cliArgs, fileConfig);
-        String dbUser = getConfigValue("DB_USER", "sa", cliArgs, fileConfig);
-        String dbPassword = getConfigValue("DB_PASSWORD", "", cliArgs, fileConfig);
-        String dbDriver = getConfigValue("DB_DRIVER", "org.h2.Driver", cliArgs, fileConfig);
+        String dbUrl = getConfigValue("DB_URL", DEFAULT_DB_URL, cliArgs, fileConfig);
+        String dbUser = getConfigValue("DB_USER", DEFAULT_DB_USER, cliArgs, fileConfig);
+        String dbPassword = getConfigValue("DB_PASSWORD", DEFAULT_DB_PASSWORD, cliArgs, fileConfig);
+        String dbDriver = getConfigValue("DB_DRIVER", DEFAULT_DB_DRIVER, cliArgs, fileConfig);
         String maxConnections = getConfigValue("MAX_CONNECTIONS", "10", cliArgs, fileConfig);
         String connectionTimeoutMs = getConfigValue("CONNECTION_TIMEOUT_MS", "30000", cliArgs, fileConfig);
         String queryTimeoutSeconds = getConfigValue("QUERY_TIMEOUT_SECONDS", "30", cliArgs, fileConfig);

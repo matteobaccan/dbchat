@@ -80,17 +80,17 @@ DBChat works with virtually any database (as long as it has a JDBC driver)
 ### Step 1: Download DBChat
 
 Download the latest release from [GitHub Releases](https://github.com/skanga/dbchat/releases):
-- [dbchat-3.0.0-basic.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-basic.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)   `<-- Start here`
-- [dbchat-3.0.0-standard.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-standard.jar) - Standard version (add MySQL, MariaDB, ClickHouse)
-- [dbchat-3.0.0-enterprise.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-enterprise.jar) - Enterprise version (add Oracle, SQL Server, DB2)
-- [dbchat-3.0.0-cloud-analytics.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-cloud-analytics.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
-- [dbchat-3.0.0-all.jar](https://github.com/skanga/dbchat/releases/download/v3.0.0/dbchat-3.0.0-all.jar) - All databases included (400MB+)
+- [dbchat-3.0.0.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)   `<-- Start here`
+- [dbchat-3.0.0.jar) - Standard version (add MySQL, MariaDB, ClickHouse)
+- [dbchat-3.0.0.jar) - Enterprise version (add Oracle, SQL Server, DB2)
+- [dbchat-3.0.0.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
+- [dbchat-3.0.0.jar) - All databases included (400MB+)
 
 (Optional) For simplicity rename the downloaded file to `dbchat-3.0.0.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
 ```agsl
-mv dbchat-3.0.0.jar dbchat.jar
+mv dbchat-3.0.0.jar
 OR
-ren dbchat-3.0.0.jar dbchat.jar
+ren dbchat-3.0.0.jar
 ```
 NOTE: Advanced users can also build a custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md) for details.
 
@@ -753,9 +753,9 @@ env | grep -E "(DB_|HTTP_|MAX_|SELECT_)"
 ## 🚀 Ready to Transform Your Data Experience?
 
 1. **Download** the appropriate JAR file for your database(s)
-2. **Install** Claude Desktop (free)
+2. **Install** an MCP Client like Claude Desktop (free)
 3. **Configure** your database connection
-4. **Add** DBChat to Claude Desktop settings
+4. **Add** DBChat to MCP Client settings
 5. **Start asking** questions about your data!
 
 Transform your relationship with data. No more complex SQL queries, no more waiting for reports. Just natural conversations with your database, powered by Claude's intelligence and DBChat's seamless integration.

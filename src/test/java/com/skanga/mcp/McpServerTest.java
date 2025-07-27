@@ -1395,7 +1395,7 @@ class McpServerTest {
 
     // Additional test for loadConfiguration with environment variables
     @Test
-    void testLoadConfiguration_EnvironmentVariables() throws IOException {
+    void testLoadConfiguration_SystemProperty() throws IOException {
         // Since we can't set real environment variables in tests,
         // we test the priority order with system properties and CLI args
         System.setProperty("select.only", "false");  // System property

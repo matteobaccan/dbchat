@@ -36,7 +36,7 @@ class McpServerConfigurationTest {
     }
 
     @Test
-    void testConfigurationPrecedence_CliOverridesEnv() throws IOException {
+    void testConfigurationPrecedence_CliOverridesProp() throws IOException {
         // Test that CLI arguments override environment variables
         // This tests the getConfigValue method indirectly
 
