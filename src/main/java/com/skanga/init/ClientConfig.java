@@ -1,5 +1,10 @@
 package com.skanga.init;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -14,26 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.Scanner;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-
-/**
- * DBChat MCP Configuration Generator
- * <p>
- * This tool generates MCP (Model Context Protocol) configuration files for various AI clients,
- * allowing them to connect to database servers through the DBChat MCP server.
- * <p>
- * Features:
- * - Supports multiple MCP clients (Cursor, Windsurf, Claude Desktop, Continue, VS Code, Zed, etc.)
- * - Auto-detects Java and JAR paths
- * - Creates timestamped backups of existing configurations
- * - Merges new configurations with existing ones instead of overwriting
- * - Provides both safe and direct installation options
- */
 public class ClientConfig {
-    // Jackson ObjectMapper for JSON manipulation
     private static final ObjectMapper objectMapper = new ObjectMapper();
     static final String DEFAULT_DB_URL = "jdbc:h2:mem:test";
     static final String DEFAULT_DB_USER = "sa";
@@ -41,348 +27,213 @@ public class ClientConfig {
     static final String DEFAULT_DB_DRIVER = "org.h2.Driver";
     static final String DEST_DIR = "./conf";
 
-    /**
-     * Enum defining all supported MCP clients with their configuration properties.
-     * This eliminates code duplication and makes adding new clients easier.
-     */
-    enum ClientType {
-        CURSOR("cursor", "cursor_mcp.json", true),
-        WINDSURF("windsurf", "windsurf_mcp.json", true),
-        CLAUDE_DESKTOP("claude-desktop", "claude_desktop_config.json", true),
-        CONTINUE("continue", "continue_config.json", false),
-        VSCODE("vscode", "vscode_settings.json", false),
-        CLAUDE_CODE("claude-code", "claude_code_command.sh", false),
-        GEMINI_CLI("gemini-cli", "gemini_cli_settings.json", false),
-        ZED("zed", "zed_settings.json", false);
+    private final FileOperations fileOps;
+    private final UserInputReader inputReader;
 
-        final String configKey;           // Key used for path resolution
-        final String fileName;            // Generated filename
-        final boolean useStandardMcpFormat;  // Whether to use standard mcpServers format
-
-        ClientType(String configKey, String fileName, boolean useStandardMcpFormat) {
-            this.configKey = configKey;
-            this.fileName = fileName;
-            this.useStandardMcpFormat = useStandardMcpFormat;
-        }
+    // Constructor for dependency injection (tests can pass mocks)
+    public ClientConfig(FileOperations fileOps, UserInputReader inputReader) {
+        this.fileOps = fileOps;
+        this.inputReader = inputReader;
     }
 
-    /**
-     * Configuration data class holding all database and server connection details.
-     * This is immutable by design for thread safety.
-     */
-    static class McpClientConfig {
-        final String dbUrl;
-        final String dbDriver;
-        final String dbUser;
-        final String dbPassword;
-        final String serverName;
-        final String jarPath;
-        final String javaPath;
-
-        McpClientConfig(String dbUrl, String dbDriver, String dbUser, String dbPassword,
-                        String serverName, String jarPath, String javaPath) {
-            this.dbUrl = dbUrl;
-            this.dbDriver = dbDriver;
-            this.dbUser = dbUser;
-            this.dbPassword = dbPassword;
-            this.serverName = serverName;
-            this.jarPath = jarPath;
-            this.javaPath = javaPath;
-        }
+    // Default constructor for normal usage
+    public ClientConfig() {
+        this(new DefaultFileOperations(), new ConsoleInputReader());
     }
 
-    /**
-     * Attempts to auto-detect the JAR file location using CodeSource.
-     * Falls back to manual entry if detection fails.
-     *
-     * @return Absolute path to the JAR file or error message
-     */
-    static String getJar() {
-        try {
-            CodeSource codeSource = ClientConfig.class.getProtectionDomain().getCodeSource();
-            if (codeSource != null) {
-                File jarFile = new File(codeSource.getLocation().toURI().getPath());
-                return jarFile.getAbsolutePath();
-            } else {
-                return "CANNOT LOCATE JAR FILE - PLEASE LOCATE MANUALLY";
-            }
-        } catch (URISyntaxException e) {
-            System.out.println("Warning: " + e.getMessage());
-            return "CANNOT LOCATE JAR FILE - PLEASE LOCATE MANUALLY";
-        }
+    // Extract file operations interface - only what we actually need
+    interface FileOperations {
+        String readFile(String path);
+        void writeFile(String path, String content);
+        boolean fileExists(String path);
+        void createBackup(String originalPath);
     }
 
-    /**
-     * Attempts to auto-detect the Java executable path.
-     * Uses ProcessHandle to find the current Java process command.
-     *
-     * @return Path to Java executable or error message
-     */
-    static String getJava() {
-        Optional<String> javaCommand = ProcessHandle.current().info().command();
-        return javaCommand.orElse("CANNOT LOCATE JAVA - PLEASE LOCATE MANUALLY");
+    // Extract user input interface
+    interface UserInputReader {
+        String readLine(String prompt);
+        int readInt(String prompt);
+        void println(String message);
     }
 
-    /**
-     * Main entry point for the configuration generator.
-     * Handles the complete workflow from input collection to file generation.
-     */
-    public static void main(String[] args) {
-        System.out.println("=== DBChat MCP Configuration Generator ===\n");
-        Scanner inputScanner = new Scanner(System.in);
-
-        try {
-            // Step 1: Collect database configuration from user
-            McpClientConfig clientConfig = collectDatabaseInfo(inputScanner);
-
-            // Step 2: Display available client options
-            displayClientOptions();
-
-            // Step 3: Get user's client choice
-            int clientChoice = getClientChoice(inputScanner);
-
-            // Step 4: Generate and save configuration
-            generateConfiguration(clientConfig, clientChoice, inputScanner);
-
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * Collects database connection information from the user.
-     * Also auto-detects Java and JAR paths with manual override options.
-     *
-     * @return McpClientConfig object containing all configuration data
-     */
-    static McpClientConfig collectDatabaseInfo(Scanner inputScanner) {
-        System.out.println("Please provide your database connection details (press Enter to use default):\n");
-
-        String dbUrl, dbDriver, dbUser, dbPassword;
-
-        while (true) {
-            System.out.print("Database JDBC URL [default: " + DEFAULT_DB_URL + "]: ");
-            dbUrl = inputScanner.nextLine().trim();
-            if (dbUrl.isEmpty()) dbUrl = DEFAULT_DB_URL;
-
-            System.out.print("Database JDBC Driver [default: " + DEFAULT_DB_DRIVER + "]: ");
-            dbDriver = inputScanner.nextLine().trim();
-            if (dbDriver.isEmpty()) dbDriver = DEFAULT_DB_DRIVER;
-
-            System.out.print("Database Username [default: " + DEFAULT_DB_USER + "]: ");
-            dbUser = inputScanner.nextLine().trim();
-            if (dbUser.isEmpty()) dbUser = DEFAULT_DB_USER;
-
-            System.out.print("Database Password [default: " + (DEFAULT_DB_PASSWORD.isEmpty() ? "(empty)" : DEFAULT_DB_PASSWORD) + "]: ");
-            dbPassword = inputScanner.nextLine();
-            if (dbPassword.isEmpty()) dbPassword = DEFAULT_DB_PASSWORD;
-
-            // Attempt DB connection
+    // Simple implementations
+    static class DefaultFileOperations implements FileOperations {
+        public String readFile(String path) {
             try {
-                Class.forName(dbDriver);
-                try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPassword)) {
-                    System.out.println("Successfully connected to database.");
-                    break;
+                return Files.readString(Paths.get(path));
+            } catch (IOException e) {
+                return null;
+            }
+        }
+
+        public void writeFile(String path, String content) {
+            try {
+                Files.createDirectories(Paths.get(path).getParent());
+                Files.write(Paths.get(path), content.getBytes());
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to write file: " + e.getMessage(), e);
+            }
+        }
+
+        public boolean fileExists(String path) {
+            return Files.exists(Paths.get(path));
+        }
+
+        public void createBackup(String originalPath) {
+            try {
+                Path original = Paths.get(originalPath);
+                if (!Files.exists(original)) {
+                    return; // No file to backup
                 }
-            } catch (Exception e) {
-                System.out.println("\nFailed to connect to the database:");
-                System.out.println("   " + e.getMessage());
-                System.out.print("\nWould you like to retry with different credentials? (Y/n): ");
-                String choice = inputScanner.nextLine().trim().toLowerCase();
-                if (choice.equals("n") || choice.equals("no")) {
-                    System.out.println("Proceeding with provided configuration...");
-                    break;
+
+                // Create timestamp for backup filename
+                LocalDateTime now = LocalDateTime.now();
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+                String timestamp = now.format(formatter);
+
+                // Create backup filename
+                String originalFilename = original.getFileName().toString();
+                String backupFilename;
+                int dotIndex = originalFilename.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    String name = originalFilename.substring(0, dotIndex);
+                    String extension = originalFilename.substring(dotIndex);
+                    backupFilename = name + "_backup_" + timestamp + extension;
+                } else {
+                    backupFilename = originalFilename + "_backup_" + timestamp;
+                }
+
+                Path backupPath = original.getParent().resolve(backupFilename);
+                Files.copy(original, backupPath);
+                System.out.println("Backup created: " + backupPath.toAbsolutePath());
+            } catch (IOException e) {
+                System.out.println("Warning: Could not create backup: " + e.getMessage());
+            }
+        }
+    }
+
+    static class ConsoleInputReader implements UserInputReader {
+        private final Scanner scanner;
+
+        public ConsoleInputReader() {
+            this(new Scanner(System.in));
+        }
+
+        ConsoleInputReader(Scanner scanner) {
+            this.scanner = scanner;
+        }
+
+        public String readLine(String prompt) {
+            System.out.print(prompt);
+            return scanner.nextLine().trim();
+        }
+
+        public int readInt(String prompt) {
+            while (true) {
+                try {
+                    return Integer.parseInt(readLine(prompt));
+                } catch (NumberFormatException e) {
+                    println("Please enter a valid number.");
                 }
             }
         }
 
-        System.out.print("Server name (default: my-database): ");
-        String serverName = inputScanner.nextLine().trim();
+        public void println(String message) {
+            System.out.println(message);
+        }
+    }
+
+    // Keep existing static entry point for backwards compatibility
+    public static void main(String[] args) {
+        new ClientConfig().run();
+    }
+
+    // Main workflow - now testable
+    public void run() {
+        inputReader.println("=== DBChat MCP Configuration Generator ===\n");
+
+        try {
+            McpClientConfig clientConfig = collectDatabaseInfo();
+            ClientType clientType = selectClient();
+            generateAndSaveConfiguration(clientConfig, clientType);
+        } catch (Exception e) {
+            inputReader.println("Error: " + e.getMessage());
+        }
+    }
+
+    // Break down collectDatabaseInfo - now testable
+    McpClientConfig collectDatabaseInfo() {
+        inputReader.println("Please provide your database connection details (press Enter to use default):\n");
+
+        String dbUrl = inputReader.readLine("Database JDBC URL [default: " + DEFAULT_DB_URL + "]: ");
+        if (dbUrl.isEmpty()) dbUrl = DEFAULT_DB_URL;
+
+        String dbDriver = inputReader.readLine("Database JDBC Driver [default: " + DEFAULT_DB_DRIVER + "]: ");
+        if (dbDriver.isEmpty()) dbDriver = DEFAULT_DB_DRIVER;
+
+        String dbUser = inputReader.readLine("Database Username [default: " + DEFAULT_DB_USER + "]: ");
+        if (dbUser.isEmpty()) dbUser = DEFAULT_DB_USER;
+
+        String dbPassword = inputReader.readLine("Database Password [default: " + (DEFAULT_DB_PASSWORD.isEmpty() ? "(empty)" : DEFAULT_DB_PASSWORD) + "]: ");
+        if (dbPassword.isEmpty()) dbPassword = DEFAULT_DB_PASSWORD;
+
+        // Test connection if possible
+        if (shouldTestConnection() && !testDatabaseConnection(dbUrl, dbDriver, dbUser, dbPassword)) {
+            inputReader.println("Failed to connect to database, but proceeding with configuration...");
+        }
+
+        String serverName = inputReader.readLine("Server name (default: my-database): ");
         if (serverName.isEmpty()) serverName = "my-database";
 
-        String jarPath = getJar();
-        String javaPath = getJava();
-
-        if (jarPath.contains("CANNOT LOCATE")) {
-            System.out.print("Please enter the absolute path to your DBChat JAR file: ");
-            jarPath = inputScanner.nextLine().trim();
-        }
-
-        if (javaPath.contains("CANNOT LOCATE")) {
-            System.out.print("Please enter the path to your Java executable (or 'java' if in PATH): ");
-            javaPath = inputScanner.nextLine().trim();
-            if (javaPath.isEmpty()) javaPath = "java";
-        }
+        String jarPath = detectJarPath();
+        String javaPath = detectJavaPath();
 
         return new McpClientConfig(dbUrl, dbDriver, dbUser, dbPassword, serverName, jarPath, javaPath);
     }
 
-    /**
-     * Displays all supported MCP clients to the user.
-     * Updated to include all available options.
-     */
-    static void displayClientOptions() {
-        System.out.println("\nSupported MCP Clients:");
-        System.out.println("1. Cursor");
-        System.out.println("2. Windsurf");
-        System.out.println("3. Claude Desktop");
-        System.out.println("4. Continue");
-        System.out.println("5. VS Code");
-        System.out.println("6. Claude Code (command line)");
-        System.out.println("7. Gemini CLI (command line)");
-        System.out.println("8. Zed Editor");
-        System.out.println("9. Generate all configurations");
-    }
+    // Separate client selection logic - now testable
+    ClientType selectClient() {
+        displayClientOptions();
 
-    /**
-     * Gets and validates the user's choice of MCP client.
-     * Ensures the choice is within the valid range.
-     *
-     * @return Valid choice number (1-9)
-     */
-    static int getClientChoice(Scanner inputScanner) {
-        while (true) {
-            System.out.print("\nSelect your MCP client (1-9): ");
-            try {
-                int clientChoice = Integer.parseInt(inputScanner.nextLine().trim());
-                if (clientChoice >= 1 && clientChoice <= 9) {
-                    return clientChoice;
-                }
-                System.out.println("Please enter a number between 1 and 9.");
-            } catch (NumberFormatException e) {
-                System.out.println("Please enter a valid number.");
-            }
+        int choice = inputReader.readInt("Select your MCP client (1-9): ");
+        while (choice < 1 || choice > 9) {
+            inputReader.println("Please enter a number between 1 and 9.");
+            choice = inputReader.readInt("Select your MCP client (1-9): ");
         }
+
+        return getClientTypeFromChoice(choice);
     }
 
-    /**
-     * Routes to the appropriate configuration generation method based on user choice.
-     *
-     * @param clientConfig The database configuration
-     * @param clientChoice The user's selected client (1-9)
-     */
-    static void generateConfiguration(McpClientConfig clientConfig, int clientChoice, Scanner inputScanner) throws IOException {
-        switch (clientChoice) {
-            case 1 -> generateClientConfig(clientConfig, ClientType.CURSOR, inputScanner);
-            case 2 -> generateClientConfig(clientConfig, ClientType.WINDSURF, inputScanner);
-            case 3 -> generateClientConfig(clientConfig, ClientType.CLAUDE_DESKTOP, inputScanner);
-            case 4 -> generateClientConfig(clientConfig, ClientType.CONTINUE, inputScanner);
-            case 5 -> generateClientConfig(clientConfig, ClientType.VSCODE, inputScanner);
-            case 6 -> generateClientConfig(clientConfig, ClientType.CLAUDE_CODE, inputScanner);
-            case 7 -> generateClientConfig(clientConfig, ClientType.GEMINI_CLI, inputScanner);
-            case 8 -> generateClientConfig(clientConfig, ClientType.ZED, inputScanner);
-            case 9 -> generateAllConfigurations(clientConfig, inputScanner);
-        }
-    }
-
-    /**
-     * Unified method to generate configuration for any client type.
-     * Uses the ClientType enum to eliminate code duplication.
-     *
-     * @param clientConfig The database configuration
-     * @param clientType The specific client type to generate for
-     */
-    static void generateClientConfig(McpClientConfig clientConfig, ClientType clientType, Scanner inputScanner) throws IOException {
-        // Generate the appropriate content based on client type
-        String content = switch (clientType) {
-            case CURSOR, WINDSURF, CLAUDE_DESKTOP -> generateMcpServersJson(clientConfig);
-            case CONTINUE -> generateContinueJson(clientConfig);
-            case VSCODE -> generateVSCodeJson(clientConfig);
-            case CLAUDE_CODE -> generateClaudeCodeCommand(clientConfig);
-            case GEMINI_CLI -> generateGeminiCliJson(clientConfig);
-            case ZED -> generateZedJson(clientConfig);
+    // Pure function - easily testable
+    ClientType getClientTypeFromChoice(int choice) {
+        return switch (choice) {
+            case 1 -> ClientType.CURSOR;
+            case 2 -> ClientType.WINDSURF;
+            case 3 -> ClientType.CLAUDE_DESKTOP;
+            case 4 -> ClientType.CONTINUE;
+            case 5 -> ClientType.VSCODE;
+            case 6 -> ClientType.CLAUDE_CODE;
+            case 7 -> ClientType.GEMINI_CLI;
+            case 8 -> ClientType.ZED;
+            case 9 -> null; // Special case for "all"
+            default -> throw new IllegalArgumentException("Invalid choice: " + choice);
         };
+    }
 
-        // Save the configuration with backup and merge capabilities
-        saveConfiguration(content, clientType.fileName, clientType, clientConfig);
-
-        // Provide client-specific instructions
-        if (clientType == ClientType.CLAUDE_CODE) {
-            System.out.println("\nClaude Code command generated!");
-            System.out.println("Run the command from: " + clientType.fileName);
-            System.out.println("\nOr copy and paste this command:");
-            System.out.println(content);
-        } else {
-            String clientName = formatClientName(clientType);
-            System.out.println(clientName + " configuration generated!");
-
-            // Provide specific installation instructions
-            provideInstallationInstructions(clientType);
-
-            // Offer direct installation for supported clients (excluding workspace-specific ones)
-            if (clientType != ClientType.VSCODE) {
-                offerDirectInstallation(clientConfig, clientType, inputScanner);
-            }
+    // Configuration generation
+    public void generateAndSaveConfiguration(McpClientConfig clientConfig, ClientType clientType) {
+        if (clientType == null) {
+            generateAllConfigurations(clientConfig);
+            return;
         }
+
+        String configContent = generateConfigurationContent(clientConfig, clientType);
+        String fileName = clientType.fileName;
+
+        saveConfigurationFile(configContent, fileName, clientType, clientConfig);
+        inputReader.println(formatClientName(clientType) + " configuration generated!");
     }
 
-    /**
-     * Formats the client type enum name into a user-friendly display name.
-     */
-    static String formatClientName(ClientType clientType) {
-        return clientType.name().charAt(0) +
-               clientType.name().substring(1).toLowerCase().replace("_", " ");
-    }
-
-    /**
-     * Provides client-specific installation instructions.
-     */
-    static void provideInstallationInstructions(ClientType clientType) {
-        switch (clientType) {
-            case CURSOR, WINDSURF, CLAUDE_DESKTOP, GEMINI_CLI ->
-                    System.out.println("Save this to: " + getConfigPath(clientType.configKey));
-            case CONTINUE ->
-                    System.out.println("Save this to: ~/.continue/config.json");
-            case VSCODE ->
-                    System.out.println("Save this to: .vscode/settings.json in your workspace");
-            case CLAUDE_CODE ->
-                    System.out.println("Run the generated command directly in your terminal");
-            case ZED -> {
-                System.out.println("Configuration options:");
-                System.out.println("1. Add to Zed settings via: Agent Panel > Settings > Add Custom Server");
-                System.out.println("2. Or merge into your existing Zed settings.json");
-                System.out.println("3. Access settings via: Command Palette > 'zed: open settings'");
-            }
-        }
-    }
-
-    /**
-     * Generates all configurations at once (excluding commands).
-     * Useful for users who want to try multiple clients.
-     */
-    static void generateAllConfigurations(McpClientConfig clientConfig, Scanner inputScanner) throws IOException {
-        for (ClientType clientType : ClientType.values()) {
-            if (clientType != ClientType.CLAUDE_CODE) { // Skip command generation in bulk
-                generateClientConfig(clientConfig, clientType, inputScanner);
-            }
-        }
-        System.out.println("\nAll configurations generated successfully!");
-        System.out.println("Check the current directory for the generated files.");
-    }
-
-    // ============================================================================
-    // JSON GENERATION METHODS USING JACKSON
-    // ============================================================================
-
-    /**
-     * Generates standard MCP servers JSON format used by Cursor, Windsurf, Claude Desktop.
-     * Uses Jackson for proper JSON generation.
-     */
-    static String generateMcpServersJson(McpClientConfig clientConfig) {
-        try {
-            ObjectNode root = objectMapper.createObjectNode();
-            ObjectNode mcpServers = objectMapper.createObjectNode();
-
-            ObjectNode serverConfig = createServerConfig(clientConfig);
-            mcpServers.set(clientConfig.serverName, serverConfig);
-            root.set("mcpServers", mcpServers);
-
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate MCP servers JSON: " + e.getMessage(), e);
-        }
-    }
 
     /**
      * Creates a standard server configuration object.
@@ -405,110 +256,6 @@ public class ClientConfig {
         serverConfig.set("env", env);
 
         return serverConfig;
-    }
-
-    /**
-     * Generates Continue-specific JSON format (uses array structure).
-     */
-    static String generateContinueJson(McpClientConfig clientConfig) {
-        try {
-            ObjectNode root = objectMapper.createObjectNode();
-
-            // Continue requires models array
-            ArrayNode models = objectMapper.createArrayNode();
-            root.set("models", models);
-
-            // Create mcpServers array
-            ArrayNode mcpServers = objectMapper.createArrayNode();
-            ObjectNode serverConfig = objectMapper.createObjectNode();
-
-            serverConfig.put("name", clientConfig.serverName);
-            serverConfig.put("command", clientConfig.javaPath);
-
-            ArrayNode args = objectMapper.createArrayNode();
-            args.add("-jar");
-            args.add(clientConfig.jarPath);
-            serverConfig.set("args", args);
-
-            ObjectNode env = objectMapper.createObjectNode();
-            env.put("DB_URL", clientConfig.dbUrl);
-            env.put("DB_DRIVER", clientConfig.dbDriver);
-            env.put("DB_USER", clientConfig.dbUser);
-            env.put("DB_PASSWORD", clientConfig.dbPassword);
-            serverConfig.set("env", env);
-
-            mcpServers.add(serverConfig);
-            root.set("mcpServers", mcpServers);
-
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate Continue JSON: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Generates VS Code-specific JSON format (nested under mcp.servers).
-     */
-    static String generateVSCodeJson(McpClientConfig config) {
-        try {
-            ObjectNode root = objectMapper.createObjectNode();
-            ObjectNode mcp = objectMapper.createObjectNode();
-            ObjectNode servers = objectMapper.createObjectNode();
-
-            ObjectNode serverConfig = createServerConfig(config);
-            servers.set(config.serverName, serverConfig);
-            mcp.set("servers", servers);
-            root.set("mcp", mcp);
-
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate VS Code JSON: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Generates Zed-specific JSON format (uses context_servers with source: custom).
-     */
-    static String generateZedJson(McpClientConfig config) {
-        try {
-            ObjectNode root = objectMapper.createObjectNode();
-            ObjectNode contextServers = objectMapper.createObjectNode();
-
-            ObjectNode serverConfig = createServerConfig(config);
-            // Zed requires "source": "custom" for custom servers
-            ((ObjectNode) serverConfig).put("source", "custom");
-
-            contextServers.set(config.serverName, serverConfig);
-            root.set("context_servers", contextServers);
-
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate Zed JSON: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Generates Gemini CLI JSON format (standard mcpServers format).
-     */
-    static String generateGeminiCliJson(McpClientConfig config) {
-        // Same as standard MCP format
-        return generateMcpServersJson(config);
-    }
-
-    /**
-     * Generates Claude Code shell command.
-     */
-    static String generateClaudeCodeCommand(McpClientConfig config) {
-        return String.format("""
-               claude mcp add %s -e DB_URL=%s -e DB_DRIVER=%s -e DB_USER=%s -e DB_PASSWORD=%s -- %s -jar %s""",
-               config.serverName,
-               escapeShellString(config.dbUrl),
-               escapeShellString(config.dbDriver),
-               escapeShellString(config.dbUser),
-               escapeShellString(config.dbPassword),
-               escapeShellString(config.javaPath),
-               escapeShellString(config.jarPath)
-        );
     }
 
     // ============================================================================
@@ -664,205 +411,303 @@ public class ClientConfig {
         return root;
     }
 
+    public String generateConfigurationContent(McpClientConfig config, ClientType clientType) {
+        return switch (clientType) {
+            case CURSOR, WINDSURF, CLAUDE_DESKTOP -> generateMcpServersJson(config);
+            case CONTINUE -> generateContinueJson(config);
+            case VSCODE -> generateVSCodeJson(config);
+            case CLAUDE_CODE -> generateClaudeCodeCommand(config);
+            case GEMINI_CLI -> generateGeminiCliJson(config);
+            case ZED -> generateZedJson(config);
+        };
+    }
+
     // ============================================================================
-    // FILE HANDLING AND BACKUP METHODS
+    // JSON GENERATION METHODS USING JACKSON
     // ============================================================================
 
     /**
-     * Creates a timestamped backup of an existing configuration file.
-     * Uses format: filename_backup_yyyyMMdd_HHmmss.ext
-     *
-     * @param configPath Path to the configuration file to backup
+     * Generates standard MCP servers JSON format used by Cursor, Windsurf, Claude Desktop.
+     * Uses Jackson for proper JSON generation.
      */
-    static void createBackup(String configPath) {
+    static String generateMcpServersJson(McpClientConfig clientConfig) {
         try {
-            Path originalPath = Paths.get(configPath);
-            if (!Files.exists(originalPath)) {
-                return; // No existing file to backup
-            }
+            ObjectNode root = objectMapper.createObjectNode();
+            ObjectNode mcpServers = objectMapper.createObjectNode();
 
-            // Create timestamp for backup filename
-            LocalDateTime now = LocalDateTime.now();
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-            String timestamp = now.format(formatter);
+            ObjectNode serverConfig = createServerConfig(clientConfig);
+            mcpServers.set(clientConfig.serverName, serverConfig);
+            root.set("mcpServers", mcpServers);
 
-            // Create backup filename
-            String originalFilename = originalPath.getFileName().toString();
-            String backupFilename;
-            int dotIndex = originalFilename.lastIndexOf('.');
-            if (dotIndex > 0) {
-                String name = originalFilename.substring(0, dotIndex);
-                String extension = originalFilename.substring(dotIndex);
-                backupFilename = name + "_backup_" + timestamp + extension;
-            } else {
-                backupFilename = originalFilename + "_backup_" + timestamp;
-            }
-
-            Path backupPath = originalPath.getParent().resolve(backupFilename);
-
-            // Copy the file
-            Files.copy(originalPath, backupPath);
-            System.out.println("Backup '" + backupPath.toAbsolutePath() + "' created for original config file '" + originalPath.toAbsolutePath() + "'");
-
-        } catch (IOException e) {
-            System.out.println("Warning: Could not create backup of existing config: " + e.getMessage());
-            System.out.println("  Proceeding with configuration generation...");
-        }
-    }
-
-    /**
-     * Reads existing configuration file content.
-     * Returns null if file doesn't exist or can't be read.
-     *
-     * @param filePath Path to the configuration file
-     * @return File content as string, or null if not readable
-     */
-    static String readExistingConfig(String filePath) {
-        try {
-            Path path = Paths.get(filePath);
-            if (Files.exists(path)) {
-                return Files.readString(path);
-            }
-        } catch (IOException e) {
-            System.out.println("Note: Could not read existing config file: " + e.getMessage());
-        }
-        return null;
-    }
-
-    /**
-     * Enhanced saveConfiguration method that creates backups and merges with existing configs.
-     *
-     * @param content The configuration content to save
-     * @param fileName The filename to save to
-     * @param clientType The client type (determines merge strategy)
-     * @param clientConfig The database configuration
-     */
-    static void saveConfiguration(String content, String fileName, ClientType clientType, McpClientConfig clientConfig) throws IOException {
-        // For command files, just save directly (no config to backup)
-        if (clientType == ClientType.CLAUDE_CODE) {
-            Path path = Paths.get(fileName);
-            Files.write(path, content.getBytes());
-            System.out.println("Configuration saved to: " + path.toAbsolutePath());
-            return;
-        }
-
-        // Get the actual config path and create backup if file exists
-        String configPath = getConfigPath(clientType.configKey);
-        createBackup(configPath);
-
-        // Try to merge with existing config for JSON files
-        String existingConfig = readExistingConfig(configPath);
-
-        if (existingConfig != null && !existingConfig.trim().isEmpty()) {
-            try {
-                String mergedConfig = mergeConfiguration(existingConfig, clientConfig, clientType);
-                Path path = Paths.get(fileName);
-                Files.write(path, mergedConfig.getBytes());
-                System.out.println("Final configuration saved to: " + path.toAbsolutePath());
-                System.out.println("NEXT STEPS:");
-                System.out.println("  1. Review the merged configuration file");
-                System.out.println("  2. Replace your config at: " + configPath);
-                System.out.println("  3. If there are issues, restore from backup");
-
-            } catch (Exception e) {
-                // Fallback to original behavior if merge fails
-                System.out.println("Warning: Could not add to existing config: " + e.getMessage());
-                System.out.println("Generating standalone config instead.");
-                Path path = Paths.get(fileName);
-                Files.write(path, content.getBytes());
-                System.out.println("Standalone configuration saved to: " + path.toAbsolutePath());
-            }
-        } else {
-            // No existing config, save new one
-            Path path = Paths.get(DEST_DIR, fileName);
-            Files.write(path, content.getBytes());
-            System.out.println("New configuration saved to: " + path.toAbsolutePath());
-            System.out.println("Copy this file to: " + configPath);
-        }
-    }
-
-    /**
-     * Offers the user the option to install configuration directly to the target location.
-     * This bypasses the manual copy step but requires more caution.
-     *
-     * @param config The database configuration
-     * @param clientType The client type
-     */
-    static void offerDirectInstallation(McpClientConfig config, ClientType clientType, Scanner inputScanner) {
-        if (clientType == ClientType.CLAUDE_CODE) {
-            return; // Not applicable for command files
-        }
-
-        System.out.print("\nWould you like to install the configuration directly? (y/N): ");
-        String response = inputScanner.nextLine().trim().toLowerCase();
-
-        if (response.equals("y") || response.equals("yes")) {
-            try {
-                saveConfigurationDirect(config, clientType);
-            } catch (Exception e) {
-                System.out.println("Direct installation failed. The generated file is still available for manual copying.");
-            }
-        } else {
-            System.out.println("Manual installation: Copy the generated file to the location shown above");
-        }
-    }
-
-    /**
-     * Directly installs configuration to the target location with backup.
-     * More convenient but requires elevated caution.
-     *
-     * @param config The database configuration
-     * @param clientType The client type
-     */
-    static void saveConfigurationDirect(McpClientConfig config, ClientType clientType) throws IOException {
-        if (clientType == ClientType.CLAUDE_CODE) {
-            System.out.println("Direct save not applicable for command files.");
-            return;
-        }
-
-        String configPath = getConfigPath(clientType.configKey);
-
-        // Always create backup before direct replacement
-        createBackup(configPath);
-
-        String existingConfig = readExistingConfig(configPath);
-
-        try {
-            String finalConfig;
-            if (existingConfig != null && !existingConfig.trim().isEmpty()) {
-                finalConfig = mergeConfiguration(existingConfig, config, clientType);
-                System.out.println("Added with existing configuration");
-            } else {
-                finalConfig = switch (clientType) {
-                    case CURSOR, WINDSURF, CLAUDE_DESKTOP -> generateMcpServersJson(config);
-                    case CONTINUE -> generateContinueJson(config);
-                    case VSCODE -> generateVSCodeJson(config);
-                    case GEMINI_CLI -> generateGeminiCliJson(config);
-                    case ZED -> generateZedJson(config);
-                    default -> throw new IllegalArgumentException("Unsupported client type for direct save");
-                };
-                System.out.println("Created new configuration");
-            }
-
-            // Write directly to the config location
-            Path configFilePath = Paths.get(configPath);
-
-            // Ensure parent directory exists
-            Files.createDirectories(configFilePath.getParent());
-
-            Files.write(configFilePath, finalConfig.getBytes());
-            System.out.println("Configuration installed to: " + configPath);
-            System.out.println("Restart " + formatClientName(clientType) + " to use the new configuration");
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
         } catch (Exception e) {
-            System.err.println("ERROR: Failed to save configuration directly: " + e.getMessage());
-            System.out.println("Try the safe mode (generate file first, then copy manually)");
-            throw e;
+            throw new RuntimeException("Failed to generate MCP servers JSON: " + e.getMessage(), e);
         }
     }
 
-    // ============================================================================
-    // UTILITY METHODS
-    // ============================================================================
+    /**
+     * Generates Continue-specific JSON format (uses array structure).
+     */
+    static String generateContinueJson(McpClientConfig clientConfig) {
+        try {
+            ObjectNode root = objectMapper.createObjectNode();
+
+            // Continue requires models array
+            ArrayNode models = objectMapper.createArrayNode();
+            root.set("models", models);
+
+            // Create mcpServers array
+            ArrayNode mcpServers = objectMapper.createArrayNode();
+            ObjectNode serverConfig = objectMapper.createObjectNode();
+
+            serverConfig.put("name", clientConfig.serverName);
+            serverConfig.put("command", clientConfig.javaPath);
+
+            ArrayNode args = objectMapper.createArrayNode();
+            args.add("-jar");
+            args.add(clientConfig.jarPath);
+            serverConfig.set("args", args);
+
+            ObjectNode env = objectMapper.createObjectNode();
+            env.put("DB_URL", clientConfig.dbUrl);
+            env.put("DB_DRIVER", clientConfig.dbDriver);
+            env.put("DB_USER", clientConfig.dbUser);
+            env.put("DB_PASSWORD", clientConfig.dbPassword);
+            serverConfig.set("env", env);
+
+            mcpServers.add(serverConfig);
+            root.set("mcpServers", mcpServers);
+
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate Continue JSON: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generates VS Code-specific JSON format (nested under mcp.servers).
+     */
+    static String generateVSCodeJson(McpClientConfig config) {
+        try {
+            ObjectNode root = objectMapper.createObjectNode();
+            ObjectNode mcp = objectMapper.createObjectNode();
+            ObjectNode servers = objectMapper.createObjectNode();
+
+            ObjectNode serverConfig = createServerConfig(config);
+            servers.set(config.serverName, serverConfig);
+            mcp.set("servers", servers);
+            root.set("mcp", mcp);
+
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate VS Code JSON: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generates Zed-specific JSON format (uses context_servers with source: custom).
+     */
+    static String generateZedJson(McpClientConfig config) {
+        try {
+            ObjectNode root = objectMapper.createObjectNode();
+            ObjectNode contextServers = objectMapper.createObjectNode();
+
+            ObjectNode serverConfig = createServerConfig(config);
+            // Zed requires "source": "custom" for custom servers
+            serverConfig.put("source", "custom");
+
+            contextServers.set(config.serverName, serverConfig);
+            root.set("context_servers", contextServers);
+
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate Zed JSON: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generates Gemini CLI JSON format (standard mcpServers format).
+     */
+    static String generateGeminiCliJson(McpClientConfig config) {
+        // Same as standard MCP format
+        return generateMcpServersJson(config);
+    }
+
+    /**
+     * Generates Claude Code shell command.
+     */
+    static String generateClaudeCodeCommand(McpClientConfig config) {
+        return String.format("""
+               claude mcp add %s -e DB_URL=%s -e DB_DRIVER=%s -e DB_USER=%s -e DB_PASSWORD=%s -- %s -jar %s""",
+                config.serverName,
+                escapeShellString(config.dbUrl),
+                escapeShellString(config.dbDriver),
+                escapeShellString(config.dbUser),
+                escapeShellString(config.dbPassword),
+                escapeShellString(config.javaPath),
+                escapeShellString(config.jarPath)
+        );
+    }
+
+    void saveConfigurationFile(String content, String fileName, ClientType clientType, McpClientConfig config) {
+        // Always write to DEST_DIR first
+        String destPath = DEST_DIR + "/" + fileName;
+
+        if (clientType == ClientType.CLAUDE_CODE) {
+            fileOps.writeFile(destPath, content);
+            inputReader.println("Configuration saved to: " + destPath);
+            return;
+        }
+
+        String configPath = getConfigPath(clientType.configKey);
+        boolean hasExistingConfig = fileOps.fileExists(configPath);
+
+        // Try to merge with existing config if it exists
+        if (hasExistingConfig) {
+            String existingConfig = fileOps.readFile(configPath);
+            if (existingConfig != null && !existingConfig.trim().isEmpty()) {
+                try {
+                    String mergedConfig = mergeConfiguration(existingConfig, config, clientType);
+                    // Always write merged config to DEST_DIR first
+                    fileOps.writeFile(destPath, mergedConfig);
+                    inputReader.println("Configuration merged and saved to: " + destPath);
+
+                    // Ask user if they want to overwrite the actual config file
+                    if (shouldOverwriteActualConfig(configPath)) {
+                        // Create backup before overwriting
+                        fileOps.createBackup(configPath);
+                        fileOps.writeFile(configPath, mergedConfig);
+                        inputReader.println("Actual configuration file updated: " + configPath);
+                        inputReader.println("Backup created for safety.");
+                    }
+                    return;
+                } catch (Exception e) {
+                    inputReader.println("Warning: Could not merge with existing config. Creating standalone version.");
+                }
+            }
+        }
+
+        // Write standalone config to DEST_DIR
+        fileOps.writeFile(destPath, content);
+        inputReader.println("Configuration saved to: " + destPath);
+
+        // If there was an existing config, ask user about overwriting
+        if (hasExistingConfig && shouldOverwriteActualConfig(configPath)) {
+            fileOps.createBackup(configPath);
+            fileOps.writeFile(configPath, content);
+            inputReader.println("Actual configuration file updated: " + configPath);
+            inputReader.println("Backup created for safety.");
+        }
+    }
+
+    /**
+     * Asks user if they want to overwrite the actual configuration file.
+     * Only called AFTER backup is made.
+     */
+    private boolean shouldOverwriteActualConfig(String configPath) {
+        inputReader.println("\nFound existing configuration file at: " + configPath);
+        inputReader.println("Do you want to update the actual configuration file?");
+        inputReader.println("(A backup will be created automatically)");
+        String response = inputReader.readLine("Update actual config file? (y/n): ");
+        return response.toLowerCase().startsWith("y");
+    }
+
+    // Helper methods that can now be tested
+    boolean shouldTestConnection() {
+        return true; // Could be configurable
+    }
+
+    boolean testDatabaseConnection(String url, String driver, String user, String password) {
+        try {
+            Class.forName(driver);
+            try (Connection ignored = DriverManager.getConnection(url, user, password)) {
+                inputReader.println("Successfully connected to database.");
+                return true;
+            }
+        } catch (Exception e) {
+            inputReader.println("Database connection failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    String detectJarPath() {
+        String jarPath = getJar();
+        if (jarPath.contains("CANNOT LOCATE")) {
+            jarPath = inputReader.readLine("Please enter the absolute path to your DBChat JAR file: ");
+        }
+        return jarPath;
+    }
+
+    String detectJavaPath() {
+        String javaPath = getJava();
+        if (javaPath.contains("CANNOT LOCATE")) {
+            javaPath = inputReader.readLine("Please enter the path to your Java executable (or 'java' if in PATH): ");
+            if (javaPath.isEmpty()) javaPath = "java";
+        }
+        return javaPath;
+    }
+
+    void displayClientOptions() {
+        inputReader.println("\nSupported MCP Clients:");
+        inputReader.println("1. Cursor");
+        inputReader.println("2. Windsurf");
+        inputReader.println("3. Claude Desktop");
+        inputReader.println("4. Continue");
+        inputReader.println("5. VS Code");
+        inputReader.println("6. Claude Code (command line)");
+        inputReader.println("7. Gemini CLI (command line)");
+        inputReader.println("8. Zed Editor");
+        inputReader.println("9. Generate all configurations");
+    }
+
+    void generateAllConfigurations(McpClientConfig config) {
+        for (ClientType clientType : ClientType.values()) {
+            if (clientType != ClientType.CLAUDE_CODE) {
+                generateAndSaveConfiguration(config, clientType);
+            }
+        }
+        inputReader.println("\nAll configurations generated successfully!");
+    }
+
+    /**
+     * Attempts to auto-detect the JAR file location using CodeSource.
+     * Falls back to manual entry if detection fails.
+     *
+     * @return Absolute path to the JAR file or error message
+     */
+    static String getJar() {
+        try {
+            CodeSource codeSource = ClientConfig.class.getProtectionDomain().getCodeSource();
+            if (codeSource != null) {
+                File jarFile = new File(codeSource.getLocation().toURI().getPath());
+                return jarFile.getAbsolutePath();
+            } else {
+                return "CANNOT LOCATE JAR FILE - PLEASE LOCATE MANUALLY";
+            }
+        } catch (URISyntaxException e) {
+            System.out.println("Warning: " + e.getMessage());
+            return "CANNOT LOCATE JAR FILE - PLEASE LOCATE MANUALLY";
+        }
+    }
+
+    /**
+     * Attempts to auto-detect the Java executable path.
+     * Uses ProcessHandle to find the current Java process command.
+     *
+     * @return Path to Java executable or error message
+     */
+    static String getJava() {
+        Optional<String> javaCommand = ProcessHandle.current().info().command();
+        return javaCommand.orElse("CANNOT LOCATE JAVA - PLEASE LOCATE MANUALLY");
+    }
+
+    /**
+     * Formats the client type enum name into a user-friendly display name.
+     */
+    static String formatClientName(ClientType clientType) {
+        return clientType.name().charAt(0) +
+               clientType.name().substring(1).toLowerCase().replace("_", " ");
+    }
 
     /**
      * Determines the standard configuration file path for each client on different operating systems.
@@ -876,7 +721,6 @@ public class ClientConfig {
         String appData = System.getenv("APPDATA");
         return getConfigPath(client, os, userHome, appData);
     }
-
 
     /**
      * The version of getConfigPath that accepts OS name and paths as parameters.
@@ -911,19 +755,49 @@ public class ClientConfig {
         }
     }
 
+    static class McpClientConfig {
+        final String dbUrl, dbDriver, dbUser, dbPassword, serverName, jarPath, javaPath;
+
+        McpClientConfig(String dbUrl, String dbDriver, String dbUser, String dbPassword,
+                        String serverName, String jarPath, String javaPath) {
+            this.dbUrl = dbUrl; this.dbDriver = dbDriver; this.dbUser = dbUser;
+            this.dbPassword = dbPassword; this.serverName = serverName;
+            this.jarPath = jarPath; this.javaPath = javaPath;
+        }
+    }
+
+    enum ClientType {
+        CURSOR("cursor", "cursor_mcp.json", true),
+        WINDSURF("windsurf", "windsurf_mcp.json", true),
+        CLAUDE_DESKTOP("claude-desktop", "claude_desktop_config.json", true),
+        CONTINUE("continue", "continue_config.json", false),
+        VSCODE("vscode", "vscode_settings.json", false),
+        CLAUDE_CODE("claude-code", "claude_code_command.sh", false),
+        GEMINI_CLI("gemini-cli", "gemini_cli_settings.json", false),
+        ZED("zed", "zed_settings.json", false);
+
+        final String configKey, fileName;
+        final boolean useStandardMcpFormat;
+
+        ClientType(String configKey, String fileName, boolean useStandardMcpFormat) {
+            this.configKey = configKey; this.fileName = fileName;
+            this.useStandardMcpFormat = useStandardMcpFormat;
+        }
+    }
+
     /**
      * Escapes special characters in shell strings.
      * Basic shell escaping for command generation.
      *
-     * @param str The string to escape
+     * @param inString The string to escape
      * @return Shell-escaped string
      */
-    static String escapeShellString(String str) {
-        if (str == null) return "";
+    static String escapeShellString(String inString) {
+        if (inString == null) return "";
         // Basic shell escaping - wrap in quotes if contains spaces or special chars
-        if (str.contains(" ") || str.contains("&") || str.contains("|") || str.contains(";")) {
-            return "\"" + str.replace("\"", "\\\"") + "\"";
+        if (inString.contains(" ") || inString.contains("&") || inString.contains("|") || inString.contains(";") || inString.contains("\"")) {
+            return "\"" + inString.replace("\"", "\\\"") + "\"";
         }
-        return str;
+        return inString;
     }
 }
