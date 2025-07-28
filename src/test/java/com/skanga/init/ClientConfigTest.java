@@ -524,7 +524,7 @@ class ClientConfigTest {
             String jarPath = ClientConfig.getJar();
             assertNotNull(jarPath);
             // Should either be a valid path or the error message
-            assertTrue(jarPath.contains(".jar") || jarPath.contains("CANNOT LOCATE") || jarPath.contains("target\\classes"));
+            assertTrue(jarPath.contains(".jar") || jarPath.contains("CANNOT LOCATE") || jarPath.contains("target\\classes") || jarPath.contains("target/classes"));
         }
 
         @Test
