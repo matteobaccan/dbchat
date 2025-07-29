@@ -161,8 +161,8 @@ public class CliUtils {
      * Displays help information for command line usage.
      */
     static void displayHelp() {
-        System.out.println(SERVER_NAME);
-        System.out.println("Usage: java -jar dbchat-2.0.6.jar [OPTIONS]");
+        System.out.println(SERVER_NAME + " v" + SERVER_VERSION);
+        System.out.println("Usage: java -jar dbchat-" + SERVER_VERSION + ".jar [OPTIONS]");
         System.out.println();
         System.out.println("ARGUMENT FORMATS:");
         System.out.println("  Both short (-k) and long (--key) forms support:");
@@ -199,17 +199,17 @@ public class CliUtils {
         System.out.println();
         System.out.println("EXAMPLES:");
         System.out.println("  # Different argument formats (all equivalent):");
-        System.out.println("  java -jar dbchat-2.0.6.jar -p=8080");
-        System.out.println("  java -jar dbchat-2.0.6.jar -p 8080");
-        System.out.println("  java -jar dbchat-2.0.6.jar --http_port=8080");
-        System.out.println("  java -jar dbchat-2.0.6.jar --http_port 8080");
+        System.out.println("  java -jar dbchat-" + SERVER_VERSION + ".jar -p=8080");
+        System.out.println("  java -jar dbchat-" + SERVER_VERSION + ".jar -p 8080");
+        System.out.println("  java -jar dbchat-" + SERVER_VERSION + ".jar --http_port=8080");
+        System.out.println("  java -jar dbchat-" + SERVER_VERSION + ".jar --http_port 8080");
         System.out.println();
         System.out.println("  # Mixed formats work together:");
-        System.out.println("  java -jar dbchat-2.0.6.jar -u jdbc:postgresql://localhost/db --db_user=admin -p=9090");
+        System.out.println("  java -jar dbchat-" + SERVER_VERSION + ".jar -u jdbc:postgresql://localhost/db --db_user=admin -p=9090");
         System.out.println();
         System.out.println("  # Boolean flags:");
-        System.out.println("  java -jar dbchat-2.0.6.jar -m          # Same as -m=true");
-        System.out.println("  java -jar dbchat-2.0.6.jar --http_mode # Same as --http_mode=true");
+        System.out.println("  java -jar dbchat-" + SERVER_VERSION + ".jar -m          # Same as -m=true");
+        System.out.println("  java -jar dbchat-" + SERVER_VERSION + ".jar --http_mode # Same as --http_mode=true");
     }
 
     /**
