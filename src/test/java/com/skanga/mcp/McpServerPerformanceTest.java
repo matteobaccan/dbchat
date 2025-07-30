@@ -1,6 +1,9 @@
 package com.skanga.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skanga.mcp.config.ConfigParams;
+import com.skanga.mcp.db.DatabaseService;
+import com.skanga.mcp.db.QueryResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -441,7 +444,7 @@ class McpServerPerformanceTest {
         }
 
         @Override
-        protected Connection getConnection() {
+        public Connection getConnection() {
             return mockConnection;
         }
 

@@ -1,5 +1,6 @@
-package com.skanga.mcp;
+package com.skanga.mcp.config;
 
+import com.skanga.mcp.config.CliUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;

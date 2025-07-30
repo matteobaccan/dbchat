@@ -1,4 +1,4 @@
-package com.skanga.mcp;
+package com.skanga.mcp.db;
 
 /**
  * Represents a database resource (table, view, schema, etc.) that can be accessed through the MCP server.

@@ -1,4 +1,4 @@
-package com.skanga.mcp;
+package com.skanga.mcp.db;
 
 import java.util.List;
 

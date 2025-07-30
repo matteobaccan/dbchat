@@ -490,30 +490,30 @@ class ClientConfigTest {
         @ParameterizedTest
         @MethodSource("configPathTestCases")
         @DisplayName("Should return correct config paths for different OS")
-        void shouldReturnCorrectConfigPathsForDifferentOS(String client, String os, String userHome,
+        void shouldReturnCorrectConfigPathsForDifferentOS(ClientConfig.ClientType clientType, String os, String userHome,
                                                           String appData, String expected) {
-            String result = ClientConfig.getConfigPath(client, os, userHome, appData);
+            String result = ClientConfig.getConfigPath(clientType, os, userHome, appData);
             assertEquals(expected, result);
         }
 
         static Stream<Arguments> configPathTestCases() {
             return Stream.of(
                     // Windows
-                    Arguments.of("cursor", "Windows 10", "C:\\Users\\test", "C:\\Users\\test\\AppData\\Roaming",
+                    Arguments.of(ClientConfig.ClientType.CURSOR, "Windows 10", "C:\\Users\\test", "C:\\Users\\test\\AppData\\Roaming",
                             "C:\\Users\\test\\AppData\\Roaming\\Cursor\\mcp.json"),
-                    Arguments.of("zed", "Windows 11", "C:\\Users\\test", "C:\\Users\\test\\AppData\\Roaming",
+                    Arguments.of(ClientConfig.ClientType.ZED, "Windows 11", "C:\\Users\\test", "C:\\Users\\test\\AppData\\Roaming",
                             "C:\\Users\\test\\AppData\\Roaming\\Zed\\settings.json"),
 
                     // macOS
-                    Arguments.of("cursor", "Mac OS X", "/Users/test", null,
+                    Arguments.of(ClientConfig.ClientType.CURSOR, "Mac OS X", "/Users/test", null,
                             "/Users/test/.cursor/mcp.json"),
-                    Arguments.of("claude-desktop", "macOS", "/Users/test", null,
+                    Arguments.of(ClientConfig.ClientType.CLAUDE_DESKTOP, "macOS", "/Users/test", null,
                             "/Users/test/Library/Application Support/Claude/claude_desktop_config.json"),
 
                     // Linux
-                    Arguments.of("cursor", "Linux", "/home/test", null,
+                    Arguments.of(ClientConfig.ClientType.CURSOR, "Linux", "/home/test", null,
                             "/home/test/.config/cursor/mcp.json"),
-                    Arguments.of("zed", "Ubuntu", "/home/test", null,
+                    Arguments.of(ClientConfig.ClientType.ZED, "Ubuntu", "/home/test", null,
                             "/home/test/.config/zed/settings.json")
             );
         }

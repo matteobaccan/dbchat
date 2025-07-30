@@ -1,4 +1,4 @@
-package com.skanga.mcp;
+package com.skanga.mcp.config;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;

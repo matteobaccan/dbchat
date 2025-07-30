@@ -3,6 +3,9 @@ package com.skanga.mcp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.skanga.mcp.config.ConfigParams;
+import com.skanga.mcp.db.DatabaseService;
+import com.skanga.mcp.db.QueryResult;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;

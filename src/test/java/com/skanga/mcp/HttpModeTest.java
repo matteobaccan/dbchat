@@ -2,6 +2,10 @@ package com.skanga.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skanga.mcp.config.ConfigParams;
+import com.skanga.mcp.db.DatabaseResource;
+import com.skanga.mcp.db.DatabaseService;
+import com.skanga.mcp.db.QueryResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;

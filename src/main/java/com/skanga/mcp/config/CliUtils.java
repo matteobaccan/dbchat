@@ -1,5 +1,6 @@
-package com.skanga.mcp;
+package com.skanga.mcp.config;
 
+import com.skanga.mcp.McpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,9 +17,9 @@ import java.util.*;
  */
 public class CliUtils {
     private static final Logger logger = LoggerFactory.getLogger(CliUtils.class);
-    static final String SERVER_NAME = "DBChat";
-    static final String SERVER_VERSION = "3.0.2";
-    static final String SERVER_DESCRIPTION = "Secure MCP server for database operations";
+    public static final String SERVER_NAME = "DBChat";
+    public static final String SERVER_VERSION = "3.0.2";
+    public static final String SERVER_DESCRIPTION = "Secure MCP server for database operations";
 
     static String DEFAULT_DB_URL = "jdbc:h2:mem:test";
     static String DEFAULT_DB_USER = "sa";
@@ -74,14 +75,14 @@ public class CliUtils {
      * @param args Command line arguments array
      * @return Map of uppercase keys to values
      */
-    static Map<String, String> parseArgs(String[] args) {
+    public static Map<String, String> parseArgs(String[] args) {
         Map<String, String> argsMap = new HashMap<>();
         Map<String, String> shortToLong = getShortFormMapping();
 
         for (int i = 0; i < args.length; i++) {
             String currArg = args[i];
-            String key = null;
-            String value = null;
+            String argKey = null;
+            String argValue = null;
 
             if (currArg.startsWith("--")) {
                 // Long form: --key=value or --key value or --key (for flags)
@@ -90,18 +91,18 @@ public class CliUtils {
                 if (argWithoutPrefix.contains("=")) {
                     // Format: --key=value
                     String[] argParts = argWithoutPrefix.split("=", 2);
-                    key = argParts[0];
-                    value = argParts[1];
+                    argKey = argParts[0];
+                    argValue = argParts[1];
                 } else {
                     // Format: --key value or --key (flag)
-                    key = argWithoutPrefix;
+                    argKey = argWithoutPrefix;
 
                     // Check if next argument is a value (doesn't start with -)
                     if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
-                        value = args[i + 1];
+                        argValue = args[i + 1];
                         i++; // Skip the next argument since we consumed it as a value
                     } else {
-                        value = "true"; // Flag without value
+                        argValue = "true"; // Flag without value
                     }
                 }
             } else if (currArg.startsWith("-") && currArg.length() > 1) {
@@ -112,25 +113,25 @@ public class CliUtils {
                     // Format: -k=value
                     String[] argParts = shortArg.split("=", 2);
                     String shortForm = argParts[0];
-                    key = shortToLong.get(shortForm);
-                    value = argParts[1];
+                    argKey = shortToLong.get(shortForm);
+                    argValue = argParts[1];
                 } else {
                     // Format: -k value or -k (flag)
-                    key = shortToLong.get(shortArg);
+                    argKey = shortToLong.get(shortArg);
 
                     // Check if next argument is a value (doesn't start with -)
                     if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
-                        value = args[i + 1];
+                        argValue = args[i + 1];
                         i++; // Skip the next argument since we consumed it as a value
                     } else {
-                        value = "true"; // Flag without value
+                        argValue = "true"; // Flag without value
                     }
                 }
             }
 
-            if (key != null) {
+            if (argKey != null) {
                 // Convert to uppercase for consistent lookup
-                argsMap.put(key.toUpperCase(), value);
+                argsMap.put(argKey.toUpperCase(), argValue);
             }
         }
 
@@ -143,7 +144,7 @@ public class CliUtils {
      * @param args Command line arguments
      * @return true if help or version was displayed (caller should exit), false otherwise
      */
-    static boolean handleHelpAndVersion(String[] args) {
+    public static boolean handleHelpAndVersion(String[] args) {
         for (String arg : args) {
             if ("--help".equals(arg) || "-h".equals(arg)) {
                 displayHelp();
@@ -306,32 +307,32 @@ public class CliUtils {
      * Returns a map of common JDBC driver classes and their associated database types.
      */
     static Map<String, String> getCommonJdbcDrivers() {
-        Map<String, String> drivers = new LinkedHashMap<>(); // LinkedHashMap to preserve order
+        Map<String, String> allDrivers = new LinkedHashMap<>(); // LinkedHashMap to preserve order
 
         // Most common drivers
-        // TODO: Sync this list with all drivers in the pom.xml in all profiles
-        drivers.put("org.h2.Driver", "H2 Database");
-        drivers.put("org.postgresql.Driver", "PostgreSQL");
-        drivers.put("com.mysql.cj.jdbc.Driver", "MySQL 8.0+");
-        drivers.put("org.mariadb.jdbc.Driver", "MariaDB");
-        drivers.put("com.microsoft.sqlserver.jdbc.SQLServerDriver", "SQL Server");
-        drivers.put("oracle.jdbc.OracleDriver", "Oracle Database");
-        drivers.put("org.sqlite.JDBC", "SQLite");
-        drivers.put("org.relique.jdbc.csv.CsvDriver", "CSV JDBC Driver");
-        drivers.put("com.ibm.db2.jcc.DB2Driver", "IBM DB2");
-        drivers.put("org.hsqldb.jdbc.JDBCDriver", "HSQLDB HyperSQL");
+        // TODO: Sync this list with all drivers in the pom.xml for all profiles
+        allDrivers.put("org.h2.Driver", "H2 Database");
+        allDrivers.put("org.postgresql.Driver", "PostgreSQL");
+        allDrivers.put("com.mysql.cj.jdbc.Driver", "MySQL 8.0+");
+        allDrivers.put("org.mariadb.jdbc.Driver", "MariaDB");
+        allDrivers.put("com.microsoft.sqlserver.jdbc.SQLServerDriver", "SQL Server");
+        allDrivers.put("oracle.jdbc.OracleDriver", "Oracle Database");
+        allDrivers.put("org.sqlite.JDBC", "SQLite");
+        allDrivers.put("org.relique.jdbc.csv.CsvDriver", "CSV JDBC Driver");
+        allDrivers.put("com.ibm.db2.jcc.DB2Driver", "IBM DB2");
+        allDrivers.put("org.hsqldb.jdbc.JDBCDriver", "HSQLDB HyperSQL");
 
-        return drivers;
+        return allDrivers;
     }
 
     /**
      * Attempts to get version information for a JDBC driver.
      */
-    static String getDriverVersionInfo(String driverClass) {
+    static String getDriverVersionInfo(String driverName) {
         try {
-            Driver driver = (Driver) Class.forName(driverClass).getDeclaredConstructor().newInstance();
-            int majorVersion = driver.getMajorVersion();
-            int minorVersion = driver.getMinorVersion();
+            Driver driverClass = (Driver) Class.forName(driverName).getDeclaredConstructor().newInstance();
+            int majorVersion = driverClass.getMajorVersion();
+            int minorVersion = driverClass.getMinorVersion();
             return String.format(" v%d.%d", majorVersion, minorVersion);
         } catch (Exception e) {
             return ""; // Return empty string if version can't be determined
@@ -348,7 +349,7 @@ public class CliUtils {
      * @throws IOException if config file cannot be read
      * @throws NumberFormatException if numeric parameters cannot be parsed
      */
-    static ConfigParams loadConfiguration(String[] args) throws IOException {
+    public static ConfigParams loadConfiguration(String[] args) throws IOException {
         Map<String, String> cliArgs = parseArgs(args);
 
         // Load config file if specified
@@ -397,7 +398,7 @@ public class CliUtils {
      * @param args Command line arguments
      * @return true if HTTP mode is enabled, false for stdio mode
      */
-    static boolean isHttpMode(String[] args) {
+    public static boolean isHttpMode(String[] args) {
         Map<String, String> cliArgs = parseArgs(args);
         String httpMode = getConfigValue("HTTP_MODE", "false", cliArgs, null);
         return Boolean.parseBoolean(httpMode);
@@ -409,7 +410,7 @@ public class CliUtils {
      * @param args Command line arguments
      * @return Bind address for HTTP mode (default: "localhost")
      */
-    static String getBindAddress(String[] args) {
+    public static String getBindAddress(String[] args) {
         Map<String, String> cliArgs = parseArgs(args);
         return getConfigValue("BIND_ADDRESS", "localhost", cliArgs, null);
     }
@@ -420,7 +421,7 @@ public class CliUtils {
      * @param args Command line arguments
      * @return Port number for HTTP mode (default: 8080)
      */
-    static int getHttpPort(String[] args) {
+    public static int getHttpPort(String[] args) {
         Map<String, String> cliArgs = parseArgs(args);
         String httpPort = getConfigValue("HTTP_PORT", "8080", cliArgs, null);
         return Integer.parseInt(httpPort);
@@ -476,7 +477,7 @@ public class CliUtils {
      * @return Map of configuration key-value pairs
      * @throws IOException if the file cannot be read
      */
-    static Map<String, String> loadConfigFile(String configFilePath) throws IOException {
+    public static Map<String, String> loadConfigFile(String configFilePath) throws IOException {
         Map<String, String> configMap = new HashMap<>();
 
         try (BufferedReader bufferedReader = new BufferedReader(new FileReader(configFilePath))) {

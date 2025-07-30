@@ -58,18 +58,18 @@ public class ClientConfig {
 
     // Simple implementations
     static class DefaultFileOperations implements FileOperations {
-        public String readFile(String path) {
+        public String readFile(String filePath) {
             try {
-                return Files.readString(Paths.get(path));
+                return Files.readString(Paths.get(filePath));
             } catch (IOException e) {
                 return null;
             }
         }
 
-        public void writeFile(String path, String content) {
+        public void writeFile(String filePath, String fileContent) {
             try {
-                Files.createDirectories(Paths.get(path).getParent());
-                Files.write(Paths.get(path), content.getBytes());
+                Files.createDirectories(Paths.get(filePath).getParent());
+                Files.write(Paths.get(filePath), fileContent.getBytes());
             } catch (IOException e) {
                 throw new RuntimeException("Failed to write file: " + e.getMessage(), e);
             }
@@ -81,30 +81,30 @@ public class ClientConfig {
 
         public void createBackup(String originalPath) {
             try {
-                Path original = Paths.get(originalPath);
-                if (!Files.exists(original)) {
+                Path origPath = Paths.get(originalPath);
+                if (!Files.exists(origPath)) {
                     return; // No file to backup
                 }
 
                 // Create timestamp for backup filename
                 LocalDateTime now = LocalDateTime.now();
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-                String timestamp = now.format(formatter);
+                DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+                String formattedTimestamp = now.format(timeFormatter);
 
                 // Create backup filename
-                String originalFilename = original.getFileName().toString();
+                String originalFilename = origPath.getFileName().toString();
                 String backupFilename;
                 int dotIndex = originalFilename.lastIndexOf('.');
                 if (dotIndex > 0) {
                     String name = originalFilename.substring(0, dotIndex);
                     String extension = originalFilename.substring(dotIndex);
-                    backupFilename = name + "_backup_" + timestamp + extension;
+                    backupFilename = name + "_backup_" + formattedTimestamp + extension;
                 } else {
-                    backupFilename = originalFilename + "_backup_" + timestamp;
+                    backupFilename = originalFilename + "_backup_" + formattedTimestamp;
                 }
 
-                Path backupPath = original.getParent().resolve(backupFilename);
-                Files.copy(original, backupPath);
+                Path backupPath = origPath.getParent().resolve(backupFilename);
+                Files.copy(origPath, backupPath);
                 System.out.println("Backup created: " + backupPath.toAbsolutePath());
             } catch (IOException e) {
                 System.out.println("Warning: Could not create backup: " + e.getMessage());
@@ -113,33 +113,33 @@ public class ClientConfig {
     }
 
     static class ConsoleInputReader implements UserInputReader {
-        private final Scanner scanner;
+        private final Scanner inputScanner;
 
         public ConsoleInputReader() {
             this(new Scanner(System.in));
         }
 
-        ConsoleInputReader(Scanner scanner) {
-            this.scanner = scanner;
+        ConsoleInputReader(Scanner inputScanner) {
+            this.inputScanner = inputScanner;
         }
 
-        public String readLine(String prompt) {
-            System.out.print(prompt);
-            return scanner.nextLine().trim();
+        public String readLine(String promptStr) {
+            System.out.print(promptStr);
+            return inputScanner.nextLine().trim();
         }
 
-        public int readInt(String prompt) {
+        public int readInt(String promptStr) {
             while (true) {
                 try {
-                    return Integer.parseInt(readLine(prompt));
+                    return Integer.parseInt(readLine(promptStr));
                 } catch (NumberFormatException e) {
                     println("Please enter a valid number.");
                 }
             }
         }
 
-        public void println(String message) {
-            System.out.println(message);
+        public void println(String messageStr) {
+            System.out.println(messageStr);
         }
     }
 
@@ -195,18 +195,17 @@ public class ClientConfig {
     ClientType selectClient() {
         displayClientOptions();
 
-        int choice = inputReader.readInt("Select your MCP client (1-9): ");
-        while (choice < 1 || choice > 9) {
+        int inputChoice = inputReader.readInt("Select your MCP client (1-9): ");
+        while (inputChoice < 1 || inputChoice > 9) {
             inputReader.println("Please enter a number between 1 and 9.");
-            choice = inputReader.readInt("Select your MCP client (1-9): ");
+            inputChoice = inputReader.readInt("Select your MCP client (1-9): ");
         }
 
-        return getClientTypeFromChoice(choice);
+        return getClientTypeFromChoice(inputChoice);
     }
 
-    // Pure function - easily testable
-    ClientType getClientTypeFromChoice(int choice) {
-        return switch (choice) {
+    ClientType getClientTypeFromChoice(int userChoice) {
+        return switch (userChoice) {
             case 1 -> ClientType.CURSOR;
             case 2 -> ClientType.WINDSURF;
             case 3 -> ClientType.CLAUDE_DESKTOP;
@@ -216,7 +215,7 @@ public class ClientConfig {
             case 7 -> ClientType.GEMINI_CLI;
             case 8 -> ClientType.ZED;
             case 9 -> null; // Special case for "all"
-            default -> throw new IllegalArgumentException("Invalid choice: " + choice);
+            default -> throw new IllegalArgumentException("Invalid choice: " + userChoice);
         };
     }
 
@@ -267,22 +266,22 @@ public class ClientConfig {
      * Uses Jackson for safe JSON manipulation instead of regex.
      *
      * @param existingConfig The existing configuration JSON as string
-     * @param config The new server configuration to merge
+     * @param clientConfig The new server configuration to merge
      * @param clientType The type of client (determines merge strategy)
      * @return Merged configuration as JSON string
      */
-    static String mergeConfiguration(String existingConfig, McpClientConfig config, ClientType clientType) {
+    static String mergeConfiguration(String existingConfig, McpClientConfig clientConfig, ClientType clientType) {
         try {
             JsonNode existingJson = objectMapper.readTree(existingConfig);
             JsonNode mergedJson = switch (clientType) {
                 case CURSOR, WINDSURF, CLAUDE_DESKTOP, GEMINI_CLI ->
-                        mergeStandardMcpConfig(existingJson, config);
+                        mergeStandardMcpConfig(existingJson, clientConfig);
                 case ZED ->
-                        mergeZedConfig(existingJson, config);
+                        mergeZedConfig(existingJson, clientConfig);
                 case VSCODE ->
-                        mergeVSCodeConfig(existingJson, config);
+                        mergeVSCodeConfig(existingJson, clientConfig);
                 case CONTINUE ->
-                        mergeContinueConfig(existingJson, config);
+                        mergeContinueConfig(existingJson, clientConfig);
                 default -> existingJson;
             };
 
@@ -296,30 +295,30 @@ public class ClientConfig {
      * Merges configuration for standard MCP format clients.
      * Adds to or creates the mcpServers object.
      */
-    static JsonNode mergeStandardMcpConfig(JsonNode existingJson, McpClientConfig config) {
-        ObjectNode root = (ObjectNode) existingJson;
+    static JsonNode mergeStandardMcpConfig(JsonNode existingJson, McpClientConfig clientConfig) {
+        ObjectNode rootNode = (ObjectNode) existingJson;
 
         // Get or create mcpServers object
         ObjectNode mcpServers;
-        if (root.has("mcpServers")) {
-            mcpServers = (ObjectNode) root.get("mcpServers");
+        if (rootNode.has("mcpServers")) {
+            mcpServers = (ObjectNode) rootNode.get("mcpServers");
         } else {
             mcpServers = objectMapper.createObjectNode();
-            root.set("mcpServers", mcpServers);
+            rootNode.set("mcpServers", mcpServers);
         }
 
         // Create and add server configuration
-        ObjectNode serverConfig = createServerConfig(config);
-        mcpServers.set(config.serverName, serverConfig);
+        ObjectNode serverConfig = createServerConfig(clientConfig);
+        mcpServers.set(clientConfig.serverName, serverConfig);
 
-        return root;
+        return rootNode;
     }
 
     /**
      * Merges configuration for Zed editor format.
      * Adds to or creates the context_servers object.
      */
-    static JsonNode mergeZedConfig(JsonNode existingJson, McpClientConfig config) {
+    static JsonNode mergeZedConfig(JsonNode existingJson, McpClientConfig clientConfig) {
         ObjectNode root = (ObjectNode) existingJson;
 
         // Get or create context_servers object
@@ -332,10 +331,10 @@ public class ClientConfig {
         }
 
         // Create server configuration with Zed-specific properties
-        ObjectNode serverConfig = createServerConfig(config);
+        ObjectNode serverConfig = createServerConfig(clientConfig);
         serverConfig.put("source", "custom");
 
-        contextServers.set(config.serverName, serverConfig);
+        contextServers.set(clientConfig.serverName, serverConfig);
 
         return root;
     }
@@ -344,7 +343,7 @@ public class ClientConfig {
      * Merges configuration for VS Code format.
      * Adds to or creates the mcp.servers object hierarchy.
      */
-    static JsonNode mergeVSCodeConfig(JsonNode existingJson, McpClientConfig config) {
+    static JsonNode mergeVSCodeConfig(JsonNode existingJson, McpClientConfig clientConfig) {
         ObjectNode root = (ObjectNode) existingJson;
 
         // Get or create mcp object
@@ -366,8 +365,8 @@ public class ClientConfig {
         }
 
         // Create and add server configuration
-        ObjectNode serverConfig = createServerConfig(config);
-        servers.set(config.serverName, serverConfig);
+        ObjectNode serverConfig = createServerConfig(clientConfig);
+        servers.set(clientConfig.serverName, serverConfig);
 
         return root;
     }
@@ -376,7 +375,7 @@ public class ClientConfig {
      * Merges configuration for Continue format.
      * Adds to the mcpServers array.
      */
-    static JsonNode mergeContinueConfig(JsonNode existingJson, McpClientConfig config) {
+    static JsonNode mergeContinueConfig(JsonNode existingJson, McpClientConfig clientConfig) {
         ObjectNode root = (ObjectNode) existingJson;
 
         // Get or create mcpServers array
@@ -390,19 +389,19 @@ public class ClientConfig {
 
         // Create server configuration
         ObjectNode serverConfig = objectMapper.createObjectNode();
-        serverConfig.put("name", config.serverName);
-        serverConfig.put("command", config.javaPath);
+        serverConfig.put("name", clientConfig.serverName);
+        serverConfig.put("command", clientConfig.javaPath);
 
         ArrayNode args = objectMapper.createArrayNode();
         args.add("-jar");
-        args.add(config.jarPath);
+        args.add(clientConfig.jarPath);
         serverConfig.set("args", args);
 
         ObjectNode env = objectMapper.createObjectNode();
-        env.put("DB_URL", config.dbUrl);
-        env.put("DB_DRIVER", config.dbDriver);
-        env.put("DB_USER", config.dbUser);
-        env.put("DB_PASSWORD", config.dbPassword);
+        env.put("DB_URL", clientConfig.dbUrl);
+        env.put("DB_DRIVER", clientConfig.dbDriver);
+        env.put("DB_USER", clientConfig.dbUser);
+        env.put("DB_PASSWORD", clientConfig.dbPassword);
         serverConfig.set("env", env);
 
         // Add server to array
@@ -411,14 +410,14 @@ public class ClientConfig {
         return root;
     }
 
-    public String generateConfigurationContent(McpClientConfig config, ClientType clientType) {
+    public String generateConfigurationContent(McpClientConfig clientConfig, ClientType clientType) {
         return switch (clientType) {
-            case CURSOR, WINDSURF, CLAUDE_DESKTOP -> generateMcpServersJson(config);
-            case CONTINUE -> generateContinueJson(config);
-            case VSCODE -> generateVSCodeJson(config);
-            case CLAUDE_CODE -> generateClaudeCodeCommand(config);
-            case GEMINI_CLI -> generateGeminiCliJson(config);
-            case ZED -> generateZedJson(config);
+            case CURSOR, WINDSURF, CLAUDE_DESKTOP -> generateMcpServersJson(clientConfig);
+            case CONTINUE -> generateContinueJson(clientConfig);
+            case VSCODE -> generateVSCodeJson(clientConfig);
+            case CLAUDE_CODE -> generateClaudeCodeCommand(clientConfig);
+            case GEMINI_CLI -> generateGeminiCliJson(clientConfig);
+            case ZED -> generateZedJson(clientConfig);
         };
     }
 
@@ -487,14 +486,14 @@ public class ClientConfig {
     /**
      * Generates VS Code-specific JSON format (nested under mcp.servers).
      */
-    static String generateVSCodeJson(McpClientConfig config) {
+    static String generateVSCodeJson(McpClientConfig clientConfig) {
         try {
             ObjectNode root = objectMapper.createObjectNode();
             ObjectNode mcp = objectMapper.createObjectNode();
             ObjectNode servers = objectMapper.createObjectNode();
 
-            ObjectNode serverConfig = createServerConfig(config);
-            servers.set(config.serverName, serverConfig);
+            ObjectNode serverConfig = createServerConfig(clientConfig);
+            servers.set(clientConfig.serverName, serverConfig);
             mcp.set("servers", servers);
             root.set("mcp", mcp);
 
@@ -507,16 +506,16 @@ public class ClientConfig {
     /**
      * Generates Zed-specific JSON format (uses context_servers with source: custom).
      */
-    static String generateZedJson(McpClientConfig config) {
+    static String generateZedJson(McpClientConfig clientConfig) {
         try {
             ObjectNode root = objectMapper.createObjectNode();
             ObjectNode contextServers = objectMapper.createObjectNode();
 
-            ObjectNode serverConfig = createServerConfig(config);
+            ObjectNode serverConfig = createServerConfig(clientConfig);
             // Zed requires "source": "custom" for custom servers
             serverConfig.put("source", "custom");
 
-            contextServers.set(config.serverName, serverConfig);
+            contextServers.set(clientConfig.serverName, serverConfig);
             root.set("context_servers", contextServers);
 
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
@@ -528,28 +527,28 @@ public class ClientConfig {
     /**
      * Generates Gemini CLI JSON format (standard mcpServers format).
      */
-    static String generateGeminiCliJson(McpClientConfig config) {
+    static String generateGeminiCliJson(McpClientConfig clientConfig) {
         // Same as standard MCP format
-        return generateMcpServersJson(config);
+        return generateMcpServersJson(clientConfig);
     }
 
     /**
      * Generates Claude Code shell command.
      */
-    static String generateClaudeCodeCommand(McpClientConfig config) {
+    static String generateClaudeCodeCommand(McpClientConfig clientConfig) {
         return String.format("""
                claude mcp add %s -e DB_URL=%s -e DB_DRIVER=%s -e DB_USER=%s -e DB_PASSWORD=%s -- %s -jar %s""",
-                config.serverName,
-                escapeShellString(config.dbUrl),
-                escapeShellString(config.dbDriver),
-                escapeShellString(config.dbUser),
-                escapeShellString(config.dbPassword),
-                escapeShellString(config.javaPath),
-                escapeShellString(config.jarPath)
+                clientConfig.serverName,
+                escapeShellString(clientConfig.dbUrl),
+                escapeShellString(clientConfig.dbDriver),
+                escapeShellString(clientConfig.dbUser),
+                escapeShellString(clientConfig.dbPassword),
+                escapeShellString(clientConfig.javaPath),
+                escapeShellString(clientConfig.jarPath)
         );
     }
 
-    void saveConfigurationFile(String content, String fileName, ClientType clientType, McpClientConfig config) {
+    void saveConfigurationFile(String content, String fileName, ClientType clientType, McpClientConfig clientConfig) {
         // Always write to DEST_DIR first
         String destPath = DEST_DIR + "/" + fileName;
 
@@ -559,7 +558,7 @@ public class ClientConfig {
             return;
         }
 
-        String configPath = getConfigPath(clientType.configKey);
+        String configPath = getConfigPath(clientType);
         boolean hasExistingConfig = fileOps.fileExists(configPath);
 
         // Try to merge with existing config if it exists
@@ -567,7 +566,7 @@ public class ClientConfig {
             String existingConfig = fileOps.readFile(configPath);
             if (existingConfig != null && !existingConfig.trim().isEmpty()) {
                 try {
-                    String mergedConfig = mergeConfiguration(existingConfig, config, clientType);
+                    String mergedConfig = mergeConfiguration(existingConfig, clientConfig, clientType);
                     // Always write merged config to DEST_DIR first
                     fileOps.writeFile(destPath, mergedConfig);
                     inputReader.println("Configuration merged and saved to: " + destPath);
@@ -660,10 +659,10 @@ public class ClientConfig {
         inputReader.println("9. Generate all configurations");
     }
 
-    void generateAllConfigurations(McpClientConfig config) {
+    void generateAllConfigurations(McpClientConfig clientConfig) {
         for (ClientType clientType : ClientType.values()) {
             if (clientType != ClientType.CLAUDE_CODE) {
-                generateAndSaveConfiguration(config, clientType);
+                generateAndSaveConfiguration(clientConfig, clientType);
             }
         }
         inputReader.println("\nAll configurations generated successfully!");
@@ -712,45 +711,45 @@ public class ClientConfig {
     /**
      * Determines the standard configuration file path for each client on different operating systems.
      *
-     * @param client The client identifier (cursor, zed, etc.)
+     * @param clientType The client type (cursor, zed, etc.)
      * @return Full path to the configuration file
      */
-    static String getConfigPath(String client) {
+    static String getConfigPath(ClientConfig.ClientType clientType) {
         String os = System.getProperty("os.name");
         String userHome = System.getProperty("user.home");
         String appData = System.getenv("APPDATA");
-        return getConfigPath(client, os, userHome, appData);
+        return getConfigPath(clientType, os, userHome, appData);
     }
 
     /**
      * The version of getConfigPath that accepts OS name and paths as parameters.
      * This allows testing without mocking System methods.
      */
-    static String getConfigPath(String client, String osName, String userHome, String appData) {
+    static String getConfigPath(ClientConfig.ClientType clientType, String osName, String userHome, String appData) {
         if (osName.toLowerCase().contains("win")) {
-            return switch (client) {
-                case "cursor" -> appData + "\\Cursor\\mcp.json";
-                case "windsurf" -> appData + "\\Windsurf\\mcp.json";
-                case "claude-desktop" -> appData + "\\Claude\\claude_desktop_config.json";
-                case "zed" -> appData + "\\Zed\\settings.json";
-                default -> appData + "\\" + client + "\\config.json";
+            return switch (clientType) {
+                case CURSOR -> appData + "\\Cursor\\mcp.json";
+                case WINDSURF -> appData + "\\Windsurf\\mcp.json";
+                case CLAUDE_DESKTOP -> appData + "\\Claude\\claude_desktop_config.json";
+                case ZED -> appData + "\\Zed\\settings.json";
+                default -> appData + "\\" + clientType.configKey + "\\config.json";
             };
         } else if (osName.toLowerCase().contains("mac")) {
-            return switch (client) {
-                case "cursor" -> userHome + "/.cursor/mcp.json";
-                case "windsurf" -> userHome + "/.windsurf/mcp.json";
-                case "claude-desktop" -> userHome + "/Library/Application Support/Claude/claude_desktop_config.json";
-                case "zed" -> userHome + "/.config/zed/settings.json";
-                default -> userHome + "/." + client + "/config.json";
+            return switch (clientType) {
+                case CURSOR -> userHome + "/.cursor/mcp.json";
+                case WINDSURF -> userHome + "/.windsurf/mcp.json";
+                case CLAUDE_DESKTOP -> userHome + "/Library/Application Support/Claude/claude_desktop_config.json";
+                case ZED -> userHome + "/.config/zed/settings.json";
+                default -> userHome + "/." + clientType.configKey + "/config.json";
             };
         } else {
             // Linux and other Unix-like systems
-            return switch (client) {
-                case "cursor" -> userHome + "/.config/cursor/mcp.json";
-                case "windsurf" -> userHome + "/.config/windsurf/mcp.json";
-                case "claude-desktop" -> userHome + "/.config/claude/claude_desktop_config.json";
-                case "zed" -> userHome + "/.config/zed/settings.json";
-                default -> userHome + "/.config/" + client + "/config.json";
+            return switch (clientType) {
+                case CURSOR -> userHome + "/.config/cursor/mcp.json";
+                case WINDSURF -> userHome + "/.config/windsurf/mcp.json";
+                case CLAUDE_DESKTOP -> userHome + "/.config/claude/claude_desktop_config.json";
+                case ZED -> userHome + "/.config/zed/settings.json";
+                default -> userHome + "/.config/" + clientType.configKey + "/config.json";
             };
         }
     }

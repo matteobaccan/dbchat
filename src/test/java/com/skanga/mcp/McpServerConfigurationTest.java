@@ -1,5 +1,7 @@
 package com.skanga.mcp;
 
+import com.skanga.mcp.config.CliUtils;
+import com.skanga.mcp.config.ConfigParams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
@@ -143,9 +145,7 @@ class McpServerConfigurationTest {
 
         // Capture both exit code and output
         int exitCode = catchSystemExit(() -> {
-            String errorOutput = tapSystemErr(() -> {
-                McpServer.main(args);
-            });
+            String errorOutput = tapSystemErr(() -> McpServer.main(args));
 
             // Verify error message
             assertTrue(errorOutput.contains("CONFIGURATION ERROR") ||
@@ -157,7 +157,7 @@ class McpServerConfigurationTest {
     }
 
     @Test
-    void testMainMethod_StdioModeSuccess() throws Exception {
+    void testMainMethod_StdioModeSuccess() {
         String[] args = {"--http_mode=false", "--db_url=jdbc:h2:mem:testdb", "--db_driver=org.h2.Driver"};
 
         // Create input that sends a proper JSON-RPC request and then closes

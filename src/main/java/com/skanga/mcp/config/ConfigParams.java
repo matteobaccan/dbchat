@@ -1,4 +1,4 @@
-package com.skanga.mcp;
+package com.skanga.mcp.config;
 
 /**
  * Database configuration holder that encapsulates all database connection and operational parameters.

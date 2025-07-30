@@ -27,84 +27,84 @@ class Config {
     public final String dbUser;
     public final String dbPassword;
     public final String dbDriver;
-    public final String schema;
-    public final int employees;
-    public final int customers;
-    public final int orders;
-    public final int warehouses;
-    public final int suppliers;
+    public final String schemaName;
+    public final int employeesTable;
+    public final int customersTable;
+    public final int ordersTable;
+    public final int warehousesTable;
+    public final int suppliersTable;
 
-    public Config(String dbUrl, String dbDriver, String dbUser, String dbPassword, String schema,
-                  int employees, int customers, int orders, int warehouses, int suppliers) {
+    public Config(String dbUrl, String dbDriver, String dbUser, String dbPassword, String schemaName,
+                  int employeesTable, int customersTable, int ordersTable, int warehousesTable, int suppliersTable) {
         this.dbUrl = dbUrl;
         this.dbDriver = dbDriver;
         this.dbUser = dbUser;
         this.dbPassword = dbPassword;
-        this.schema = schema;
-        this.employees = employees;
-        this.customers = customers;
-        this.orders = orders;
-        this.warehouses = warehouses;
-        this.suppliers = suppliers;
+        this.schemaName = schemaName;
+        this.employeesTable = employeesTable;
+        this.customersTable = customersTable;
+        this.ordersTable = ordersTable;
+        this.warehousesTable = warehousesTable;
+        this.suppliersTable = suppliersTable;
     }
 }
 
 // Simple database helper
 class DatabaseHelper {
-    private final Connection connection;
+    private final Connection dbConnection;
     private final boolean supportsForeignKeys;
 
-    public DatabaseHelper(Connection connection) throws SQLException {
-        this.connection = connection;
-        String dbName = connection.getMetaData().getDatabaseProductName().toLowerCase();
+    public DatabaseHelper(Connection dbConnection) throws SQLException {
+        this.dbConnection = dbConnection;
+        String dbName = dbConnection.getMetaData().getDatabaseProductName().toLowerCase();
         this.supportsForeignKeys = !dbName.contains("sqlite");
     }
 
-    public void executeSQL(String sql) throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(sql);
-            System.out.println("Executed: " + getDescription(sql));
+    public void executeSQL(String sqlString) throws SQLException {
+        try (Statement sqlStatement = dbConnection.createStatement()) {
+            sqlStatement.execute(sqlString);
+            System.out.println("Executed: " + getDescription(sqlString));
         }
     }
 
-    public void executeBatch(String sql, List<Object[]> data) throws SQLException {
-        if (data.isEmpty()) return;
+    public void executeBatch(String sqlString, List<Object[]> allData) throws SQLException {
+        if (allData.isEmpty()) return;
 
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            for (Object[] row : data) {
-                for (int i = 0; i < row.length; i++) {
-                    stmt.setObject(i + 1, row[i]);
+        try (PreparedStatement preparedStatement = dbConnection.prepareStatement(sqlString)) {
+            for (Object[] rowObject : allData) {
+                for (int i = 0; i < rowObject.length; i++) {
+                    preparedStatement.setObject(i + 1, rowObject[i]);
                 }
-                stmt.addBatch();
+                preparedStatement.addBatch();
             }
-            stmt.executeBatch();
+            preparedStatement.executeBatch();
         }
     }
 
-    public int getCount(String table) throws SQLException {
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + table)) {
-            return rs.next() ? rs.getInt(1) : 0;
+    public int getCount(String dbTable) throws SQLException {
+        try (Statement sqlStatement = dbConnection.createStatement();
+             ResultSet resultSet = sqlStatement.executeQuery("SELECT COUNT(*) FROM " + dbTable)) {
+            return resultSet.next() ? resultSet.getInt(1) : 0;
         }
     }
 
-    public boolean columnExists(String table, String column) throws SQLException {
-        DatabaseMetaData meta = connection.getMetaData();
-        try (ResultSet rs = meta.getColumns(null, null, table.toUpperCase(), column.toUpperCase())) {
-            return rs.next();
+    public boolean columnExists(String dbTable, String columnName) throws SQLException {
+        DatabaseMetaData metaData = dbConnection.getMetaData();
+        try (ResultSet resultSet = metaData.getColumns(null, null, dbTable.toUpperCase(), columnName.toUpperCase())) {
+            return resultSet.next();
         }
     }
 
-    public String fk(String constraint) {
-        return supportsForeignKeys ? ",\n    " + constraint : "";
+    public String getForeignKey(String fkConstraint) {
+        return supportsForeignKeys ? ",\n    " + fkConstraint : "";
     }
 
-    private String getDescription(String sql) {
-        sql = sql.trim().toUpperCase();
-        if (sql.startsWith("CREATE TABLE")) {
-            return "CREATE TABLE " + sql.split("\\s+")[2];
-        } else if (sql.startsWith("DROP TABLE")) {
-            return "DROP TABLE " + (sql.contains("IF EXISTS") ? sql.split("\\s+")[4] : sql.split("\\s+")[2]);
+    private String getDescription(String sqlString) {
+        sqlString = sqlString.trim().toUpperCase();
+        if (sqlString.startsWith("CREATE TABLE")) {
+            return "CREATE TABLE " + sqlString.split("\\s+")[2];
+        } else if (sqlString.startsWith("DROP TABLE")) {
+            return "DROP TABLE " + (sqlString.contains("IF EXISTS") ? sqlString.split("\\s+")[4] : sqlString.split("\\s+")[2]);
         }
         return "SQL statement";
     }
@@ -112,29 +112,29 @@ class DatabaseHelper {
 
 // Main generator class
 public class SchemaGenerator {
-    private final Connection connection;
-    private final DatabaseHelper db;
-    private final Faker faker;
-    private final Config config;
-    private final Random random = new Random();
+    private final Connection dbConnection;
+    private final DatabaseHelper dbHelper;
+    private final Faker dbFaker;
+    private final Config dbConfig;
+    private final Random randomGen = new Random();
 
-    public SchemaGenerator(Config config) throws SQLException, ClassNotFoundException {
-        this.config = config;
-        Class.forName(config.dbDriver);
-        this.connection = DriverManager.getConnection(config.dbUrl, config.dbUser, config.dbPassword);
-        this.db = new DatabaseHelper(connection);
-        this.faker = new Faker();
+    public SchemaGenerator(Config dbConfig) throws SQLException, ClassNotFoundException {
+        this.dbConfig = dbConfig;
+        Class.forName(dbConfig.dbDriver);
+        this.dbConnection = DriverManager.getConnection(dbConfig.dbUrl, dbConfig.dbUser, dbConfig.dbPassword);
+        this.dbHelper = new DatabaseHelper(dbConnection);
+        this.dbFaker = new Faker();
 
-        System.out.println("Connected to: " + connection.getMetaData().getDatabaseProductName());
+        System.out.println("Connected to: " + dbConnection.getMetaData().getDatabaseProductName());
     }
 
-    public void generate() throws SQLException {
-        switch (config.schema.toLowerCase()) {
+    public void generateSchema() throws SQLException {
+        switch (dbConfig.schemaName.toLowerCase()) {
             case "hr" -> generateHR();
             case "sales" -> generateSales();
             case "inventory" -> generateInventory();
             case "combined" -> generateCombined();
-            default -> throw new IllegalArgumentException("Unknown schema: " + config.schema);
+            default -> throw new IllegalArgumentException("Unknown schema: " + dbConfig.schemaName);
         }
         showResults();
     }
@@ -145,7 +145,7 @@ public class SchemaGenerator {
 
         dropTables("dependents", "employees", "departments", "jobs");
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE jobs (
                     job_id INT PRIMARY KEY,
                     job_title VARCHAR(100) NOT NULL,
@@ -153,14 +153,14 @@ public class SchemaGenerator {
                     max_salary DECIMAL(10,2)
                 )""");
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE departments (
                     department_id INT PRIMARY KEY,
                     department_name VARCHAR(100) NOT NULL,
                     manager_name VARCHAR(100)
                 )""");
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE employees (
                             employee_id INT PRIMARY KEY,
                             first_name VARCHAR(50) NOT NULL,
@@ -173,12 +173,12 @@ public class SchemaGenerator {
                             manager_id INT,
                             department_id INT%s%s
                         )""",
-                db.fk("FOREIGN KEY (job_id) REFERENCES jobs(job_id)"),
-                db.fk("FOREIGN KEY (manager_id) REFERENCES employees(employee_id)"),
-                db.fk("FOREIGN KEY (department_id) REFERENCES departments(department_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (job_id) REFERENCES jobs(job_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (manager_id) REFERENCES employees(employee_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (department_id) REFERENCES departments(department_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE dependents (
                             dependent_id INT PRIMARY KEY,
                             first_name VARCHAR(50) NOT NULL,
@@ -186,7 +186,7 @@ public class SchemaGenerator {
                             relationship VARCHAR(50) NOT NULL,
                             employee_id INT%s
                         )""",
-                db.fk("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
         ));
 
         populateJobs();
@@ -201,13 +201,13 @@ public class SchemaGenerator {
 
         dropTables("order_items", "orders", "customers", "products", "categories");
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE categories (
                     category_id INT PRIMARY KEY,
                     category_name VARCHAR(100) NOT NULL
                 )""");
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE products (
                             product_id INT PRIMARY KEY,
                             product_name VARCHAR(200) NOT NULL,
@@ -215,10 +215,10 @@ public class SchemaGenerator {
                             unit_price DECIMAL(10,2) NOT NULL,
                             units_in_stock INT DEFAULT 0
                         )""",
-                db.fk("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
         ));
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE customers (
                     customer_id INT PRIMARY KEY,
                     company_name VARCHAR(200),
@@ -232,7 +232,7 @@ public class SchemaGenerator {
                     country VARCHAR(100)
                 )""");
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE orders (
                             order_id INT PRIMARY KEY,
                             customer_id INT NOT NULL%s,
@@ -240,10 +240,10 @@ public class SchemaGenerator {
                             total_amount DECIMAL(12,2),
                             status VARCHAR(20) DEFAULT 'Pending'
                         )""",
-                db.fk("FOREIGN KEY (customer_id) REFERENCES customers(customer_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (customer_id) REFERENCES customers(customer_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE order_items (
                             order_item_id INT PRIMARY KEY,
                             order_id INT NOT NULL%s,
@@ -251,8 +251,8 @@ public class SchemaGenerator {
                             quantity INT NOT NULL,
                             unit_price DECIMAL(10,2) NOT NULL
                         )""",
-                db.fk("FOREIGN KEY (order_id) REFERENCES orders(order_id)"),
-                db.fk("FOREIGN KEY (product_id) REFERENCES products(product_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (order_id) REFERENCES orders(order_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)")
         ));
 
         populateCategories();
@@ -268,23 +268,23 @@ public class SchemaGenerator {
 
         dropTables("inventory", "warehouses", "suppliers", "categories", "products");
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE categories (
                     category_id INT PRIMARY KEY,
                     category_name VARCHAR(100) NOT NULL
                 )""");
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE products (
                             product_id INT PRIMARY KEY,
                             product_name VARCHAR(200) NOT NULL,
                             category_id INT%s,
                             unit_price DECIMAL(10,2) NOT NULL
                         )""",
-                db.fk("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
         ));
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE warehouses (
                     warehouse_id INT PRIMARY KEY,
                     warehouse_name VARCHAR(200) NOT NULL,
@@ -295,7 +295,7 @@ public class SchemaGenerator {
                     manager_name VARCHAR(100)
                 )""");
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE suppliers (
                     supplier_id INT PRIMARY KEY,
                     supplier_name VARCHAR(200) NOT NULL,
@@ -307,7 +307,7 @@ public class SchemaGenerator {
                     country VARCHAR(100)
                 )""");
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE inventory (
                             inventory_id INT PRIMARY KEY,
                             product_id INT NOT NULL%s,
@@ -315,8 +315,8 @@ public class SchemaGenerator {
                             quantity_on_hand INT DEFAULT 0 NOT NULL,
                             reorder_level INT DEFAULT 10
                         )""",
-                db.fk("FOREIGN KEY (product_id) REFERENCES products(product_id)"),
-                db.fk("FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)")
         ));
 
         populateCategories();
@@ -335,7 +335,7 @@ public class SchemaGenerator {
                 "departments", "jobs");
 
         // Create all tables with consistent structure
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE jobs (
                     job_id INT PRIMARY KEY,
                     job_title VARCHAR(100) NOT NULL,
@@ -343,13 +343,13 @@ public class SchemaGenerator {
                     max_salary DECIMAL(10,2)
                 )""");
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE departments (
                     department_id INT PRIMARY KEY,
                     department_name VARCHAR(100) NOT NULL
                 )""");
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE employees (
                             employee_id INT PRIMARY KEY,
                             first_name VARCHAR(50) NOT NULL,
@@ -361,11 +361,11 @@ public class SchemaGenerator {
                             salary DECIMAL(10,2),
                             department_id INT%s
                         )""",
-                db.fk("FOREIGN KEY (job_id) REFERENCES jobs(job_id)"),
-                db.fk("FOREIGN KEY (department_id) REFERENCES departments(department_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (job_id) REFERENCES jobs(job_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (department_id) REFERENCES departments(department_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE dependents (
                             dependent_id INT PRIMARY KEY,
                             first_name VARCHAR(50) NOT NULL,
@@ -373,16 +373,16 @@ public class SchemaGenerator {
                             relationship VARCHAR(50) NOT NULL,
                             employee_id INT%s
                         )""",
-                db.fk("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
         ));
 
-        db.executeSQL("""
+        dbHelper.executeSQL("""
                 CREATE TABLE categories (
                     category_id INT PRIMARY KEY,
                     category_name VARCHAR(100) NOT NULL
                 )""");
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE products (
                             product_id INT PRIMARY KEY,
                             product_name VARCHAR(200) NOT NULL,
@@ -390,10 +390,10 @@ public class SchemaGenerator {
                             unit_price DECIMAL(10,2) NOT NULL,
                             units_in_stock INT DEFAULT 0
                         )""",
-                db.fk("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE customers (
                             customer_id INT PRIMARY KEY,
                             company_name VARCHAR(200),
@@ -407,10 +407,10 @@ public class SchemaGenerator {
                             country VARCHAR(100),
                             account_rep_id INT%s
                         )""",
-                db.fk("FOREIGN KEY (account_rep_id) REFERENCES employees(employee_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (account_rep_id) REFERENCES employees(employee_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE orders (
                             order_id INT PRIMARY KEY,
                             customer_id INT NOT NULL%s,
@@ -419,11 +419,11 @@ public class SchemaGenerator {
                             total_amount DECIMAL(12,2),
                             status VARCHAR(20) DEFAULT 'Pending'
                         )""",
-                db.fk("FOREIGN KEY (customer_id) REFERENCES customers(customer_id)"),
-                db.fk("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (customer_id) REFERENCES customers(customer_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE order_items (
                             order_item_id INT PRIMARY KEY,
                             order_id INT NOT NULL%s,
@@ -431,11 +431,11 @@ public class SchemaGenerator {
                             quantity INT NOT NULL,
                             unit_price DECIMAL(10,2) NOT NULL
                         )""",
-                db.fk("FOREIGN KEY (order_id) REFERENCES orders(order_id)"),
-                db.fk("FOREIGN KEY (product_id) REFERENCES products(product_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (order_id) REFERENCES orders(order_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE warehouses (
                             warehouse_id INT PRIMARY KEY,
                             warehouse_name VARCHAR(200) NOT NULL,
@@ -445,10 +445,10 @@ public class SchemaGenerator {
                             country VARCHAR(100),
                             manager_id INT%s
                         )""",
-                db.fk("FOREIGN KEY (manager_id) REFERENCES employees(employee_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (manager_id) REFERENCES employees(employee_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE suppliers (
                             supplier_id INT PRIMARY KEY,
                             supplier_name VARCHAR(200) NOT NULL,
@@ -460,10 +460,10 @@ public class SchemaGenerator {
                             country VARCHAR(100),
                             account_manager_id INT%s
                         )""",
-                db.fk("FOREIGN KEY (account_manager_id) REFERENCES employees(employee_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (account_manager_id) REFERENCES employees(employee_id)")
         ));
 
-        db.executeSQL(String.format("""
+        dbHelper.executeSQL(String.format("""
                         CREATE TABLE inventory (
                             inventory_id INT PRIMARY KEY,
                             product_id INT NOT NULL%s,
@@ -471,8 +471,8 @@ public class SchemaGenerator {
                             quantity_on_hand INT NOT NULL DEFAULT 0,
                             reorder_level INT DEFAULT 10
                         )""",
-                db.fk("FOREIGN KEY (product_id) REFERENCES products(product_id)"),
-                db.fk("FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)")
+                dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)"),
+                dbHelper.getForeignKey("FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)")
         ));
 
         // Populate in correct order
@@ -510,7 +510,7 @@ public class SchemaGenerator {
                     new BigDecimal(jobs[i][1]), new BigDecimal(jobs[i][2])
             });
         }
-        db.executeBatch("INSERT INTO jobs (job_id, job_title, min_salary, max_salary) VALUES (?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO jobs (job_id, job_title, min_salary, max_salary) VALUES (?, ?, ?, ?)", data);
     }
 
     private void populateDepartments() throws SQLException {
@@ -519,20 +519,20 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
 
         // Check if manager_name column exists
-        boolean hasManagerName = db.columnExists("departments", "manager_name");
+        boolean hasManagerName = dbHelper.columnExists("departments", "manager_name");
 
         if (hasManagerName) {
             // HR/Sales/Inventory schema - has manager_name column
             for (int i = 0; i < depts.length; i++) {
-                data.add(new Object[]{i + 1, depts[i], faker.name().fullName()});
+                data.add(new Object[]{i + 1, depts[i], dbFaker.name().fullName()});
             }
-            db.executeBatch("INSERT INTO departments (department_id, department_name, manager_name) VALUES (?, ?, ?)", data);
+            dbHelper.executeBatch("INSERT INTO departments (department_id, department_name, manager_name) VALUES (?, ?, ?)", data);
         } else {
             // Combined schema - no manager_name column
             for (int i = 0; i < depts.length; i++) {
                 data.add(new Object[]{i + 1, depts[i]});
             }
-            db.executeBatch("INSERT INTO departments (department_id, department_name) VALUES (?, ?)", data);
+            dbHelper.executeBatch("INSERT INTO departments (department_id, department_name) VALUES (?, ?)", data);
         }
     }
 
@@ -540,21 +540,21 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= config.employees; i++) {
-            String firstName = faker.name().firstName();
-            String lastName = faker.name().lastName();
+        for (int i = 1; i <= dbConfig.employeesTable; i++) {
+            String firstName = dbFaker.name().firstName();
+            String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
 
-            BigDecimal salary = new BigDecimal(40000 + random.nextInt(80000));
-            Date hireDate = Date.valueOf(LocalDate.now().minusDays(random.nextInt(3650)));
+            BigDecimal salary = new BigDecimal(40000 + randomGen.nextInt(80000));
+            Date hireDate = Date.valueOf(LocalDate.now().minusDays(randomGen.nextInt(3650)));
 
             data.add(new Object[]{
                     i, firstName, lastName, email,
-                    faker.phoneNumber().phoneNumber(),
-                    hireDate, random.nextInt(8) + 1, salary, random.nextInt(7) + 1
+                    dbFaker.phoneNumber().phoneNumber(),
+                    hireDate, randomGen.nextInt(8) + 1, salary, randomGen.nextInt(7) + 1
             });
         }
-        db.executeBatch("INSERT INTO employees (employee_id, first_name, last_name, email, phone, hire_date, job_id, salary, department_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO employees (employee_id, first_name, last_name, email, phone, hire_date, job_id, salary, department_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateDependents() throws SQLException {
@@ -562,20 +562,20 @@ public class SchemaGenerator {
         String[] relationships = {"Spouse", "Child", "Parent"};
         int dependentId = 1;
 
-        for (int employeeId = 1; employeeId <= config.employees; employeeId++) {
-            if (random.nextDouble() < 0.4) { // 40% chance of having dependents
-                int numDependents = random.nextInt(3) + 1;
+        for (int employeeId = 1; employeeId <= dbConfig.employeesTable; employeeId++) {
+            if (randomGen.nextDouble() < 0.4) { // 40% chance of having dependents
+                int numDependents = randomGen.nextInt(3) + 1;
                 for (int j = 0; j < numDependents; j++) {
                     data.add(new Object[]{
-                            dependentId++, faker.name().firstName(), faker.name().lastName(),
-                            relationships[random.nextInt(relationships.length)], employeeId
+                            dependentId++, dbFaker.name().firstName(), dbFaker.name().lastName(),
+                            relationships[randomGen.nextInt(relationships.length)], employeeId
                     });
                 }
             }
         }
 
         if (!data.isEmpty()) {
-            db.executeBatch("INSERT INTO dependents (dependent_id, first_name, last_name, relationship, employee_id) VALUES (?, ?, ?, ?, ?)", data);
+            dbHelper.executeBatch("INSERT INTO dependents (dependent_id, first_name, last_name, relationship, employee_id) VALUES (?, ?, ?, ?, ?)", data);
         }
     }
 
@@ -586,36 +586,36 @@ public class SchemaGenerator {
         for (int i = 0; i < categories.length; i++) {
             data.add(new Object[]{i + 1, categories[i]});
         }
-        db.executeBatch("INSERT INTO categories (category_id, category_name) VALUES (?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO categories (category_id, category_name) VALUES (?, ?)", data);
     }
 
     private void populateProducts() throws SQLException {
         List<Object[]> data = new ArrayList<>();
-        boolean hasStock = db.columnExists("products", "units_in_stock");
+        boolean hasStock = dbHelper.columnExists("products", "units_in_stock");
 
         for (int i = 1; i <= 20; i++) {
             if (hasStock) {
                 // Sales/Combined schema - has units_in_stock
                 data.add(new Object[]{
-                        i, faker.commerce().productName(),
-                        random.nextInt(6) + 1,
-                        BigDecimal.valueOf(10 + random.nextDouble() * 990),
-                        random.nextInt(100) + 10
+                        i, dbFaker.commerce().productName(),
+                        randomGen.nextInt(6) + 1,
+                        BigDecimal.valueOf(10 + randomGen.nextDouble() * 990),
+                        randomGen.nextInt(100) + 10
                 });
             } else {
                 // Inventory schema - no units_in_stock
                 data.add(new Object[]{
-                        i, faker.commerce().productName(),
-                        random.nextInt(6) + 1,
-                        BigDecimal.valueOf(10 + random.nextDouble() * 990)
+                        i, dbFaker.commerce().productName(),
+                        randomGen.nextInt(6) + 1,
+                        BigDecimal.valueOf(10 + randomGen.nextDouble() * 990)
                 });
             }
         }
 
         if (hasStock) {
-            db.executeBatch("INSERT INTO products (product_id, product_name, category_id, unit_price, units_in_stock) VALUES (?, ?, ?, ?, ?)", data);
+            dbHelper.executeBatch("INSERT INTO products (product_id, product_name, category_id, unit_price, units_in_stock) VALUES (?, ?, ?, ?, ?)", data);
         } else {
-            db.executeBatch("INSERT INTO products (product_id, product_name, category_id, unit_price) VALUES (?, ?, ?, ?)", data);
+            dbHelper.executeBatch("INSERT INTO products (product_id, product_name, category_id, unit_price) VALUES (?, ?, ?, ?)", data);
         }
     }
 
@@ -623,204 +623,204 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= config.customers; i++) {
-            String firstName = faker.name().firstName();
-            String lastName = faker.name().lastName();
+        for (int i = 1; i <= dbConfig.customersTable; i++) {
+            String firstName = dbFaker.name().firstName();
+            String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
 
             data.add(new Object[]{
-                    i, faker.company().name(),
+                    i, dbFaker.company().name(),
                     firstName + " " + lastName,
-                    email, faker.phoneNumber().phoneNumber(),
-                    faker.address().fullAddress(),
-                    faker.address().city(),
-                    faker.address().state(),
-                    faker.address().zipCode(),
-                    faker.address().country()
+                    email, dbFaker.phoneNumber().phoneNumber(),
+                    dbFaker.address().fullAddress(),
+                    dbFaker.address().city(),
+                    dbFaker.address().state(),
+                    dbFaker.address().zipCode(),
+                    dbFaker.address().country()
             });
         }
-        db.executeBatch("INSERT INTO customers (customer_id, company_name, contact_name, email, phone, address, city, state, postal_code, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO customers (customer_id, company_name, contact_name, email, phone, address, city, state, postal_code, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateCustomersWithReps() throws SQLException {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= config.customers; i++) {
-            String firstName = faker.name().firstName();
-            String lastName = faker.name().lastName();
+        for (int i = 1; i <= dbConfig.customersTable; i++) {
+            String firstName = dbFaker.name().firstName();
+            String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
-            Integer repId = random.nextDouble() < 0.8 ? random.nextInt(config.employees) + 1 : null;
+            Integer repId = randomGen.nextDouble() < 0.8 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
 
             data.add(new Object[]{
-                    i, faker.company().name(),
+                    i, dbFaker.company().name(),
                     firstName + " " + lastName,
-                    email, faker.phoneNumber().phoneNumber(),
-                    faker.address().fullAddress(),
-                    faker.address().city(),
-                    faker.address().state(),
-                    faker.address().zipCode(),
-                    faker.address().country(), repId
+                    email, dbFaker.phoneNumber().phoneNumber(),
+                    dbFaker.address().fullAddress(),
+                    dbFaker.address().city(),
+                    dbFaker.address().state(),
+                    dbFaker.address().zipCode(),
+                    dbFaker.address().country(), repId
             });
         }
-        db.executeBatch("INSERT INTO customers (customer_id, company_name, contact_name, email, phone, address, city, state, postal_code, country, account_rep_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO customers (customer_id, company_name, contact_name, email, phone, address, city, state, postal_code, country, account_rep_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateOrders() throws SQLException {
         List<Object[]> data = new ArrayList<>();
         String[] statuses = {"Pending", "Processing", "Shipped", "Delivered"};
 
-        for (int i = 1; i <= config.orders; i++) {
-            Date orderDate = Date.valueOf(LocalDate.now().minusDays(random.nextInt(365)));
+        for (int i = 1; i <= dbConfig.ordersTable; i++) {
+            Date orderDate = Date.valueOf(LocalDate.now().minusDays(randomGen.nextInt(365)));
 
             data.add(new Object[]{
-                    i, random.nextInt(config.customers) + 1, orderDate,
-                    BigDecimal.valueOf(50 + random.nextDouble() * 4950),
-                    statuses[random.nextInt(statuses.length)]
+                    i, randomGen.nextInt(dbConfig.customersTable) + 1, orderDate,
+                    BigDecimal.valueOf(50 + randomGen.nextDouble() * 4950),
+                    statuses[randomGen.nextInt(statuses.length)]
             });
         }
-        db.executeBatch("INSERT INTO orders (order_id, customer_id, order_date, total_amount, status) VALUES (?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO orders (order_id, customer_id, order_date, total_amount, status) VALUES (?, ?, ?, ?, ?)", data);
     }
 
     private void populateOrdersWithReps() throws SQLException {
         List<Object[]> data = new ArrayList<>();
         String[] statuses = {"Pending", "Processing", "Shipped", "Delivered"};
 
-        for (int i = 1; i <= config.orders; i++) {
-            Date orderDate = Date.valueOf(LocalDate.now().minusDays(random.nextInt(365)));
-            Integer empId = random.nextDouble() < 0.7 ? random.nextInt(config.employees) + 1 : null;
+        for (int i = 1; i <= dbConfig.ordersTable; i++) {
+            Date orderDate = Date.valueOf(LocalDate.now().minusDays(randomGen.nextInt(365)));
+            Integer empId = randomGen.nextDouble() < 0.7 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
 
             data.add(new Object[]{
-                    i, random.nextInt(config.customers) + 1, empId, orderDate,
-                    BigDecimal.valueOf(50 + random.nextDouble() * 4950),
-                    statuses[random.nextInt(statuses.length)]
+                    i, randomGen.nextInt(dbConfig.customersTable) + 1, empId, orderDate,
+                    BigDecimal.valueOf(50 + randomGen.nextDouble() * 4950),
+                    statuses[randomGen.nextInt(statuses.length)]
             });
         }
-        db.executeBatch("INSERT INTO orders (order_id, customer_id, employee_id, order_date, total_amount, status) VALUES (?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO orders (order_id, customer_id, employee_id, order_date, total_amount, status) VALUES (?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateOrderItems() throws SQLException {
         List<Object[]> data = new ArrayList<>();
         int itemId = 1;
 
-        for (int orderId = 1; orderId <= config.orders; orderId++) {
-            int numItems = random.nextInt(5) + 1;
+        for (int orderId = 1; orderId <= dbConfig.ordersTable; orderId++) {
+            int numItems = randomGen.nextInt(5) + 1;
             Set<Integer> usedProducts = new HashSet<>();
 
             for (int i = 0; i < numItems; i++) {
                 int productId;
                 do {
-                    productId = random.nextInt(20) + 1;
+                    productId = randomGen.nextInt(20) + 1;
                 } while (usedProducts.contains(productId));
                 usedProducts.add(productId);
 
                 data.add(new Object[]{
-                        itemId++, orderId, productId, random.nextInt(10) + 1,
-                        BigDecimal.valueOf(10 + random.nextDouble() * 490)
+                        itemId++, orderId, productId, randomGen.nextInt(10) + 1,
+                        BigDecimal.valueOf(10 + randomGen.nextDouble() * 490)
                 });
             }
         }
-        db.executeBatch("INSERT INTO order_items (order_item_id, order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO order_items (order_item_id, order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?, ?)", data);
     }
 
     private void populateWarehouses() throws SQLException {
         List<Object[]> data = new ArrayList<>();
 
-        for (int i = 1; i <= config.warehouses; i++) {
+        for (int i = 1; i <= dbConfig.warehousesTable; i++) {
             data.add(new Object[]{
                     i, "Warehouse " + i,
-                    faker.address().fullAddress(),
-                    faker.address().city(),
-                    faker.address().state(),
-                    faker.address().country(),
-                    faker.name().fullName()
+                    dbFaker.address().fullAddress(),
+                    dbFaker.address().city(),
+                    dbFaker.address().state(),
+                    dbFaker.address().country(),
+                    dbFaker.name().fullName()
             });
         }
-        db.executeBatch("INSERT INTO warehouses (warehouse_id, warehouse_name, address, city, state, country, manager_name) VALUES (?, ?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO warehouses (warehouse_id, warehouse_name, address, city, state, country, manager_name) VALUES (?, ?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateWarehousesWithManagers() throws SQLException {
         List<Object[]> data = new ArrayList<>();
 
-        for (int i = 1; i <= config.warehouses; i++) {
-            Integer managerId = random.nextDouble() < 0.8 ? random.nextInt(config.employees) + 1 : null;
+        for (int i = 1; i <= dbConfig.warehousesTable; i++) {
+            Integer managerId = randomGen.nextDouble() < 0.8 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
             data.add(new Object[]{
                     i, "Warehouse " + i,
-                    faker.address().fullAddress(),
-                    faker.address().city(),
-                    faker.address().state(),
-                    faker.address().country(),
+                    dbFaker.address().fullAddress(),
+                    dbFaker.address().city(),
+                    dbFaker.address().state(),
+                    dbFaker.address().country(),
                     managerId
             });
         }
-        db.executeBatch("INSERT INTO warehouses (warehouse_id, warehouse_name, address, city, state, country, manager_id) VALUES (?, ?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO warehouses (warehouse_id, warehouse_name, address, city, state, country, manager_id) VALUES (?, ?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateSuppliers() throws SQLException {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= config.suppliers; i++) {
-            String firstName = faker.name().firstName();
-            String lastName = faker.name().lastName();
+        for (int i = 1; i <= dbConfig.suppliersTable; i++) {
+            String firstName = dbFaker.name().firstName();
+            String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
 
             data.add(new Object[]{
-                    i, faker.company().name(),
+                    i, dbFaker.company().name(),
                     firstName + " " + lastName,
-                    email, faker.phoneNumber().phoneNumber(),
-                    faker.address().fullAddress(),
-                    faker.address().city(),
-                    faker.address().country()
+                    email, dbFaker.phoneNumber().phoneNumber(),
+                    dbFaker.address().fullAddress(),
+                    dbFaker.address().city(),
+                    dbFaker.address().country()
             });
         }
-        db.executeBatch("INSERT INTO suppliers (supplier_id, supplier_name, contact_name, email, phone, address, city, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO suppliers (supplier_id, supplier_name, contact_name, email, phone, address, city, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateSuppliersWithManagers() throws SQLException {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= config.suppliers; i++) {
-            String firstName = faker.name().firstName();
-            String lastName = faker.name().lastName();
+        for (int i = 1; i <= dbConfig.suppliersTable; i++) {
+            String firstName = dbFaker.name().firstName();
+            String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
-            Integer managerId = random.nextDouble() < 0.6 ? random.nextInt(config.employees) + 1 : null;
+            Integer managerId = randomGen.nextDouble() < 0.6 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
 
             data.add(new Object[]{
-                    i, faker.company().name(),
+                    i, dbFaker.company().name(),
                     firstName + " " + lastName,
-                    email, faker.phoneNumber().phoneNumber(),
-                    faker.address().fullAddress(),
-                    faker.address().city(),
-                    faker.address().country(), managerId
+                    email, dbFaker.phoneNumber().phoneNumber(),
+                    dbFaker.address().fullAddress(),
+                    dbFaker.address().city(),
+                    dbFaker.address().country(), managerId
             });
         }
-        db.executeBatch("INSERT INTO suppliers (supplier_id, supplier_name, contact_name, email, phone, address, city, country, account_manager_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO suppliers (supplier_id, supplier_name, contact_name, email, phone, address, city, country, account_manager_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", data);
     }
 
     private void populateInventory() throws SQLException {
         List<Object[]> data = new ArrayList<>();
         int inventoryId = 1;
 
-        for (int warehouseId = 1; warehouseId <= config.warehouses; warehouseId++) {
+        for (int warehouseId = 1; warehouseId <= dbConfig.warehousesTable; warehouseId++) {
             for (int productId = 1; productId <= 20; productId++) {
-                if (random.nextDouble() < 0.7) {
+                if (randomGen.nextDouble() < 0.7) {
                     data.add(new Object[]{
                             inventoryId++, productId, warehouseId,
-                            random.nextInt(1000) + 10, random.nextInt(50) + 5
+                            randomGen.nextInt(1000) + 10, randomGen.nextInt(50) + 5
                     });
                 }
             }
         }
-        db.executeBatch("INSERT INTO inventory (inventory_id, product_id, warehouse_id, quantity_on_hand, reorder_level) VALUES (?, ?, ?, ?, ?)", data);
+        dbHelper.executeBatch("INSERT INTO inventory (inventory_id, product_id, warehouse_id, quantity_on_hand, reorder_level) VALUES (?, ?, ?, ?, ?)", data);
     }
 
     // Helper methods
     private void dropTables(String... tables) {
         for (String table : tables) {
             try {
-                db.executeSQL("DROP TABLE IF EXISTS " + table);
+                dbHelper.executeSQL("DROP TABLE IF EXISTS " + table);
             } catch (SQLException e) {
                 System.out.println("Warning: Failed to drop: " + table + " due to: " + e.getMessage());
             }
@@ -852,7 +852,7 @@ public class SchemaGenerator {
 
         for (String table : tables) {
             try {
-                int count = db.getCount(table);
+                int count = dbHelper.getCount(table);
                 if (count > 0) {
                     System.out.printf("%-15s: %d records%n", table, count);
                 }
@@ -863,8 +863,8 @@ public class SchemaGenerator {
     }
 
     public void close() throws SQLException {
-        if (connection != null && !connection.isClosed()) {
-            connection.close();
+        if (dbConnection != null && !dbConnection.isClosed()) {
+            dbConnection.close();
         }
     }
 
@@ -874,7 +874,7 @@ public class SchemaGenerator {
             Config config = parseArgs(args);
 
             SchemaGenerator generator = new SchemaGenerator(config);
-            generator.generate();
+            generator.generateSchema();
             System.out.println("\nDatabase generation completed successfully!");
             generateClaudeConfig(config);
         } catch (Exception e) {
@@ -898,7 +898,7 @@ public class SchemaGenerator {
                 "DB_DRIVER": "%s",
                 "SELECT_ONLY": true
               }
-            }""", config.schema + "-database", getJava().replace("\\", "/"), getJar().replace("\\", "/"), config.dbUrl, config.dbUser, config.dbPassword, config.dbDriver);
+            }""", config.schemaName + "-database", getJava().replace("\\", "/"), getJar().replace("\\", "/"), config.dbUrl, config.dbUser, config.dbPassword, config.dbDriver);
         System.out.println("\nAdd this to claude_desktop_config.json inside the curly braces of the \"mcpServers\": {} node:\n");
         System.out.println(jsonTemplate);
     }

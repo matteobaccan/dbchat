@@ -1,5 +1,7 @@
 package com.skanga.mcp;
 
+import com.skanga.mcp.config.CliUtils;
+import com.skanga.mcp.config.ConfigParams;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;

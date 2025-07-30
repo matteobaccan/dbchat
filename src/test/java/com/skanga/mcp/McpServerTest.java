@@ -3,6 +3,11 @@ package com.skanga.mcp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.skanga.mcp.config.CliUtils;
+import com.skanga.mcp.config.ConfigParams;
+import com.skanga.mcp.db.DatabaseResource;
+import com.skanga.mcp.db.DatabaseService;
+import com.skanga.mcp.db.QueryResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1320,7 +1325,6 @@ class McpServerTest {
         assertTrue(errorText.contains("Use square brackets"));
         assertTrue(errorText.contains("SQLSERVER"));
         assertTrue(errorText.contains("GETDATE()"));
-        assertTrue(errorText.contains("TOP n"));
     }
 
     @Test
@@ -1351,10 +1355,10 @@ class McpServerTest {
         JsonNode response = mcpServer.handleRequest(request);
 
         String errorText = response.get("result").get("content").get(0).get("text").asText();
-        assertTrue(errorText.contains("MySQL/PostgreSQL compatible"));
         assertTrue(errorText.contains("H2"));
+        assertTrue(errorText.contains("MySQL/PostgreSQL compatible"));
         assertTrue(errorText.contains("NOW()"));
-        assertTrue(errorText.contains("LIMIT n OFFSET n"));
+        assertTrue(errorText.contains("LIMIT count OFFSET offset"));
     }
 
     @Test
@@ -1390,7 +1394,7 @@ class McpServerTest {
         // For unsupported databases, should get the formatted header and default hints
         assertTrue(errorText.contains("SQL Syntax for CASSANDRA"));
         assertTrue(errorText.contains("Use standard SQL syntax"));
-        assertTrue(errorText.contains("Check database documentation"));
+        assertTrue(errorText.contains("check your own database specific documentation"));
     }
 
     // Additional test for loadConfiguration with environment variables

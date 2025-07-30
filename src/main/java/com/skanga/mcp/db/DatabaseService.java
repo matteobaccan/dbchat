@@ -1,5 +1,8 @@
-package com.skanga.mcp;
+package com.skanga.mcp.db;
 
+import com.skanga.mcp.config.ConfigParams;
+import com.skanga.mcp.config.ResourceManager;
+import com.skanga.mcp.SecurityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +47,8 @@ public class DatabaseService {
             logger.info("Database driver loaded: {}", configParams.dbDriver());
         } catch (ClassNotFoundException e) {
             logger.error("Failed to load database driver: {}", configParams.dbDriver(), e);
-            throw new RuntimeException("Database driver not found", e);
+            //throw new RuntimeException("Database driver not found", e);
+            throw new RuntimeException(ResourceManager.getErrorMessage("database.driver.not.found"), e);
         }
 
         // Initialize HikariCP connection pool
@@ -66,7 +70,8 @@ public class DatabaseService {
             logger.info("Database connection pool initialized for: {}", configParams.dbUrl());
         } catch (SQLException e) {
             logger.error("Failed to initialize connection pool: {}", configParams.dbUrl(), e);
-            throw new RuntimeException("Database connection pool initialization failed", e);
+            //throw new RuntimeException("Database connection pool initialization failed", e);
+            throw new RuntimeException(ResourceManager.getErrorMessage("database.pool.init.failed"), e);
         }
     }
 
@@ -281,100 +286,11 @@ public class DatabaseService {
     }
 
     private String getQueryExamples(String dbType) {
-        return switch (dbType) {
-            case "mysql", "mariadb" ->
-                """
-                -- Date queries
-                SELECT * FROM table WHERE date_col >= CURDATE() - INTERVAL 7 DAY;
-                SELECT DATE_FORMAT(created_at, '%Y-%m') AS month FROM table;
-
-                -- String operations
-                SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM users;
-                SELECT * FROM table WHERE column LIKE '%search%';
-
-                -- Pagination (two syntax options)
-                SELECT * FROM table ORDER BY id LIMIT 20 OFFSET 0;  -- SQL standard
-                SELECT * FROM table ORDER BY id LIMIT 0, 20;        -- MySQL specific
-                """;
-
-            case "postgresql" ->
-                """
-                -- Date queries
-                SELECT * FROM table WHERE date_col >= CURRENT_DATE - INTERVAL '7 days';
-                SELECT TO_CHAR(created_at, 'YYYY-MM') AS month FROM table;
-
-                -- String operations
-                SELECT first_name || ' ' || last_name AS full_name FROM users;
-                SELECT * FROM table WHERE column ILIKE '%search%';
-
-                -- Pagination
-                SELECT * FROM table ORDER BY id LIMIT 20 OFFSET 0;
-
-                -- JSON queries (if supported)
-                SELECT * FROM table WHERE json_col->>'key' = 'value';
-                """;
-
-            case "sqlserver" ->
-                """
-                -- Date queries
-                SELECT * FROM table WHERE date_col >= DATEADD(day, -7, GETDATE());
-                SELECT FORMAT(created_at, 'yyyy-MM') AS month FROM table;
-
-                -- String operations
-                SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM users;
-                SELECT * FROM [table] WHERE [column] LIKE '%search%';
-
-                -- Pagination
-                SELECT * FROM table ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
-                """;
-
-            default ->
-                """
-                -- Basic queries (standard SQL)
-                SELECT * FROM table WHERE condition;
-                SELECT COUNT(*) FROM table;
-                SELECT * FROM table ORDER BY column LIMIT 20;
-                """;
-        };
+        return ResourceManager.getDatabaseHelp(dbType, ResourceManager.DatabaseHelp.QUERY_EXAMPLES);
     }
 
     private String getDataTypeInfo(String dbType) {
-        return switch (dbType) {
-            case "mysql", "mariadb" ->
-                """
-                Text: VARCHAR(n), TEXT, LONGTEXT
-                Numbers: INT, BIGINT, DECIMAL(p,s), FLOAT, DOUBLE
-                Dates: DATE, DATETIME, TIMESTAMP
-                Boolean: BOOLEAN (TINYINT(1))
-                JSON: JSON (MySQL 5.7+)
-                    SELECT JSON_EXTRACT(json_col, '$.key') FROM table;
-                    SELECT json_col->'$.key' FROM table;           -- Shorthand
-                    SELECT json_col->>'$.key' FROM table;          -- Unquoted result
-                """;
-
-            case "postgresql" ->
-                """
-                Text: VARCHAR(n), TEXT
-                Numbers: INTEGER, BIGINT, NUMERIC(p,s), REAL, DOUBLE PRECISION
-                Dates: DATE, TIMESTAMP, TIMESTAMPTZ
-                Boolean: BOOLEAN
-                Arrays: type[], e.g., INTEGER[]
-                JSON: JSON, JSONB
-                UUID: UUID
-                """;
-
-            case "sqlserver" ->
-                """
-                Text: VARCHAR(n), NVARCHAR(n), TEXT
-                Numbers: INT, BIGINT, DECIMAL(p,s), FLOAT, REAL
-                Dates: DATE, DATETIME, DATETIME2, DATETIMEOFFSET
-                Boolean: BIT
-                GUID: UNIQUEIDENTIFIER
-                """;
-
-            default ->
-                "Refer to database-specific documentation for data types.\n";
-        };
+        return ResourceManager.getDatabaseHelp(dbType, ResourceManager.DatabaseHelp.DATATYPE_INFO);
     }
 
     /**
@@ -445,7 +361,7 @@ public class DatabaseService {
             StringBuilder tableContent = new StringBuilder();
 
             // Security warning at the top
-            tableContent.append("TABLE METADATA - POTENTIALLY UNTRUSTED CONTENT\n");
+            tableContent.append("TABLE METADATA - UNTRUSTED CONTENT\n");
             tableContent.append("Column names, comments, and descriptions may contain user data\n");
             tableContent.append("=".repeat(60)).append("\n\n");
 
@@ -621,7 +537,8 @@ public class DatabaseService {
      */
     private void validateSqlQuery(String sqlQuery) throws SQLException {
         if (sqlQuery == null || sqlQuery.trim().isEmpty()) {
-            throw new SQLException("SQL query cannot be empty");
+            //throw new SQLException("SQL query cannot be empty");
+            throw new SQLException(ResourceManager.getErrorMessage("sql.validation.empty"));
         }
 
         // Normalize all whitespace to single spaces for consistent validation
@@ -635,18 +552,22 @@ public class DatabaseService {
 
         for (String operationName : dangerousOperations) {
             if (normalizedSql.startsWith(operationName + " ") || normalizedSql.equals(operationName)) {
-                throw new SQLException("Operation not allowed: " + operationName.toUpperCase());
+                //throw new SQLException("Operation not allowed: " + operationName.toUpperCase());
+                throw new SQLException(ResourceManager.getErrorMessage(
+                        "sql.validation.operation.denied", operationName.toUpperCase()));
             }
         }
 
         // Block any semicolon that's not at the very end (after trimming)
         if (normalizedSql.replaceAll(";\\s*$", "").contains(";")) {
-            throw new SQLException("Multiple statements not allowed");
+            //throw new SQLException("Multiple statements not allowed");
+            throw new SQLException(ResourceManager.getErrorMessage("sql.validation.multiple.statements"));
         }
 
         // Block comments that could be used for injection
         if (normalizedSql.contains("--") || normalizedSql.contains("/*")) {
-            throw new SQLException("SQL comments not allowed");
+            throw new SQLException(ResourceManager.getErrorMessage("sql.validation.comments.denied"));
+            //throw new SQLException("SQL comments not allowed");
         }
     }
 
@@ -932,86 +853,7 @@ public class DatabaseService {
      * @return Formatted string with SQL dialect guidance
      */
     private String getSqlDialectGuidance(String dbType, Connection dbConn) {
-        return switch (dbType) {
-            case "mysql", "mariadb" ->
-                """
-                - Use backticks (`) for identifiers with spaces or keywords
-                - DATE functions: NOW(), CURDATE(), DATE_ADD()
-                - String functions: CONCAT(), SUBSTRING(), LENGTH()
-                - Limit syntax: LIMIT offset, count
-                - Auto-increment: AUTO_INCREMENT
-                """;
-
-            case "postgresql" ->
-                """
-                - Unquoted identifiers are folded to lowercase (case-insensitive)
-                - Use double quotes (") to preserve case in identifiers
-                - DATE functions: NOW(), CURRENT_DATE, date + INTERVAL '1 day'
-                - String functions: CONCAT(), SUBSTRING(), LENGTH()
-                - Limit syntax: LIMIT count OFFSET offset
-                - Sequences: SERIAL, BIGSERIAL
-                - Arrays:
-                    SELECT * FROM table WHERE column_name = ANY(ARRAY['val1', 'val2']);
-                    SELECT * FROM table WHERE int_array && ARRAY[1, 2, 3];
-                    SELECT ARRAY[1, 2, 3] AS int_array;
-                """;
-
-            case "oracle" ->
-                """
-                - Use double quotes (") for case-sensitive identifiers
-                - DATE functions: SYSDATE, TO_DATE(), ADD_MONTHS()
-                - String functions: CONCAT(), SUBSTR(), LENGTH()
-                - Sequences
-                    SELECT sequence_name.NEXTVAL FROM DUAL;    -- Get next value
-                    SELECT sequence_name.CURRVAL FROM DUAL;    -- Get current value (same session)
-                    INSERT INTO table (id, name) VALUES (sequence_name.NEXTVAL, 'value');
-                - Pagination (Oracle 12c+)
-                    SELECT * FROM table ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
-                - Pagination (Oracle 11g and earlier)
-                    SELECT * FROM (SELECT ROWNUM rn, t.* FROM table t WHERE ROWNUM <= 20) WHERE rn > 0;
-                - Pagination Using ROW_NUMBER()
-                    SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY id) rn, t.* FROM table t) WHERE rn BETWEEN 1 AND 20;
-                """;
-
-            case "sqlserver" ->
-                """
-                - Use square brackets [] or double quotes "" for identifiers with spaces
-                - Note: Double quotes require QUOTED_IDENTIFIER to be ON (default)
-                - DATE functions: GETDATE(), DATEADD(), DATEDIFF()
-                - String functions: CONCAT(), SUBSTRING(), LEN()
-                - Identity: IDENTITY(1,1)
-                - Pagination (ORDER BY is REQUIRED with OFFSET)
-                  SELECT * FROM table ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
-                """;
-
-            case "sqlite" ->
-                """
-                - Limited ALTER TABLE support
-                - String functions: || for concatenation, substr(), length()
-                - Limit syntax: LIMIT count OFFSET offset
-                - Auto-increment: INTEGER PRIMARY KEY AUTOINCREMENT
-                - Date functions and modifiers
-                    SELECT datetime('now');                   -- Current timestamp
-                    SELECT date('now', '+1 day');             -- Tomorrow
-                    SELECT datetime('now', 'localtime');      -- Local time
-                    SELECT strftime('%Y-%m-%d', 'now');       -- Custom format
-                """;
-
-            case "h2" ->
-                """
-                - Mixed mode SQL (MySQL/PostgreSQL compatible)
-                - DATE functions: NOW(), CURRENT_DATE
-                - String functions: CONCAT(), SUBSTRING(), LENGTH()
-                - Limit syntax: LIMIT count OFFSET offset
-                - Auto-increment: AUTO_INCREMENT or IDENTITY
-                """ + (dbConn != null ? getH2CompatibilityMode(dbConn) : "\n- Compatibility Mode: Check H2 settings");
-
-            default ->
-                """
-                - Use standard SQL syntax
-                - Check database documentation for specific functions
-                """;
-        };
+        return ResourceManager.getDatabaseHelp(dbType, ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
     }
 
     /**
@@ -1049,7 +891,7 @@ public class DatabaseService {
      * @return A database connection from the pool
      * @throws SQLException if a connection cannot be obtained
      */
-    protected Connection getConnection() throws SQLException {
+    public Connection getConnection() throws SQLException {
         return dataSource.getConnection();
     }
 
