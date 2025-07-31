@@ -1,11 +1,18 @@
 package com.skanga.mcp;
 
+import java.util.regex.Pattern;
+
 /**
  * Utility class for security-related operations including content sanitization and validation.
  * Provides centralized methods for detecting and handling potentially malicious content
  * in database values, identifiers, and other user-supplied data.
  */
 public final class SecurityUtils {
+    
+    // Pre-compiled regex patterns for performance
+    // Optimized: Removed leading/trailing .* to prevent backtracking, uses word boundaries for precision
+    private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("\\b(?:act as|pretend to be|you are now)\\b");
+    
     private SecurityUtils() {
         // Utility class - prevent instantiation
     }
@@ -27,7 +34,7 @@ public final class SecurityUtils {
         // Detect and mark potentially dangerous content
         String lowerValue = stringValue.toLowerCase().trim();
 
-        // Check for instruction-like patterns
+        // Check for instruction-like patterns (optimized for performance)
         boolean containsInstructions =
                 lowerValue.startsWith("ignore") ||
                 lowerValue.startsWith("forget") ||
@@ -43,7 +50,7 @@ public final class SecurityUtils {
                 lowerValue.contains("override") ||
                 lowerValue.contains("jailbreak") ||
                 lowerValue.contains("roleplay") ||
-                lowerValue.matches(".*\\b(act as|pretend to be|you are now)\\b.*");
+                INSTRUCTION_PATTERN.matcher(lowerValue).find(); // Optimized regex usage
 
         // Mark suspicious content
         if (containsInstructions) {

@@ -429,14 +429,30 @@ class MCPTester:
                 },
                 expected_fields=["jsonrpc", "id", "result", "result.resources"]
             ),
+
+            # Create a table using the 'run_sql' tool
             TestCase(
-                name="Call Query Tool",
+                name="Create Table (run_sql)",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "run_sql",
+                        "arguments": {"sql": "CREATE TABLE protocol_test (id INT, name VARCHAR(255))"}
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.content"]
+            ),
+
+            TestCase(
+                name="Execute Select (run_sql)",
                 request={
                     "jsonrpc": "2.0",
                     "id": 5,
                     "method": "tools/call",
                     "params": {
-                        "name": "query",
+                        "name": "run_sql",
                         "arguments": {
                             "sql": "SELECT 1 as test_value, 'Hello MCP' as message",
                             "maxRows": 10
@@ -445,6 +461,23 @@ class MCPTester:
                 },
                 expected_fields=["jsonrpc", "id", "result", "result.content"]
             ),
+
+            # Describe the new table using the 'describe_table' tool
+            TestCase(
+                name="Describe Table (describe_table)",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "describe_table",
+                        "arguments": {"table_name": "protocol_test"}
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.content"]
+            ),
+
+
             TestCase(
                 name="Read Database Info Resource",
                 request={
@@ -474,7 +507,7 @@ class MCPTester:
                     "id": 8,
                     "method": "tools/call",
                     "params": {
-                        "name": "query",
+                        "name": "run_sql",
                         "arguments": {"sql": "", "maxRows": 10}
                     }
                 },

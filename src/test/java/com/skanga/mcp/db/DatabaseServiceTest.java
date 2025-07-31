@@ -57,6 +57,7 @@ class DatabaseServiceTest {
         // Mock datasource to return our mock connection
         lenient().when(mockDataSource.getConnection()).thenReturn(connection);
         lenient().when(mockDataSource.isClosed()).thenReturn(false);
+        lenient().when(connection.getMetaData()).thenReturn(metaData);
 
         // Create service that uses the mocked datasource
         service = new DatabaseService(config, mockDataSource);
@@ -84,7 +85,7 @@ class DatabaseServiceTest {
         when(resultSet.getObject(1)).thenReturn(1);
         when(resultSet.getObject(2)).thenReturn("Alice");
 
-        QueryResult result = service.executeQuery(sql, 10);
+        QueryResult result = service.executeSql(sql, 10);
 
         assertEquals(1, result.rowCount());
         assertEquals(Arrays.asList("id", "name"), result.allColumns());
@@ -103,7 +104,7 @@ class DatabaseServiceTest {
         when(statement.execute()).thenReturn(false);
         when(statement.getUpdateCount()).thenReturn(1);
 
-        QueryResult result = service.executeQuery(sql, 10);
+        QueryResult result = service.executeSql(sql, 10);
 
         assertEquals(1, result.rowCount());
         assertEquals(List.of("affected_rows"), result.allColumns());
@@ -126,7 +127,7 @@ class DatabaseServiceTest {
         when(resultSet.next()).thenReturn(true, true, true, false);
         when(resultSet.getObject(1)).thenReturn(1, 2, 3);
 
-        QueryResult result = service.executeQuery(sql, 2);
+        QueryResult result = service.executeSql(sql, 2);
 
         assertEquals(2, result.rowCount());
         verify(statement).setMaxRows(2);
@@ -150,7 +151,7 @@ class DatabaseServiceTest {
         when(resultSet.getObject(1)).thenReturn(null);
         when(resultSet.getObject(2)).thenReturn(null);
 
-        QueryResult result = service.executeQuery(sql, 10);
+        QueryResult result = service.executeSql(sql, 10);
 
         assertEquals(1, result.rowCount());
         assertNotNull(result.allRows().get(0));
@@ -166,7 +167,7 @@ class DatabaseServiceTest {
         when(statement.execute()).thenThrow(new SQLException("Table not found"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeQuery(sql, 10);
+            service.executeSql(sql, 10);
         });
 
         assertEquals("Table not found", exception.getMessage());
@@ -197,7 +198,7 @@ class DatabaseServiceTest {
 
         for (String sql : dangerousQueries) {
             SQLException exception = assertThrows(SQLException.class, () -> {
-                service.executeQuery(sql, 10);
+                service.executeSql(sql, 10);
             });
             assertTrue(exception.getMessage().contains("Operation not allowed") ||
                     exception.getMessage().contains("not allowed"));
@@ -209,7 +210,7 @@ class DatabaseServiceTest {
         when(config.selectOnly()).thenReturn(true);
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeQuery("SELECT * FROM users; DROP TABLE users;", 10);
+            service.executeSql("SELECT * FROM users; DROP TABLE users;", 10);
         });
 
         assertTrue(exception.getMessage().contains("Multiple statements not allowed"));
@@ -227,7 +228,7 @@ class DatabaseServiceTest {
 
         for (String sql : commentQueries) {
             SQLException exception = assertThrows(SQLException.class, () -> {
-                service.executeQuery(sql, 10);
+                service.executeSql(sql, 10);
             });
             assertTrue(exception.getMessage().contains("SQL comments not allowed"));
         }
@@ -251,7 +252,7 @@ class DatabaseServiceTest {
         when(resultSet.getMetaData()).thenReturn(rsMeta);
         when(resultSet.next()).thenReturn(false);
 
-        QueryResult result = service.executeQuery(sql, 10);
+        QueryResult result = service.executeSql(sql, 10);
 
         assertNotNull(result);
         verify(statement).setMaxRows(10);
@@ -263,7 +264,7 @@ class DatabaseServiceTest {
         when(config.selectOnly()).thenReturn(true);
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeQuery("", 10);
+            service.executeSql("", 10);
         });
 
         assertTrue(exception.getMessage().contains("SQL query cannot be empty"));
@@ -274,7 +275,7 @@ class DatabaseServiceTest {
         when(config.selectOnly()).thenReturn(true);
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeQuery(null, 10);
+            service.executeSql(null, 10);
         });
 
         assertTrue(exception.getMessage().contains("SQL query cannot be empty"));
@@ -300,9 +301,9 @@ class DatabaseServiceTest {
         when(resultSet.getObject(1)).thenReturn(1);
 
         // Execute multiple queries
-        service.executeQuery(sql, 10);
-        service.executeQuery(sql, 10);
-        service.executeQuery(sql, 10);
+        service.executeSql(sql, 10);
+        service.executeSql(sql, 10);
+        service.executeSql(sql, 10);
 
         // Verify pool was used 3 times
         verify(mockDataSource, times(3)).getConnection();
@@ -313,7 +314,7 @@ class DatabaseServiceTest {
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Connection pool exhausted"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeQuery("SELECT 1", 10);
+            service.executeSql("SELECT 1", 10);
         });
 
         assertEquals("Connection pool exhausted", exception.getMessage());
@@ -340,7 +341,6 @@ class DatabaseServiceTest {
 
     @Test
     void testListResources() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
         setupH2MetaDataMocks();
 
         // Mock tables
@@ -379,7 +379,6 @@ class DatabaseServiceTest {
 
     @Test
     void testListResources_SchemaAccessException() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
         setupH2MetaDataMocks();
 
         // Mock schema access to throw exception
@@ -404,7 +403,6 @@ class DatabaseServiceTest {
 
     @Test
     void testReadResource_Info() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
         setupH2MetaDataMocks();
 
         DatabaseResource info = service.readResource("database://info");
@@ -418,8 +416,6 @@ class DatabaseServiceTest {
 
     @Test
     void testReadResource_Table() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
-
         // Mock table exists check
         ResultSet tableCheck = mock(ResultSet.class);
         when(metaData.getTables(null, null, "USERS", new String[]{"TABLE", "VIEW"}))
@@ -463,7 +459,6 @@ class DatabaseServiceTest {
 
     @Test
     void testReadResource_TableDoesNotExist() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
         ResultSet emptyTables = mock(ResultSet.class);
         when(metaData.getTables(null, null, "DOES_NOT_EXIST", new String[]{"TABLE", "VIEW"}))
                 .thenReturn(emptyTables);
@@ -476,8 +471,6 @@ class DatabaseServiceTest {
 
     @Test
     void testReadResource_Schema() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
-
         // Mock schema exists check
         ResultSet schemaCheck = mock(ResultSet.class);
         when(metaData.getSchemas()).thenReturn(schemaCheck);
@@ -501,7 +494,6 @@ class DatabaseServiceTest {
 
     @Test
     void testReadResource_DataDictionary() throws Exception {
-        when(connection.getMetaData()).thenReturn(metaData);
         setupH2MetaDataMocks();
 
         // Mock tables for data dictionary
@@ -528,6 +520,195 @@ class DatabaseServiceTest {
     }
 
     // ========================================
+    // DESCRIBE TABLE TESTS
+    // ========================================
+    @Test
+    void testDescribeTable_Success_FullDetails() throws Exception {
+        // --- Mocks for describeTable ---
+        String schema = "PUBLIC";
+        String tableName = "ORDERS";
+
+        // 1. Mock Columns
+        ResultSet columnsRs = mock(ResultSet.class);
+        when(metaData.getColumns(null, schema, tableName, null)).thenReturn(columnsRs);
+        when(columnsRs.next()).thenReturn(true, true, false);
+        // First column: id
+        when(columnsRs.getString("COLUMN_NAME")).thenReturn("order_id", "customer_name");
+        when(columnsRs.getString("TYPE_NAME")).thenReturn("INTEGER", "VARCHAR");
+        when(columnsRs.getInt("COLUMN_SIZE")).thenReturn(10, 255);
+        when(columnsRs.getInt("DECIMAL_DIGITS")).thenReturn(0, 0);
+        when(columnsRs.getString("IS_NULLABLE")).thenReturn("NO", "YES");
+        when(columnsRs.getString("COLUMN_DEF")).thenReturn("AUTOINCREMENT", null);
+        when(columnsRs.getString("REMARKS")).thenReturn("Primary key for orders", "Name of the customer");
+
+        // 2. Mock Primary Keys
+        ResultSet pkRs = mock(ResultSet.class);
+        when(metaData.getPrimaryKeys(null, schema, tableName)).thenReturn(pkRs);
+        when(pkRs.next()).thenReturn(true, false);
+        when(pkRs.getString("COLUMN_NAME")).thenReturn("order_id");
+        when(pkRs.getString("PK_NAME")).thenReturn("pk_orders");
+
+        // 3. Mock Foreign Keys
+        ResultSet fkRs = mock(ResultSet.class);
+        when(metaData.getImportedKeys(null, schema, tableName)).thenReturn(fkRs);
+        when(fkRs.next()).thenReturn(false); // No FKs for simplicity in this test
+
+        // 4. Mock Indexes
+        ResultSet indexRs = mock(ResultSet.class);
+        when(metaData.getIndexInfo(null, schema, tableName, false, false)).thenReturn(indexRs);
+        when(indexRs.next()).thenReturn(true, false);
+        when(indexRs.getString("INDEX_NAME")).thenReturn("idx_customer_name");
+        when(indexRs.getString("COLUMN_NAME")).thenReturn("customer_name");
+        when(indexRs.getBoolean("NON_UNIQUE")).thenReturn(true);
+
+        // 5. Mock Table Info (for row count)
+        ResultSet tableInfoRs = mock(ResultSet.class);
+        when(metaData.getTables(null, schema, tableName, null)).thenReturn(tableInfoRs);
+        when(tableInfoRs.next()).thenReturn(true, false);
+        when(tableInfoRs.getString("TABLE_TYPE")).thenReturn("TABLE");
+        when(tableInfoRs.getString("REMARKS")).thenReturn("Table of customer orders");
+
+        // Mock the executeRunSql for row count
+        PreparedStatement countStmt = mock(PreparedStatement.class);
+        ResultSet countRs = mock(ResultSet.class);
+        ResultSetMetaData countMeta = mock(ResultSetMetaData.class);
+        when(connection.prepareStatement(String.format("SELECT COUNT(*) FROM %s.%s", schema, tableName))).thenReturn(countStmt);
+        when(countStmt.execute()).thenReturn(true);
+        when(countStmt.getResultSet()).thenReturn(countRs);
+        when(countRs.getMetaData()).thenReturn(countMeta);
+        when(countMeta.getColumnCount()).thenReturn(1);
+        when(countRs.next()).thenReturn(true, false);
+        when(countRs.getObject(1)).thenReturn(150L);
+
+        // --- Execute and Assert ---
+        String description = service.describeTable(tableName, schema);
+
+        assertNotNull(description);
+        // Check columns
+        assertTrue(description.contains("COLUMNS:"));
+        assertTrue(description.contains("order_id"));
+        assertTrue(description.contains("INTEGER NOT NULL DEFAULT AUTOINCREMENT -- Primary key for orders"));
+        assertTrue(description.contains("customer_name"));
+        assertTrue(description.contains("VARCHAR(255) -- Name of the customer"));
+        // Check PK
+        assertTrue(description.contains("PRIMARY KEYS:"));
+        assertTrue(description.contains("Primary Key (pk_orders): order_id"));
+        // Check FK
+        assertTrue(description.contains("FOREIGN KEYS:"));
+        assertTrue(description.contains("No foreign keys defined"));
+        // Check Indexes
+        assertTrue(description.contains("INDEXES:"));
+        assertTrue(description.contains("idx_customer_name: customer_name"));
+        // Check Table Info
+        assertTrue(description.contains("TABLE INFORMATION:"));
+        assertTrue(description.contains("Table Type: TABLE"));
+        assertTrue(description.contains("Description: Table of customer orders"));
+        assertTrue(description.contains("Estimated Row Count: 150"));
+    }
+
+    @Test
+    void testDescribeTable_TableNotFound() throws Exception {
+        ResultSet emptyRs = mock(ResultSet.class);
+        when(emptyRs.next()).thenReturn(false);
+        // Mock to return empty results for any attempt
+        when(metaData.getColumns(any(), any(), eq("NONEXISTENT_TABLE"), any())).thenReturn(emptyRs);
+
+        SQLException exception = assertThrows(SQLException.class, () -> {
+            service.describeTable("NONEXISTENT_TABLE", null);
+        });
+
+        assertEquals("Table not found: NONEXISTENT_TABLE", exception.getMessage());
+    }
+
+    @Test
+    void testDescribeTable_RowCountQueryFails() throws Exception {
+        String tableName = "USERS";
+
+        // Mock columns, PK, etc. to succeed
+        ResultSet columnsRs = mock(ResultSet.class);
+        when(metaData.getColumns(null, null, tableName, null)).thenReturn(columnsRs);
+        when(columnsRs.next()).thenReturn(true, false);
+        when(columnsRs.getString("COLUMN_NAME")).thenReturn("id");
+        when(columnsRs.getString("TYPE_NAME")).thenReturn("INTEGER");
+
+        ResultSet pkRs = mock(ResultSet.class);
+        when(metaData.getPrimaryKeys(null, null, tableName)).thenReturn(pkRs);
+        when(pkRs.next()).thenReturn(false);
+
+        ResultSet fkRs = mock(ResultSet.class);
+        when(metaData.getImportedKeys(null, null, tableName)).thenReturn(fkRs);
+        when(fkRs.next()).thenReturn(false);
+
+        ResultSet indexRs = mock(ResultSet.class);
+        when(metaData.getIndexInfo(null, null, tableName, false, false)).thenReturn(indexRs);
+        when(indexRs.next()).thenReturn(false);
+
+        ResultSet tableInfoRs = mock(ResultSet.class);
+        when(metaData.getTables(null, null, tableName, null)).thenReturn(tableInfoRs);
+        when(tableInfoRs.next()).thenReturn(true, false);
+        when(tableInfoRs.getString("TABLE_TYPE")).thenReturn("TABLE");
+
+        // Mock the row count query to fail
+        when(connection.prepareStatement(anyString())).thenThrow(new SQLException("Permission denied"));
+
+        // Execute and Assert
+        String description = service.describeTable(tableName, null);
+        assertNotNull(description);
+        assertTrue(description.contains("Row Count: Not available"));
+        assertFalse(description.contains("Permission denied")); // Exception should be handled gracefully
+    }
+
+    @Test
+    void testDescribeTable_PostgresNormalization() throws Exception {
+        when(config.getDatabaseType()).thenReturn("postgresql");
+        String tableName = "Users"; // Mixed case input
+
+        // Mock a minimal successful response
+        ResultSet columnsRs = mock(ResultSet.class);
+        when(metaData.getColumns(any(), any(), eq("users"), any())).thenReturn(columnsRs); // Expect lowercase
+        when(columnsRs.next()).thenReturn(true, false);
+        when(columnsRs.getString("COLUMN_NAME")).thenReturn("id");
+        when(columnsRs.getString("TYPE_NAME")).thenReturn("int4");
+
+        ResultSet emptyRs = mock(ResultSet.class);
+        when(emptyRs.next()).thenReturn(false);
+        when(metaData.getPrimaryKeys(any(), any(), any())).thenReturn(emptyRs);
+        when(metaData.getImportedKeys(any(), any(), any())).thenReturn(emptyRs);
+        when(metaData.getIndexInfo(any(), any(), any(), anyBoolean(), anyBoolean())).thenReturn(emptyRs);
+        when(metaData.getTables(any(), any(), any(), any())).thenReturn(emptyRs);
+
+        service.describeTable(tableName, null);
+
+        // Verify that the metadata was requested with the normalized (lowercase) table name
+        verify(metaData).getColumns(null, null, "users", null);
+    }
+
+    @Test
+    void testDescribeTable_OracleNormalization() throws Exception {
+        when(config.getDatabaseType()).thenReturn("oracle");
+        String tableName = "users"; // Lowercase input
+
+        // Mock a minimal successful response
+        ResultSet columnsRs = mock(ResultSet.class);
+        when(metaData.getColumns(any(), any(), eq("USERS"), any())).thenReturn(columnsRs); // Expect uppercase
+        when(columnsRs.next()).thenReturn(true, false);
+        when(columnsRs.getString("COLUMN_NAME")).thenReturn("ID");
+        when(columnsRs.getString("TYPE_NAME")).thenReturn("NUMBER");
+
+        ResultSet emptyRs = mock(ResultSet.class);
+        when(emptyRs.next()).thenReturn(false);
+        lenient().when(metaData.getPrimaryKeys(any(), any(), any())).thenReturn(emptyRs);
+        lenient().when(metaData.getImportedKeys(any(), any(), any())).thenReturn(emptyRs);
+        lenient().when(metaData.getIndexInfo(any(), any(), any(), anyBoolean(), anyBoolean())).thenReturn(emptyRs);
+        lenient().when(metaData.getTables(any(), any(), any(), any())).thenReturn(emptyRs);
+
+        service.describeTable(tableName, null);
+
+        // Verify that the metadata was requested with the normalized (uppercase) table name
+        verify(metaData).getColumns(null, null, "USERS", null);
+    }
+
+    // ========================================
     // DATABASE-SPECIFIC TESTS - MYSQL
     // ========================================
 
@@ -538,7 +719,6 @@ class DatabaseServiceTest {
         when(config.dbUrl()).thenReturn("jdbc:mysql://localhost:3306/testdb");
         when(config.dbUser()).thenReturn("mysql_user");
 
-        when(connection.getMetaData()).thenReturn(metaData);
         setupMySQLMetaDataMocks();
         mockMySQLSpecificQueries();
 
@@ -571,7 +751,6 @@ class DatabaseServiceTest {
     @Test
     void testMySQL_DataDictionary() throws Exception {
         when(config.getDatabaseType()).thenReturn("mysql");
-        when(connection.getMetaData()).thenReturn(metaData);
         setupMySQLMetaDataMocks();
         mockMySQLSpecificQueries();
 
@@ -605,7 +784,6 @@ class DatabaseServiceTest {
         when(config.dbUrl()).thenReturn("jdbc:postgresql://localhost:5432/testdb");
         when(config.dbUser()).thenReturn("postgres");
 
-        when(connection.getMetaData()).thenReturn(metaData);
         setupPostgreSQLMetaDataMocks();
         mockPostgreSQLSpecificQueries();
 
@@ -647,7 +825,6 @@ class DatabaseServiceTest {
         when(config.dbUrl()).thenReturn("jdbc:sqlserver://localhost:1433;databaseName=testdb");
         when(config.dbUser()).thenReturn("sa");
 
-        when(connection.getMetaData()).thenReturn(metaData);
         setupSQLServerMetaDataMocks();
         mockSQLServerSpecificQueries();
 
@@ -684,7 +861,6 @@ class DatabaseServiceTest {
         when(config.dbUrl()).thenReturn("jdbc:oracle:thin:@localhost:1521:testdb");
         when(config.dbUser()).thenReturn("oracle_user");
 
-        when(connection.getMetaData()).thenReturn(metaData);
         setupOracleMetaDataMocks();
         mockOracleSpecificQueries();
 
@@ -729,7 +905,6 @@ class DatabaseServiceTest {
     @Test
     void testMySQL_CharsetQueryException() throws Exception {
         when(config.getDatabaseType()).thenReturn("mysql");
-        when(connection.getMetaData()).thenReturn(metaData);
         setupMySQLMetaDataMocks();
 
         // Mock charset query to throw exception
@@ -759,7 +934,6 @@ class DatabaseServiceTest {
     @Test
     void testPostgreSQL_TimezoneQueryException() throws Exception {
         when(config.getDatabaseType()).thenReturn("postgresql");
-        when(connection.getMetaData()).thenReturn(metaData);
         setupPostgreSQLMetaDataMocks();
 
         // Mock timezone query to throw exception
@@ -842,11 +1016,12 @@ class DatabaseServiceTest {
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             ConfigParams badConfig = mock(ConfigParams.class);
             when(badConfig.dbDriver()).thenReturn("non.existent.Driver");
+            when(badConfig.getDatabaseType()).thenReturn("unknown");
 
             new DatabaseService(badConfig);
         });
 
-        assertTrue(exception.getMessage().contains("Database driver not found"));
+        assertTrue(exception.getMessage().contains("Database driver class 'non.existent.Driver' not found in classpath."));
     }
 
     // ========================================

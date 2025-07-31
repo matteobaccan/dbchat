@@ -125,7 +125,7 @@ class McpServerContainerTest {
 
         JsonNode toolsResponse = server.handleRequest(toolsRequest);
         assertThat(toolsResponse.path("result").path("tools")).hasSize(1);
-        assertThat(toolsResponse.path("result").path("tools").get(0).path("name").asText()).isEqualTo("query");
+        assertThat(toolsResponse.path("result").path("tools").get(0).path("name").asText()).isEqualTo("run_sql");
 
         // Test list resources
         JsonNode resourcesRequest = objectMapper.readTree("""
@@ -161,7 +161,7 @@ class McpServerContainerTest {
                 "id": 4,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "SELECT * FROM test_users ORDER BY id",
                         "maxRows": 100
@@ -226,7 +226,7 @@ class McpServerContainerTest {
                 "id": 1,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "SELECT COUNT(*) as user_count FROM test_users",
                         "maxRows": 1
@@ -281,7 +281,7 @@ class McpServerContainerTest {
                 "id": 1,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "SELECT u.name, o.order_date FROM test_users u LEFT JOIN test_orders o ON u.id = o.user_id ORDER BY u.id",
                         "maxRows": 100
@@ -318,7 +318,7 @@ class McpServerContainerTest {
                 "id": 1,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "SELECT * FROM non_existent_table",
                         "maxRows": 100
@@ -354,7 +354,7 @@ class McpServerContainerTest {
                 "id": 1,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "SELECT * FROM large_table ORDER BY id",
                         "maxRows": 5

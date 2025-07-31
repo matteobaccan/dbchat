@@ -44,11 +44,30 @@ public class DatabaseService {
         // Load the database driver
         try {
             Class.forName(configParams.dbDriver());
-            logger.info("Database driver loaded: {}", configParams.dbDriver());
+            logger.info("Database driver loaded successfully: {}", configParams.dbDriver());
         } catch (ClassNotFoundException e) {
-            logger.error("Failed to load database driver: {}", configParams.dbDriver(), e);
-            //throw new RuntimeException("Database driver not found", e);
-            throw new RuntimeException(ResourceManager.getErrorMessage("database.driver.not.found"), e);
+            String driverClass = configParams.dbDriver();
+            String dbType = configParams.getDatabaseType();
+            
+            logger.error("Failed to load database driver '{}' for database type '{}'. {}", 
+                    driverClass, dbType, ResourceManager.getErrorMessage("database.driver.suggestions"), e);
+            
+            // Provide detailed error message with context and suggestions
+            String detailedMessage = ResourceManager.getErrorMessage("database.driver.not.found.detailed", driverClass);
+            String suggestion = getSuggestedDriverForDatabaseType(dbType, driverClass);
+            throw new RuntimeException(detailedMessage + " " + suggestion + " " + 
+                    ResourceManager.getErrorMessage("database.driver.suggestions"), e);
+        } catch (ExceptionInInitializerError e) {
+            logger.error("Database driver '{}' failed to initialize: {}", configParams.dbDriver(), e.getMessage(), e);
+            throw new RuntimeException("Database driver failed to initialize: " + configParams.dbDriver() + 
+                    ". This usually indicates a configuration or dependency issue.", e);
+        } catch (LinkageError e) {
+            logger.error("Database driver '{}' has linkage problems: {}", configParams.dbDriver(), e.getMessage(), e);
+            throw new RuntimeException("Database driver has incompatible dependencies: " + configParams.dbDriver() + 
+                    ". Check for version conflicts in classpath.", e);
+        } catch (SecurityException e) {
+            logger.error("Security manager prevented loading driver '{}': {}", configParams.dbDriver(), e.getMessage(), e);
+            throw new RuntimeException("Security policy prevented loading database driver: " + configParams.dbDriver(), e);
         }
 
         // Initialize HikariCP connection pool
@@ -61,7 +80,7 @@ public class DatabaseService {
         poolConfig.setConnectionTimeout(configParams.connectionTimeoutMs());
         poolConfig.setIdleTimeout(configParams.idleTimeoutMs());                       // 10 minutes default
         poolConfig.setMaxLifetime(configParams.maxLifetimeMs());                       // 30 minutes
-        poolConfig.setLeakDetectionThreshold(configParams.leakDetectionThresholdMs()); // 1 minute
+        poolConfig.setLeakDetectionThreshold(configParams.leakDetectionThresholdMs()); // 20 seconds
 
         this.dataSource = new HikariDataSource(poolConfig);
 
@@ -70,8 +89,8 @@ public class DatabaseService {
             logger.info("Database connection pool initialized for: {}", configParams.dbUrl());
         } catch (SQLException e) {
             logger.error("Failed to initialize connection pool: {}", configParams.dbUrl(), e);
-            //throw new RuntimeException("Database connection pool initialization failed", e);
-            throw new RuntimeException(ResourceManager.getErrorMessage("database.pool.init.failed"), e);
+            throw new RuntimeException(ResourceManager.getErrorMessage("database.pool.init.failed.detailed", 
+                    configParams.maskSensitive(configParams.dbUrl())), e);
         }
     }
 
@@ -90,8 +109,13 @@ public class DatabaseService {
         // Load driver for validation
         try {
             Class.forName(configParams.dbDriver());
+            logger.debug("Database driver validated: {}", configParams.dbDriver());
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException("Database driver not found", e);
+            String detailedMessage = ResourceManager.getErrorMessage("database.driver.not.found.detailed", configParams.dbDriver());
+            throw new RuntimeException(detailedMessage, e);
+        } catch (LinkageError | SecurityException e) {
+            throw new RuntimeException("Database driver loading failed: " + configParams.dbDriver() + 
+                    " - " + e.getMessage(), e);
         }
     }
 
@@ -104,7 +128,7 @@ public class DatabaseService {
      * @return QueryResult containing columns, rows, count, and execution time
      * @throws SQLException if the query fails, contains invalid syntax, or violates security restrictions
      */
-    public QueryResult executeQuery(String sqlQuery, int maxRows) throws SQLException {
+    public QueryResult executeSql(String sqlQuery, int maxRows) throws SQLException {
         long startTime = System.currentTimeMillis();
 
         // Add validation before executing
@@ -906,6 +930,297 @@ public class DatabaseService {
     }
 
     /**
+     * Describes the structure of a database table including columns, constraints, indexes, and other metadata.
+     * This method provides comprehensive table information by querying the database system catalogs.
+     *
+     * @param tableName The name of the table to describe
+     * @param schema The schema/database name (optional, can be null for default schema)
+     * @return A formatted string containing detailed table structure information
+     * @throws SQLException if the table doesn't exist or metadata cannot be retrieved
+     */
+    public String describeTable(String tableName, String schema) throws SQLException {
+        try (Connection dbConn = getConnection()) {
+            DatabaseMetaData metaData = dbConn.getMetaData();
+            
+            // Normalize case based on database type
+            String normalizedTableName = normalizeIdentifier(tableName, metaData);
+            String normalizedSchema = schema != null ? normalizeIdentifier(schema, metaData) : null;
+            
+            StringBuilder description = new StringBuilder();
+            
+            // Basic table information
+            description.append("COLUMNS:\n");
+            description.append(describeTableColumns(metaData, normalizedSchema, normalizedTableName));
+            
+            // Primary keys
+            description.append("\nPRIMARY KEYS:\n");
+            description.append(describeTablePrimaryKeys(metaData, normalizedSchema, normalizedTableName));
+            
+            // Foreign keys
+            description.append("\nFOREIGN KEYS:\n");
+            description.append(describeTableForeignKeys(metaData, normalizedSchema, normalizedTableName));
+            
+            // Indexes
+            description.append("\nINDEXES:\n");
+            description.append(describeTableIndexes(metaData, normalizedSchema, normalizedTableName));
+            
+            // Table statistics (if available)
+            description.append("\nTABLE INFORMATION:\n");
+            description.append(describeTableInfo(metaData, normalizedSchema, normalizedTableName));
+            
+            return description.toString();
+        }
+    }
+    
+    /**
+     * Normalizes table/schema identifiers based on database-specific case sensitivity rules.
+     */
+    private String normalizeIdentifier(String identifier, DatabaseMetaData metaData) throws SQLException {
+        if (identifier == null) return null;
+        
+        String dbType = getDatabaseConfig().getDatabaseType().toLowerCase();
+        
+        // Database-specific identifier normalization
+        switch (dbType) {
+            case "postgresql":
+                // PostgreSQL stores unquoted identifiers in lowercase
+                return identifier.toLowerCase();
+            case "oracle":
+                // Oracle stores unquoted identifiers in uppercase
+                return identifier.toUpperCase();
+            case "mysql", "mariadb":
+                // MySQL case sensitivity depends on OS, but metadata usually matches input case
+                return identifier;
+            case "sqlserver":
+                // SQL Server is case-insensitive but preserves case in metadata
+                return identifier;
+            default:
+                // For other databases, try as-is first
+                return identifier;
+        }
+    }
+    
+    /**
+     * Describes table columns with data types, nullability, and default values.
+     */
+    private String describeTableColumns(DatabaseMetaData metaData, String schema, String tableName) throws SQLException {
+        StringBuilder columns = new StringBuilder();
+        
+        try (ResultSet rs = metaData.getColumns(null, schema, tableName, null)) {
+            boolean foundColumns = false;
+            
+            while (rs.next()) {
+                foundColumns = true;
+                String columnName = rs.getString("COLUMN_NAME");
+                String dataType = rs.getString("TYPE_NAME");
+                int columnSize = rs.getInt("COLUMN_SIZE");
+                int decimalDigits = rs.getInt("DECIMAL_DIGITS");
+                String nullable = rs.getString("IS_NULLABLE");
+                String defaultValue = rs.getString("COLUMN_DEF");
+                String remarks = rs.getString("REMARKS");
+                
+                columns.append(String.format("  %-30s %s", columnName, formatDataType(dataType, columnSize, decimalDigits)));
+                
+                if ("NO".equals(nullable)) {
+                    columns.append(" NOT NULL");
+                }
+                
+                if (defaultValue != null && !defaultValue.trim().isEmpty()) {
+                    columns.append(String.format(" DEFAULT %s", defaultValue));
+                }
+                
+                if (remarks != null && !remarks.trim().isEmpty()) {
+                    columns.append(String.format(" -- %s", remarks));
+                }
+                
+                columns.append("\n");
+            }
+            
+            if (!foundColumns) {
+                // Try with different case or without schema
+                if (schema != null) {
+                    return describeTableColumns(metaData, null, tableName);
+                } else {
+                    throw new SQLException("Table not found: " + tableName);
+                }
+            }
+        }
+        
+        return columns.length() > 0 ? columns.toString() : "No columns found\n";
+    }
+    
+    /**
+     * Formats data type with size and precision information.
+     */
+    private String formatDataType(String typeName, int size, int decimalDigits) {
+        if (typeName == null) return "UNKNOWN";
+        
+        // For types that have size/precision
+        if (size > 0) {
+            if (decimalDigits > 0) {
+                // Types with precision and scale (e.g., DECIMAL(10,2))
+                return String.format("%s(%d,%d)", typeName, size, decimalDigits);
+            } else if (typeName.toUpperCase().contains("CHAR") || 
+                      typeName.toUpperCase().contains("VARCHAR") ||
+                      typeName.toUpperCase().contains("BINARY")) {
+                // Character and binary types
+                return String.format("%s(%d)", typeName, size);
+            }
+        }
+        
+        return typeName;
+    }
+    
+    /**
+     * Describes primary key constraints.
+     */
+    private String describeTablePrimaryKeys(DatabaseMetaData metaData, String schema, String tableName) throws SQLException {
+        StringBuilder pks = new StringBuilder();
+        
+        try (ResultSet rs = metaData.getPrimaryKeys(null, schema, tableName)) {
+            List<String> pkColumns = new ArrayList<>();
+            String pkName = null;
+            
+            while (rs.next()) {
+                String columnName = rs.getString("COLUMN_NAME");
+                pkName = rs.getString("PK_NAME");
+                short keySeq = rs.getShort("KEY_SEQ");
+                pkColumns.add(columnName);
+            }
+            
+            if (!pkColumns.isEmpty()) {
+                pks.append("  Primary Key");
+                if (pkName != null) {
+                    pks.append(" (").append(pkName).append(")");
+                }
+                pks.append(": ").append(String.join(", ", pkColumns)).append("\n");
+            } else {
+                pks.append("  No primary key defined\n");
+            }
+        }
+        
+        return pks.toString();
+    }
+    
+    /**
+     * Describes foreign key constraints.
+     */
+    private String describeTableForeignKeys(DatabaseMetaData metaData, String schema, String tableName) throws SQLException {
+        StringBuilder fks = new StringBuilder();
+        
+        try (ResultSet rs = metaData.getImportedKeys(null, schema, tableName)) {
+            Map<String, List<String>> foreignKeys = new HashMap<>();
+            
+            while (rs.next()) {
+                String fkName = rs.getString("FK_NAME");
+                String fkColumn = rs.getString("FKCOLUMN_NAME");
+                String pkTable = rs.getString("PKTABLE_NAME");
+                String pkColumn = rs.getString("PKCOLUMN_NAME");
+                String pkSchema = rs.getString("PKTABLE_SCHEM");
+                
+                String fkKey = fkName != null ? fkName : "FK_" + pkTable;
+                foreignKeys.computeIfAbsent(fkKey, k -> new ArrayList<>())
+                    .add(String.format("%s -> %s.%s(%s)", 
+                        fkColumn, 
+                        pkSchema != null ? pkSchema + "." + pkTable : pkTable, 
+                        pkTable, 
+                        pkColumn));
+            }
+            
+            if (foreignKeys.isEmpty()) {
+                fks.append("  No foreign keys defined\n");
+            } else {
+                for (Map.Entry<String, List<String>> entry : foreignKeys.entrySet()) {
+                    fks.append("  ").append(entry.getKey()).append(": ")
+                       .append(String.join(", ", entry.getValue())).append("\n");
+                }
+            }
+        }
+        
+        return fks.toString();
+    }
+    
+    /**
+     * Describes table indexes.
+     */
+    private String describeTableIndexes(DatabaseMetaData metaData, String schema, String tableName) throws SQLException {
+        StringBuilder indexes = new StringBuilder();
+        
+        try (ResultSet rs = metaData.getIndexInfo(null, schema, tableName, false, false)) {
+            Map<String, List<String>> indexMap = new HashMap<>();
+            Map<String, Boolean> uniqueMap = new HashMap<>();
+            
+            while (rs.next()) {
+                String indexName = rs.getString("INDEX_NAME");
+                String columnName = rs.getString("COLUMN_NAME");
+                boolean nonUnique = rs.getBoolean("NON_UNIQUE");
+                
+                if (indexName != null && columnName != null) {
+                    indexMap.computeIfAbsent(indexName, k -> new ArrayList<>()).add(columnName);
+                    uniqueMap.put(indexName, !nonUnique);
+                }
+            }
+            
+            if (indexMap.isEmpty()) {
+                indexes.append("  No indexes found\n");
+            } else {
+                for (Map.Entry<String, List<String>> entry : indexMap.entrySet()) {
+                    String indexName = entry.getKey();
+                    boolean isUnique = uniqueMap.getOrDefault(indexName, false);
+                    
+                    indexes.append("  ").append(indexName);
+                    if (isUnique) {
+                        indexes.append(" (UNIQUE)");
+                    }
+                    indexes.append(": ").append(String.join(", ", entry.getValue())).append("\n");
+                }
+            }
+        }
+        
+        return indexes.toString();
+    }
+    
+    /**
+     * Describes general table information and statistics.
+     */
+    private String describeTableInfo(DatabaseMetaData metaData, String schema, String tableName) throws SQLException {
+        StringBuilder info = new StringBuilder();
+        
+        try (ResultSet rs = metaData.getTables(null, schema, tableName, null)) {
+            if (rs.next()) {
+                String tableType = rs.getString("TABLE_TYPE");
+                String remarks = rs.getString("REMARKS");
+                
+                info.append(String.format("  Table Type: %s\n", tableType != null ? tableType : "TABLE"));
+                
+                if (remarks != null && !remarks.trim().isEmpty()) {
+                    info.append(String.format("  Description: %s\n", remarks));
+                }
+                
+                // Database-specific additional info
+                String dbType = getDatabaseConfig().getDatabaseType().toLowerCase();
+                info.append(String.format("  Database Type: %s\n", dbType.toUpperCase()));
+                
+                // Try to get row count (this might fail for some databases/permissions)
+                try {
+                    String countQuery = String.format("SELECT COUNT(*) FROM %s%s", 
+                        schema != null ? schema + "." : "", tableName);
+                    QueryResult countResult = executeSql(countQuery, 1);
+                    if (!countResult.isEmpty() && !countResult.allRows().isEmpty()) {
+                        Object rowCount = countResult.allRows().get(0).get(0);
+                        info.append(String.format("  Estimated Row Count: %s\n", rowCount));
+                    }
+                } catch (SQLException e) {
+                    // Ignore - row count is nice to have but not essential
+                    info.append("  Row Count: Not available\n");
+                }
+            }
+        }
+        
+        return info.toString();
+    }
+
+    /**
      * Closes the connection pool and releases all database resources.
      * Should be called during application shutdown to ensure clean resource cleanup.
      * This method is idempotent and safe to call multiple times.
@@ -919,6 +1234,40 @@ public class DatabaseService {
                 logger.warn("Error closing database connection pool: {}", e.getMessage(), e);
                 // Don't re-throw - this is cleanup code
             }
+        }
+    }
+
+    /**
+     * Provides driver suggestions based on database type when driver loading fails.
+     *
+     * @param dbType The detected database type
+     * @param attemptedDriver The driver class that failed to load
+     * @return Helpful suggestion message
+     */
+    private String getSuggestedDriverForDatabaseType(String dbType, String attemptedDriver) {
+        String correctDriver = switch (dbType.toLowerCase()) {
+            case "mysql" -> "com.mysql.cj.jdbc.Driver";
+            case "mariadb" -> "org.mariadb.jdbc.Driver";
+            case "postgresql" -> "org.postgresql.Driver";
+            case "oracle" -> "oracle.jdbc.OracleDriver";
+            case "sqlserver" -> "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+            case "h2" -> "org.h2.Driver";
+            case "sqlite" -> "org.sqlite.JDBC";
+            case "db2" -> "com.ibm.db2.jcc.DB2Driver";
+            case "clickhouse" -> "com.clickhouse.jdbc.ClickHouseDriver";
+            case "snowflake" -> "net.snowflake.client.jdbc.SnowflakeDriver";
+            case "redshift" -> "com.amazon.redshift.jdbc.Driver";
+            case "bigquery" -> "com.google.cloud.bigquery.jdbc.Driver";
+            case "duckdb" -> "org.duckdb.DuckDBDriver";
+            default -> null;
+        };
+
+        if (correctDriver != null && !correctDriver.equals(attemptedDriver)) {
+            return String.format("For %s databases, try driver class: %s.", dbType, correctDriver);
+        } else if (correctDriver != null) {
+            return String.format("Ensure the %s JDBC driver JAR is in your Maven profile/classpath.", dbType);
+        } else {
+            return String.format("Database type '%s' detected but no standard driver suggestion available.", dbType);
         }
     }
 }

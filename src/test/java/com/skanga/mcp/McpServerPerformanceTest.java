@@ -66,7 +66,7 @@ class McpServerPerformanceTest {
         long memoryBefore = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
 
         // When - Execute query and format results
-        QueryResult result = databaseService.executeQuery(sql, rowCount);
+        QueryResult result = databaseService.executeSql(sql, rowCount);
         String formattedTable = formatResultsAsTable(result);
 
         // Measure memory after
@@ -109,7 +109,7 @@ class McpServerPerformanceTest {
                     
                     for (int j = 0; j < queriesPerThread; j++) {
                         String sql = String.format("SELECT * FROM table_%d WHERE id = %d", threadId, j);
-                        QueryResult result = databaseService.executeQuery(sql, 100);
+                        QueryResult result = databaseService.executeSql(sql, 100);
                         assertThat(result).isNotNull();
                         successCount.incrementAndGet();
                     }
@@ -150,7 +150,7 @@ class McpServerPerformanceTest {
 
         // When - Execute with row limit
         long startTime = System.currentTimeMillis();
-        QueryResult result = databaseService.executeQuery(sql, maxRows);
+        QueryResult result = databaseService.executeSql(sql, maxRows);
         long executionTime = System.currentTimeMillis() - startTime;
 
         // Then - Verify limit is enforced efficiently
@@ -169,7 +169,7 @@ class McpServerPerformanceTest {
         int rowCount = 500;
         setupLargeResultSetMock(rowCount);
         
-        QueryResult result = databaseService.executeQuery("SELECT * FROM test", rowCount);
+        QueryResult result = databaseService.executeSql("SELECT * FROM test", rowCount);
         
         // Create MCP response structure
         Map<String, Object> mcpResponse = new HashMap<>();
@@ -212,7 +212,7 @@ class McpServerPerformanceTest {
 
         // When - Process result
         long startTime = System.currentTimeMillis();
-        QueryResult result = databaseService.executeQuery(sql, 10);
+        QueryResult result = databaseService.executeSql(sql, 10);
         String formatted = formatResultsAsTable(result);
         long processingTime = System.currentTimeMillis() - startTime;
 
@@ -233,7 +233,7 @@ class McpServerPerformanceTest {
 
         // When - Process different data types
         long startTime = System.currentTimeMillis();
-        QueryResult result = databaseService.executeQuery(sql, 100);
+        QueryResult result = databaseService.executeSql(sql, 100);
         long processingTime = System.currentTimeMillis() - startTime;
 
         // Then - Verify efficient type handling
@@ -256,7 +256,7 @@ class McpServerPerformanceTest {
         
         for (int rowCount : rowCounts) {
             setupLargeResultSetMock(rowCount);
-            QueryResult result = databaseService.executeQuery("SELECT * FROM test", rowCount);
+            QueryResult result = databaseService.executeSql("SELECT * FROM test", rowCount);
             
             // When - Format as table
             long startTime = System.currentTimeMillis();

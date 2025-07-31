@@ -1,0 +1,29 @@
+# SQL Server Database Help Content
+
+dialect.guidance: |
+  - SqlServer Database - Use square brackets [] or double quotes "" for identifiers with spaces
+  - Note: Double quotes require QUOTED_IDENTIFIER to be ON (default)
+  - DATE functions: GETDATE(), DATEADD(), DATEDIFF()
+  - String functions: CONCAT(), SUBSTRING(), LEN()
+  - Identity: IDENTITY(1,1)
+  - Pagination (ORDER BY is REQUIRED with OFFSET)
+    SELECT * FROM table ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+
+query.examples: |
+  -- Date queries
+  SELECT * FROM table WHERE date_col >= DATEADD(day, -7, GETDATE());
+  SELECT FORMAT(created_at, 'yyyy-MM') AS month FROM table;
+
+  -- String operations
+  SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM users;
+  SELECT * FROM [table] WHERE [column] LIKE '%search%';
+
+  -- Pagination
+  SELECT * FROM table ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+
+datatype.info: |
+  Text: VARCHAR(n), NVARCHAR(n), TEXT
+  Numbers: INT, BIGINT, DECIMAL(p,s), FLOAT, REAL
+  Dates: DATE, DATETIME, DATETIME2, DATETIMEOFFSET
+  Boolean: BIT
+  GUID: UNIQUEIDENTIFIER

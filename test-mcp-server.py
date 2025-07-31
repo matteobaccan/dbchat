@@ -421,7 +421,7 @@ class DatabaseMcpTester:
                 "id": 12,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(50), created_date DATE)"
                     }
@@ -433,7 +433,7 @@ class DatabaseMcpTester:
                 "id": 13,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "INSERT INTO test_table VALUES (1, 'John Doe', '2024-01-01'), (2, 'Jane Smith', '2024-01-02')"
                     }
@@ -445,28 +445,41 @@ class DatabaseMcpTester:
                 "id": 14,
                 "method": "tools/call",
                 "params": {
-                    "name": "query",
+                    "name": "run_sql",
                     "arguments": {
                         "sql": "SELECT * FROM test_table ORDER BY id"
+                    }
+                }
+            },
+            # Describe table (different tool call)
+            {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "tools/call",
+                "params": {
+                    "name": "describe_table",
+                    "arguments": {
+                        "table_name": "test_table"
                     }
                 }
             },
             # Read table metadata
             {
                 "jsonrpc": "2.0",
-                "id": 15,
+                "id": 16,
                 "method": "resources/read",
                 "params": {"uri": "database://table/TEST_TABLE"}  # Use uppercase as H2 stores it
             }
         ]
 
         db_expected_keys = [
-            ["protocolVersion", "capabilities", "serverInfo"],  # initialize
-            [],        # notification
-            ["content"],    # CREATE TABLE
-            ["content"],    # INSERT
-            ["content"],    # SELECT
-            ["contents"]    # READ TABLE METADATA
+            ["protocolVersion", "capabilities", "serverInfo"],  # Req 1: initialize
+            [],                                                 # Req 2: notification (no response)
+            ["content"],                                        # Req 3: run_sql (CREATE)
+            ["content"],                                        # Req 4: run_sql (INSERT)
+            ["content"],                                        # Req 5: run_sql (SELECT)
+            ["content"],                                        # Req 6: describe_table call
+            ["contents"]                                        # Req 7: resources/read call
         ]
 
         self.run_session_test(
@@ -594,3 +607,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

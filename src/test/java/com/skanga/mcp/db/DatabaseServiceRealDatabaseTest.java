@@ -42,7 +42,7 @@ class DatabaseServiceRealDatabaseTest {
         int maxRows = 100;
 
         // When
-        QueryResult result = databaseService.executeQuery(sql, maxRows);
+        QueryResult result = databaseService.executeSql(sql, maxRows);
 
         // Then
         assertThat(result.allColumns()).containsExactly("ID", "NAME");
@@ -62,7 +62,7 @@ class DatabaseServiceRealDatabaseTest {
         String sql = "UPDATE users SET name = 'Updated Name' WHERE id = 1";
 
         // When
-        QueryResult result = databaseService.executeQuery(sql, 100);
+        QueryResult result = databaseService.executeSql(sql, 100);
 
         // Then
         assertThat(result.allColumns()).containsExactly("affected_rows");
@@ -71,7 +71,7 @@ class DatabaseServiceRealDatabaseTest {
         assertThat(result.rowCount()).isEqualTo(1);
         
         // Verify the update actually happened
-        QueryResult selectResult = databaseService.executeQuery("SELECT name FROM users WHERE id = 1", 1);
+        QueryResult selectResult = databaseService.executeSql("SELECT name FROM users WHERE id = 1", 1);
         assertThat(selectResult.allRows().get(0).get(0)).isEqualTo("Updated Name");
     }
 
@@ -82,7 +82,7 @@ class DatabaseServiceRealDatabaseTest {
         String invalidSql = "SELECT * FROM non_existent_table";
 
         // When/Then
-        assertThatThrownBy(() -> databaseService.executeQuery(invalidSql, 100))
+        assertThatThrownBy(() -> databaseService.executeSql(invalidSql, 100))
             .isInstanceOf(SQLException.class)
             .hasMessageContaining("not found"); // H2 specific error message
     }
@@ -163,7 +163,7 @@ class DatabaseServiceRealDatabaseTest {
         int maxRows = 2;
 
         // When
-        QueryResult result = databaseService.executeQuery(sql, maxRows);
+        QueryResult result = databaseService.executeSql(sql, maxRows);
 
         // Then
         assertThat(result.allRows()).hasSize(2); // Limited by maxRows
@@ -188,7 +188,7 @@ class DatabaseServiceRealDatabaseTest {
             """;
 
         // When
-        QueryResult result = databaseService.executeQuery(complexSql, 100);
+        QueryResult result = databaseService.executeSql(complexSql, 100);
 
         // Then
         assertThat(result.allColumns()).contains("NAME", "EMAIL", "ORDER_COUNT");
@@ -204,12 +204,12 @@ class DatabaseServiceRealDatabaseTest {
     @DisplayName("Should handle null values in real data")
     void shouldHandleNullValuesInRealData() throws SQLException {
         // Given - Insert a record with null values
-        databaseService.executeQuery("INSERT INTO users (name, email, age, is_active) VALUES ('Test User', NULL, NULL, TRUE)", 1);
+        databaseService.executeSql("INSERT INTO users (name, email, age, is_active) VALUES ('Test User', NULL, NULL, TRUE)", 1);
         
         String sql = "SELECT name, email, age FROM users WHERE email IS NULL";
 
         // When
-        QueryResult result = databaseService.executeQuery(sql, 10);
+        QueryResult result = databaseService.executeSql(sql, 10);
 
         // Then
         assertThat(result.allRows()).hasSize(1);

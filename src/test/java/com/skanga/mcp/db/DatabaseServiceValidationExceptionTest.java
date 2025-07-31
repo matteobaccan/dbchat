@@ -54,13 +54,13 @@ class DatabaseServiceValidationExceptionTest {
 
     @Test
     void testValidateSqlQuery_NullQuery() {
-        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(null, 100));
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(null, 100));
         assertEquals("SQL query cannot be empty", exception.getMessage());
     }
 
     @Test
     void testValidateSqlQuery_EmptyString() {
-        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery("", 100));
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("", 100));
         assertEquals("SQL query cannot be empty", exception.getMessage());
     }
 
@@ -75,7 +75,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : whitespaceQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertEquals("SQL query cannot be empty", exception.getMessage());
         }
     }
@@ -98,7 +98,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : dropQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: DROP"));
         }
     }
@@ -113,7 +113,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : truncateQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: TRUNCATE"));
         }
     }
@@ -129,7 +129,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : deleteQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: DELETE"));
         }
     }
@@ -144,7 +144,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : updateQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: UPDATE"));
         }
     }
@@ -160,7 +160,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : insertQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: INSERT"));
         }
     }
@@ -179,7 +179,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : createQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: CREATE"));
         }
     }
@@ -197,7 +197,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : alterQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: ALTER"));
         }
     }
@@ -213,7 +213,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : grantQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: GRANT"));
         }
     }
@@ -228,7 +228,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : revokeQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: REVOKE"));
         }
     }
@@ -244,7 +244,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : execQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: EXEC"));
         }
     }
@@ -259,7 +259,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : executeQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: EXECUTE"));
         }
     }
@@ -275,7 +275,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : callQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: CALL"));
         }
     }
@@ -310,7 +310,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : singleWordQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().contains("Operation not allowed: " + query.toUpperCase()));
         }
     }
@@ -326,7 +326,7 @@ class DatabaseServiceValidationExceptionTest {
 
         for (String query : multiStatementQueries) {
             SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeQuery(query, 100);
+                databaseService.executeSql(query, 100);
             });
 
             assertEquals("Multiple statements not allowed", exception.getMessage());
@@ -344,7 +344,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : commentQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertEquals("SQL comments not allowed", exception.getMessage());
         }
     }
@@ -361,7 +361,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : commentQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertEquals("SQL comments not allowed", exception.getMessage());
         }
     }
@@ -382,7 +382,7 @@ class DatabaseServiceValidationExceptionTest {
         for (String query : validQueries) {
             // Since we're only testing validation, we expect SQLException but not validation-specific messages
             SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeQuery(query, 100);
+                databaseService.executeSql(query, 100);
             });
 
             // Should not be validation errors
@@ -407,7 +407,7 @@ class DatabaseServiceValidationExceptionTest {
 
         for (String query : dangerousQueries) {
             SQLException exception = assertThrows(SQLException.class, () -> {
-                nonSelectOnlyService.executeQuery(query, 100);
+                nonSelectOnlyService.executeSql(query, 100);
             });
 
             // Should NOT be validation errors since validation is bypassed when selectOnly=false
@@ -428,7 +428,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : spacingQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().startsWith("Operation not allowed:"));
         }
     }
@@ -447,7 +447,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : mixedCaseQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             assertTrue(exception.getMessage().startsWith("Operation not allowed:"));
         }
     }
@@ -462,7 +462,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : injectionQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeQuery(query, 100));
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
             // Should fail on either multiple statements or comments
             assertTrue(exception.getMessage().equals("Multiple statements not allowed") ||
                       exception.getMessage().equals("SQL comments not allowed"));
@@ -489,7 +489,7 @@ class DatabaseServiceValidationExceptionTest {
         for (String query : complexValidQueries) {
             // These should pass validation but fail due to mocked execution failure
             SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeQuery(query, 100);
+                databaseService.executeSql(query, 100);
             });
 
             // Should not be validation errors

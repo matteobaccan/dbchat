@@ -230,7 +230,7 @@ class McpServerIntegrationTest {
     void testStdioMode_NotificationWithError() {
         // Prepare input with notification that will cause an error
         String notificationJson = """
-            {"method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
+            {"method":"tools/call","params":{"name":"run_sql","arguments":{"sql":""}}}
             """;
         ByteArrayInputStream inputStream = new ByteArrayInputStream(notificationJson.getBytes());
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -268,7 +268,7 @@ class McpServerIntegrationTest {
         {"jsonrpc":"2.0","method":"notifications/initialized"}
         """;
         String errorRequest = """
-        {"jsonrpc":"2.0","id":"error","method":"tools/call","params":{"name":"query","arguments":{"sql":""}}}
+        {"jsonrpc":"2.0","id":"error","method":"tools/call","params":{"name":"run_sql","arguments":{"sql":""}}}
         """;
 
         // Combine all requests with newlines (stdio mode expects line-separated JSON)

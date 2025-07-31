@@ -122,7 +122,7 @@ class McpServerEdgeCaseTest {
         when(mockConfig.maxSqlLength()).thenReturn(10000);
         when(mockConfig.getDatabaseType()).thenReturn("h2");
         when(mockService.getDatabaseConfig()).thenReturn(mockConfig);
-        when(mockService.executeQuery("SELECT * FROM test", 500)).thenReturn(result);
+        when(mockService.executeSql("SELECT * FROM test", 500)).thenReturn(result);
         McpServer server = createMcpServer(mockService);
 
         ObjectMapper mapper = new ObjectMapper();
@@ -133,7 +133,7 @@ class McpServerEdgeCaseTest {
         // Should not throw for valid maxRows
         assertDoesNotThrow(() -> {
             try {
-                server.executeQuery(args);
+                server.execToolRunSql(args);
             } catch (SQLException e) {
                 // Expected since we're using a mock
             }

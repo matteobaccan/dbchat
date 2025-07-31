@@ -1,0 +1,37 @@
+# PostgreSQL Database Help Content
+
+dialect.guidance: |
+  - PostgreSQL Database - Unquoted identifiers are folded to lowercase (case-insensitive)
+  - Use double quotes (") to preserve case in identifiers
+  - DATE functions: NOW(), CURRENT_DATE, date + INTERVAL '1 day'
+  - String functions: CONCAT(), SUBSTRING(), LENGTH()
+  - Limit syntax: LIMIT count OFFSET offset
+  - Sequences: SERIAL, BIGSERIAL
+  - Arrays:
+      SELECT * FROM table WHERE column_name = ANY(ARRAY['val1', 'val2']);
+      SELECT * FROM table WHERE int_array && ARRAY[1, 2, 3];
+      SELECT ARRAY[1, 2, 3] AS int_array;
+
+query.examples: |
+  -- Date queries
+  SELECT * FROM table WHERE date_col >= CURRENT_DATE - INTERVAL '7 days';
+  SELECT TO_CHAR(created_at, 'YYYY-MM') AS month FROM table;
+
+  -- String operations
+  SELECT first_name || ' ' || last_name AS full_name FROM users;
+  SELECT * FROM table WHERE column ILIKE '%search%';
+
+  -- Pagination
+  SELECT * FROM table ORDER BY id LIMIT 20 OFFSET 0;
+
+  -- JSON queries (if supported)
+  SELECT * FROM table WHERE json_col->>'key' = 'value';
+
+datatype.info: |
+  Text: VARCHAR(n), TEXT
+  Numbers: INTEGER, BIGINT, NUMERIC(p,s), REAL, DOUBLE PRECISION
+  Dates: DATE, TIMESTAMP, TIMESTAMPTZ
+  Boolean: BOOLEAN
+  Arrays: type[], e.g., INTEGER[]
+  JSON: JSON, JSONB
+  UUID: UUID

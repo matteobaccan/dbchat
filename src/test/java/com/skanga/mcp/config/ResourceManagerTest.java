@@ -27,7 +27,7 @@ class ResourceManagerTest {
      * Helper method to clear the ResourceManager cache using reflection
      */
     private void clearResourceManagerCache() throws Exception {
-        ResourceManager.propertiesCache.clear();
+        ResourceManager.yamlCache.clear();
     }
 
     @Nested
@@ -130,14 +130,18 @@ class ResourceManagerTest {
         @Test
         @DisplayName("Should load and format security warnings with parameters")
         void testGetSecurityWarning_WithParameters() {
-            // This test assumes you have a security-warning-template.properties file
-            // You'll need to create it for this test to pass
-            String result = ResourceManager.getSecurityWarning("test.warning", "MYSQL", "SELECT-ONLY");
+            // Test with actual security warning that has parameters
+            String result = ResourceManager.getSecurityWarning("tool.run_sql.description", 
+                "MYSQL", "restriction text", "SELECT-ONLY", "mysql", "30", "10000", "1000", "MySQL");
 
             assertNotNull(result);
-            // The exact assertion depends on your security-warning-template.properties content
-            // For now, just verify it's not the fallback message
             assertFalse(result.contains("Security warning template not found"));
+            
+            // Verify that parameters were substituted
+            assertTrue(result.contains("MYSQL"), "Should contain database type parameter");
+            assertTrue(result.contains("SELECT-ONLY"), "Should contain mode parameter");
+            assertTrue(result.contains("30"), "Should contain timeout parameter");
+            assertTrue(result.contains("CRITICAL SECURITY WARNING"), "Should contain warning header");
         }
 
         @Test
@@ -152,10 +156,12 @@ class ResourceManagerTest {
         @Test
         @DisplayName("Should handle empty parameters")
         void testGetSecurityWarning_EmptyParameters() {
-            String result = ResourceManager.getSecurityWarning("test.warning");
+            // Test with a simple security warning that doesn't require parameters
+            String result = ResourceManager.getSecurityWarning("restriction.select_only");
 
             assertNotNull(result);
-            // Should not throw exception even with no parameters
+            assertFalse(result.contains("Security warning template not found"));
+            assertTrue(result.contains("RESTRICTED MODE"), "Should contain the restriction description");
         }
     }
 
@@ -166,12 +172,13 @@ class ResourceManagerTest {
         @Test
         @DisplayName("Should load and format error messages with parameters")
         void testGetErrorMessage_WithParameters() {
-            // This test assumes you have an error-messages.properties file
-            String result = ResourceManager.getErrorMessage("test.error", "8080", "already in use");
+            // Test with actual error message that has parameters
+            String result = ResourceManager.getErrorMessage("startup.generic.error.reason", "Connection refused");
 
             assertNotNull(result);
-            // The exact assertion depends on your error-messages.properties content
             assertFalse(result.contains("Error message not found"));
+            assertTrue(result.contains("Connection refused"), "Should contain the formatted parameter");
+            assertTrue(result.contains("Reason:"), "Should contain the error message template text");
         }
 
         @Test
@@ -187,10 +194,12 @@ class ResourceManagerTest {
         @Test
         @DisplayName("Should handle special characters in parameters")
         void testGetErrorMessage_SpecialCharacters() {
-            String result = ResourceManager.getErrorMessage("test.error", "param with spaces", "param'with'quotes");
+            String result = ResourceManager.getErrorMessage("startup.generic.error.reason", "param with spaces & param'with'quotes");
 
             assertNotNull(result);
-            // Should not throw exception with special characters
+            assertFalse(result.contains("Error message not found"));
+            assertTrue(result.contains("param with spaces"), "Should handle spaces in parameters");
+            assertTrue(result.contains("param'with'quotes"), "Should handle quotes in parameters");
         }
     }
 
@@ -209,7 +218,7 @@ class ResourceManagerTest {
             assertEquals(result1, result2);
 
             // Verify cache contains the resource
-            assertTrue(ResourceManager.propertiesCache.containsKey("db/mysql.properties"));
+            assertTrue(ResourceManager.yamlCache.containsKey("db/mysql.yaml"));
         }
 
         @Test
@@ -221,9 +230,9 @@ class ResourceManagerTest {
             ResourceManager.getDatabaseHelp("h2", ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
 
             // Verify all are cached
-            assertTrue(ResourceManager.propertiesCache.containsKey("db/mysql.properties"));
-            assertTrue(ResourceManager.propertiesCache.containsKey("db/postgresql.properties"));
-            assertTrue(ResourceManager.propertiesCache.containsKey("db/h2.properties"));
+            assertTrue(ResourceManager.yamlCache.containsKey("db/mysql.yaml"));
+            assertTrue(ResourceManager.yamlCache.containsKey("db/postgresql.yaml"));
+            assertTrue(ResourceManager.yamlCache.containsKey("db/h2.yaml"));
         }
 
         @Test
@@ -300,13 +309,14 @@ class ResourceManagerTest {
         @Test
         @DisplayName("Should handle parameter formatting errors gracefully")
         void testMessageFormatting_InvalidParameters() {
-            // Test with a template that has placeholders but insufficient parameters
-            // This assumes your error-messages.properties has a template with placeholders
-            String result = ResourceManager.getErrorMessage("test.error.with.placeholders", "param1"); // Missing param2 and param3
+            // Test with a template that has placeholders but insufficient parameters  
+            // http.server.generic.error expects 2 parameters but we're only providing 1
+            String result = ResourceManager.getErrorMessage("http.server.generic.error", "8080"); // Missing second parameter
 
             assertNotNull(result);
-            // Should not throw exception and should either format partially or return unformatted template
+            // Should not throw exception and should return the unformatted template since formatting fails
             assertFalse(result.trim().isEmpty());
+            assertTrue(result.contains("8080"), "Should contain the provided parameter");
         }
 
         @Test
@@ -331,10 +341,12 @@ class ResourceManagerTest {
         @DisplayName("Should handle MessageFormat errors in security warnings")
         void testGetSecurityWarning_FormatError() {
             // Test with mismatched parameters - this should not throw an exception
-            String result = ResourceManager.getSecurityWarning("test.warning"); // No parameters for a template that might expect them
+            // tool.run_sql.description expects 8 parameters, but we're providing none
+            String result = ResourceManager.getSecurityWarning("tool.run_sql.description"); // No parameters for a template that expects them
 
             assertNotNull(result);
-            // Should return the template even if formatting fails
+            // Should return the template even if formatting fails - the unformatted template with {0}, {1}, etc.
+            assertTrue(result.contains("CRITICAL SECURITY WARNING"), "Should contain the template content");
         }
     }
 
@@ -357,12 +369,12 @@ class ResourceManagerTest {
         @Test
         @DisplayName("Should have all required SecurityWarnings constants")
         void testSecurityWarningsConstants() {
-            assertNotNull(ResourceManager.SecurityWarnings.TOOL_QUERY_DESCRIPTION);
+            assertNotNull(ResourceManager.SecurityWarnings.TOOL_RUN_SQL_DESCRIPTION);
             assertNotNull(ResourceManager.SecurityWarnings.RESULT_HEADER);
             assertNotNull(ResourceManager.SecurityWarnings.RESULT_FOOTER);
             assertNotNull(ResourceManager.SecurityWarnings.RESOURCE_WRAPPER);
 
-            assertEquals("tool.query.description", ResourceManager.SecurityWarnings.TOOL_QUERY_DESCRIPTION);
+            assertEquals("tool.run_sql.description", ResourceManager.SecurityWarnings.TOOL_RUN_SQL_DESCRIPTION);
             assertEquals("result.header", ResourceManager.SecurityWarnings.RESULT_HEADER);
             assertEquals("result.footer", ResourceManager.SecurityWarnings.RESULT_FOOTER);
             assertEquals("resource.wrapper", ResourceManager.SecurityWarnings.RESOURCE_WRAPPER);
@@ -425,6 +437,157 @@ class ResourceManagerTest {
                     () -> assertFalse(pgExamples.contains("specific help not available")),
                     () -> assertFalse(h2Types.contains("specific help not available"))
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("Property File Validation Tests")
+    class PropertyValidationTests {
+
+        @Test
+        @DisplayName("Should verify all error message keys have non-empty values")
+        void testErrorMessagesHaveValues() {
+            String[] errorMessageKeys = {
+                "startup.config.error.title",
+                "startup.config.error.format",
+                "startup.port.error.title", 
+                "startup.port.inuse",
+                "startup.port.solutions",
+                "startup.generic.error.title",
+                "startup.generic.error.reason",
+                "startup.unexpected.error",
+                "http.server.port.inuse",
+                "http.server.port.suggestion",
+                "http.server.port.help",
+                "http.server.generic.error",
+                "lifecycle.not.initialized",
+                "lifecycle.initializing",
+                "lifecycle.shutdown",
+                "protocol.unsupported.version",
+                "protocol.method.not.found",
+                "protocol.tool.unknown",
+                "protocol.resource.not.found",
+                "query.null",
+                "query.empty",
+                "query.too.long",
+                "query.row.limit.exceeded",
+                "sql.validation.empty",
+                "sql.validation.operation.denied",
+                "sql.validation.multiple.statements",
+                "sql.validation.comments.denied",
+                "database.driver.not.found",
+                "database.pool.init.failed"
+            };
+
+            for (String key : errorMessageKeys) {
+                String value = ResourceManager.getErrorMessage(key);
+                assertNotNull(value, "Error message key '" + key + "' returned null");
+                assertFalse(value.trim().isEmpty(), "Error message key '" + key + "' has empty value");
+                assertFalse(value.contains("Error message not found"), 
+                    "Error message key '" + key + "' not found in properties file");
+            }
+        }
+
+        @Test
+        @DisplayName("Should verify all security warning keys have non-empty values")
+        void testSecurityWarningsHaveValues() {
+            String[] securityWarningKeys = {
+                "tool.run_sql.description",
+                "sql.property.description",
+                "maxrows.property.description",
+                "result.header",
+                "result.footer", 
+                "resource.wrapper",
+                "restriction.select_only",
+                "restriction.unrestricted"
+            };
+
+            for (String key : securityWarningKeys) {
+                String value = ResourceManager.getSecurityWarning(key);
+                
+                assertNotNull(value, "Security warning key '" + key + "' returned null");
+                assertFalse(value.trim().isEmpty(), "Security warning key '" + key + "' has empty value");
+                
+                // Check if it's the fallback message - but be more specific about detection
+                // The actual content should not be exactly the fallback message
+                assertNotEquals("Security warning template not found", value,
+                    "Security warning key '" + key + "' returned fallback message");
+                
+                // Also check it doesn't start with the fallback message text  
+                assertFalse(value.startsWith("Security warning template not found"), 
+                    "Security warning key '" + key + "' appears to be missing from properties file. Actual value: " + value);
+            }
+        }
+
+        @Test
+        @DisplayName("Should verify all database help keys have non-empty values for all supported databases")
+        void testDatabaseHelpKeysHaveValues() {
+            String[] databases = {"mysql", "postgresql", "sqlserver", "h2", "oracle", "sqlite", "mariadb"};
+            String[] helpTypes = {
+                ResourceManager.DatabaseHelp.DIALECT_GUIDANCE,
+                ResourceManager.DatabaseHelp.QUERY_EXAMPLES,
+                ResourceManager.DatabaseHelp.DATATYPE_INFO
+            };
+
+            for (String database : databases) {
+                for (String helpType : helpTypes) {
+                    String value = ResourceManager.getDatabaseHelp(database, helpType);
+                    assertNotNull(value, 
+                        String.format("Database help for '%s.%s' returned null", database, helpType));
+                    assertFalse(value.trim().isEmpty(), 
+                        String.format("Database help for '%s.%s' has empty value", database, helpType));
+                    assertFalse(value.contains("specific help not available"), 
+                        String.format("Database help for '%s.%s' not found in properties file", database, helpType));
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("Should verify property files are properly formatted and parseable")
+        void testPropertyFilesAreWellFormed() {
+            String[] resourceFiles = {
+                "error-messages.yaml",
+                "security-warning-template.yaml",
+                "db/mysql.yaml",
+                "db/postgresql.yaml", 
+                "db/sqlserver.yaml",
+                "db/h2.yaml",
+                "db/oracle.yaml",
+                "db/sqlite.yaml",
+                "db/mariadb.yaml"
+            };
+
+            for (String resourceFile : resourceFiles) {
+                // Access the load methods indirectly by accessing keys
+                assertDoesNotThrow(() -> {
+                    // Force loading of each resource file by accessing a key
+                    if (resourceFile.equals("error-messages.yaml")) {
+                        ResourceManager.getErrorMessage("startup.config.error.title");
+                    } else if (resourceFile.equals("security-warning-template.yaml")) {
+                        ResourceManager.getSecurityWarning("tool.run_sql.description");
+                    } else if (resourceFile.startsWith("db/")) {
+                        String dbType = resourceFile.substring(3, resourceFile.lastIndexOf('.'));
+                        ResourceManager.getDatabaseHelp(dbType, ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
+                    }
+                }, "Resource file '" + resourceFile + "' should be properly formatted and parseable");
+            }
+        }
+
+        @Test
+        @DisplayName("Should verify no property values contain placeholder errors")
+        void testNoPlaceholderErrors() {
+            // Test a few key properties that use MessageFormat placeholders
+            String queryDescription = ResourceManager.getSecurityWarning("tool.run_sql.description", 
+                "MYSQL", "restriction text", "SELECT-ONLY", "mysql", "30", "10000", "1000", "MySQL");
+            
+            assertFalse(queryDescription.contains("{0}"), "Query description still contains unresolved placeholder {0}");
+            assertFalse(queryDescription.contains("{1}"), "Query description still contains unresolved placeholder {1}");
+            assertTrue(queryDescription.contains("MYSQL"), "Query description should contain formatted database type");
+            assertTrue(queryDescription.contains("SELECT-ONLY"), "Query description should contain formatted mode");
+
+            String genericError = ResourceManager.getErrorMessage("startup.generic.error.reason", "Test error message");
+            assertFalse(genericError.contains("{0}"), "Generic error message still contains unresolved placeholder {0}");
+            assertTrue(genericError.contains("Test error message"), "Generic error should contain formatted reason");
         }
     }
 }

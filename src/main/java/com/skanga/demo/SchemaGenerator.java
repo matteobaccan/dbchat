@@ -161,31 +161,31 @@ public class SchemaGenerator {
                 )""");
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE employees (
-                            employee_id INT PRIMARY KEY,
-                            first_name VARCHAR(50) NOT NULL,
-                            last_name VARCHAR(50) NOT NULL,
-                            email VARCHAR(100) UNIQUE NOT NULL,
-                            phone VARCHAR(20),
-                            hire_date DATE NOT NULL,
-                            job_id INT%s,
-                            salary DECIMAL(10,2),
-                            manager_id INT,
-                            department_id INT%s%s
-                        )""",
+                CREATE TABLE employees (
+                    employee_id INT PRIMARY KEY,
+                    first_name VARCHAR(50) NOT NULL,
+                    last_name VARCHAR(50) NOT NULL,
+                    email VARCHAR(100) UNIQUE NOT NULL,
+                    phone VARCHAR(20),
+                    hire_date DATE NOT NULL,
+                    job_id INT%s,
+                    salary DECIMAL(10,2),
+                    manager_id INT,
+                    department_id INT%s%s
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (job_id) REFERENCES jobs(job_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (manager_id) REFERENCES employees(employee_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (department_id) REFERENCES departments(department_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE dependents (
-                            dependent_id INT PRIMARY KEY,
-                            first_name VARCHAR(50) NOT NULL,
-                            last_name VARCHAR(50) NOT NULL,
-                            relationship VARCHAR(50) NOT NULL,
-                            employee_id INT%s
-                        )""",
+                CREATE TABLE dependents (
+                    dependent_id INT PRIMARY KEY,
+                    first_name VARCHAR(50) NOT NULL,
+                    last_name VARCHAR(50) NOT NULL,
+                    relationship VARCHAR(50) NOT NULL,
+                    employee_id INT%s
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
         ));
 
@@ -208,13 +208,13 @@ public class SchemaGenerator {
                 )""");
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE products (
-                            product_id INT PRIMARY KEY,
-                            product_name VARCHAR(200) NOT NULL,
-                            category_id INT%s,
-                            unit_price DECIMAL(10,2) NOT NULL,
-                            units_in_stock INT DEFAULT 0
-                        )""",
+                CREATE TABLE products (
+                    product_id INT PRIMARY KEY,
+                    product_name VARCHAR(200) NOT NULL,
+                    category_id INT%s,
+                    unit_price DECIMAL(10,2) NOT NULL,
+                    units_in_stock INT DEFAULT 0
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
         ));
 
@@ -233,24 +233,24 @@ public class SchemaGenerator {
                 )""");
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE orders (
-                            order_id INT PRIMARY KEY,
-                            customer_id INT NOT NULL%s,
-                            order_date DATE NOT NULL,
-                            total_amount DECIMAL(12,2),
-                            status VARCHAR(20) DEFAULT 'Pending'
-                        )""",
+                CREATE TABLE orders (
+                    order_id INT PRIMARY KEY,
+                    customer_id INT NOT NULL%s,
+                    order_date DATE NOT NULL,
+                    total_amount DECIMAL(12,2),
+                    status VARCHAR(20) DEFAULT 'Pending'
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (customer_id) REFERENCES customers(customer_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE order_items (
-                            order_item_id INT PRIMARY KEY,
-                            order_id INT NOT NULL%s,
-                            product_id INT NOT NULL%s,
-                            quantity INT NOT NULL,
-                            unit_price DECIMAL(10,2) NOT NULL
-                        )""",
+                CREATE TABLE order_items (
+                    order_item_id INT PRIMARY KEY,
+                    order_id INT NOT NULL%s,
+                    product_id INT NOT NULL%s,
+                    quantity INT NOT NULL,
+                    unit_price DECIMAL(10,2) NOT NULL
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (order_id) REFERENCES orders(order_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)")
         ));
@@ -275,12 +275,12 @@ public class SchemaGenerator {
                 )""");
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE products (
-                            product_id INT PRIMARY KEY,
-                            product_name VARCHAR(200) NOT NULL,
-                            category_id INT%s,
-                            unit_price DECIMAL(10,2) NOT NULL
-                        )""",
+                CREATE TABLE products (
+                    product_id INT PRIMARY KEY,
+                    product_name VARCHAR(200) NOT NULL,
+                    category_id INT%s,
+                    unit_price DECIMAL(10,2) NOT NULL
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
         ));
 
@@ -308,13 +308,13 @@ public class SchemaGenerator {
                 )""");
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE inventory (
-                            inventory_id INT PRIMARY KEY,
-                            product_id INT NOT NULL%s,
-                            warehouse_id INT NOT NULL%s,
-                            quantity_on_hand INT DEFAULT 0 NOT NULL,
-                            reorder_level INT DEFAULT 10
-                        )""",
+                CREATE TABLE inventory (
+                    inventory_id INT PRIMARY KEY,
+                    product_id INT NOT NULL%s,
+                    warehouse_id INT NOT NULL%s,
+                    quantity_on_hand INT DEFAULT 0 NOT NULL,
+                    reorder_level INT DEFAULT 10
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)")
         ));
@@ -350,29 +350,29 @@ public class SchemaGenerator {
                 )""");
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE employees (
-                            employee_id INT PRIMARY KEY,
-                            first_name VARCHAR(50) NOT NULL,
-                            last_name VARCHAR(50) NOT NULL,
-                            email VARCHAR(100) UNIQUE NOT NULL,
-                            phone VARCHAR(20),
-                            hire_date DATE NOT NULL,
-                            job_id INT%s,
-                            salary DECIMAL(10,2),
-                            department_id INT%s
-                        )""",
+                CREATE TABLE employees (
+                    employee_id INT PRIMARY KEY,
+                    first_name VARCHAR(50) NOT NULL,
+                    last_name VARCHAR(50) NOT NULL,
+                    email VARCHAR(100) UNIQUE NOT NULL,
+                    phone VARCHAR(20),
+                    hire_date DATE NOT NULL,
+                    job_id INT%s,
+                    salary DECIMAL(10,2),
+                    department_id INT%s
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (job_id) REFERENCES jobs(job_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (department_id) REFERENCES departments(department_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE dependents (
-                            dependent_id INT PRIMARY KEY,
-                            first_name VARCHAR(50) NOT NULL,
-                            last_name VARCHAR(50) NOT NULL,
-                            relationship VARCHAR(50) NOT NULL,
-                            employee_id INT%s
-                        )""",
+                CREATE TABLE dependents (
+                    dependent_id INT PRIMARY KEY,
+                    first_name VARCHAR(50) NOT NULL,
+                    last_name VARCHAR(50) NOT NULL,
+                    relationship VARCHAR(50) NOT NULL,
+                    employee_id INT%s
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
         ));
 
@@ -383,94 +383,94 @@ public class SchemaGenerator {
                 )""");
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE products (
-                            product_id INT PRIMARY KEY,
-                            product_name VARCHAR(200) NOT NULL,
-                            category_id INT%s,
-                            unit_price DECIMAL(10,2) NOT NULL,
-                            units_in_stock INT DEFAULT 0
-                        )""",
+                CREATE TABLE products (
+                    product_id INT PRIMARY KEY,
+                    product_name VARCHAR(200) NOT NULL,
+                    category_id INT%s,
+                    unit_price DECIMAL(10,2) NOT NULL,
+                    units_in_stock INT DEFAULT 0
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (category_id) REFERENCES categories(category_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE customers (
-                            customer_id INT PRIMARY KEY,
-                            company_name VARCHAR(200),
-                            contact_name VARCHAR(100),
-                            email VARCHAR(100),
-                            phone VARCHAR(20),
-                            address VARCHAR(255),
-                            city VARCHAR(100),
-                            state VARCHAR(100),
-                            postal_code VARCHAR(20),
-                            country VARCHAR(100),
-                            account_rep_id INT%s
-                        )""",
+                CREATE TABLE customers (
+                    customer_id INT PRIMARY KEY,
+                    company_name VARCHAR(200),
+                    contact_name VARCHAR(100),
+                    email VARCHAR(100),
+                    phone VARCHAR(20),
+                    address VARCHAR(255),
+                    city VARCHAR(100),
+                    state VARCHAR(100),
+                    postal_code VARCHAR(20),
+                    country VARCHAR(100),
+                    account_rep_id INT%s
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (account_rep_id) REFERENCES employees(employee_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE orders (
-                            order_id INT PRIMARY KEY,
-                            customer_id INT NOT NULL%s,
-                            employee_id INT%s,
-                            order_date DATE NOT NULL,
-                            total_amount DECIMAL(12,2),
-                            status VARCHAR(20) DEFAULT 'Pending'
-                        )""",
+                CREATE TABLE orders (
+                    order_id INT PRIMARY KEY,
+                    customer_id INT NOT NULL%s,
+                    employee_id INT%s,
+                    order_date DATE NOT NULL,
+                    total_amount DECIMAL(12,2),
+                    status VARCHAR(20) DEFAULT 'Pending'
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (customer_id) REFERENCES customers(customer_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (employee_id) REFERENCES employees(employee_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE order_items (
-                            order_item_id INT PRIMARY KEY,
-                            order_id INT NOT NULL%s,
-                            product_id INT NOT NULL%s,
-                            quantity INT NOT NULL,
-                            unit_price DECIMAL(10,2) NOT NULL
-                        )""",
+                CREATE TABLE order_items (
+                    order_item_id INT PRIMARY KEY,
+                    order_id INT NOT NULL%s,
+                    product_id INT NOT NULL%s,
+                    quantity INT NOT NULL,
+                    unit_price DECIMAL(10,2) NOT NULL
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (order_id) REFERENCES orders(order_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE warehouses (
-                            warehouse_id INT PRIMARY KEY,
-                            warehouse_name VARCHAR(200) NOT NULL,
-                            address VARCHAR(255),
-                            city VARCHAR(100),
-                            state VARCHAR(100),
-                            country VARCHAR(100),
-                            manager_id INT%s
-                        )""",
+                CREATE TABLE warehouses (
+                    warehouse_id INT PRIMARY KEY,
+                    warehouse_name VARCHAR(200) NOT NULL,
+                    address VARCHAR(255),
+                    city VARCHAR(100),
+                    state VARCHAR(100),
+                    country VARCHAR(100),
+                    manager_id INT%s
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (manager_id) REFERENCES employees(employee_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE suppliers (
-                            supplier_id INT PRIMARY KEY,
-                            supplier_name VARCHAR(200) NOT NULL,
-                            contact_name VARCHAR(100),
-                            email VARCHAR(100),
-                            phone VARCHAR(20),
-                            address VARCHAR(255),
-                            city VARCHAR(100),
-                            country VARCHAR(100),
-                            account_manager_id INT%s
-                        )""",
+                CREATE TABLE suppliers (
+                    supplier_id INT PRIMARY KEY,
+                    supplier_name VARCHAR(200) NOT NULL,
+                    contact_name VARCHAR(100),
+                    email VARCHAR(100),
+                    phone VARCHAR(20),
+                    address VARCHAR(255),
+                    city VARCHAR(100),
+                    country VARCHAR(100),
+                    account_manager_id INT%s
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (account_manager_id) REFERENCES employees(employee_id)")
         ));
 
         dbHelper.executeSQL(String.format("""
-                        CREATE TABLE inventory (
-                            inventory_id INT PRIMARY KEY,
-                            product_id INT NOT NULL%s,
-                            warehouse_id INT NOT NULL%s,
-                            quantity_on_hand INT NOT NULL DEFAULT 0,
-                            reorder_level INT DEFAULT 10
-                        )""",
+                CREATE TABLE inventory (
+                    inventory_id INT PRIMARY KEY,
+                    product_id INT NOT NULL%s,
+                    warehouse_id INT NOT NULL%s,
+                    quantity_on_hand INT NOT NULL DEFAULT 0,
+                    reorder_level INT DEFAULT 10
+                )""",
                 dbHelper.getForeignKey("FOREIGN KEY (product_id) REFERENCES products(product_id)"),
                 dbHelper.getForeignKey("FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)")
         ));

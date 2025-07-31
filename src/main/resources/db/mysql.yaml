@@ -1,0 +1,31 @@
+# MySQL Database Help Content
+
+dialect.guidance: |
+  - MySql Database - Use backticks (`) for identifiers with spaces or keywords
+  - DATE functions: NOW(), CURDATE(), DATE_ADD()
+  - String functions: CONCAT(), SUBSTRING(), LENGTH()
+  - Limit syntax: LIMIT offset, count
+  - Auto-increment: AUTO_INCREMENT
+
+query.examples: |
+  -- Date queries
+  SELECT * FROM table WHERE date_col >= CURDATE() - INTERVAL 7 DAY;
+  SELECT DATE_FORMAT(created_at, '%Y-%m') AS month FROM table;
+
+  -- String operations
+  SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM users;
+  SELECT * FROM table WHERE column LIKE '%search%';
+
+  -- Pagination (two syntax options)
+  SELECT * FROM table ORDER BY id LIMIT 20 OFFSET 0;  -- SQL standard
+  SELECT * FROM table ORDER BY id LIMIT 0, 20;        -- MySQL specific
+
+datatype.info: |
+  Text: VARCHAR(n), TEXT, LONGTEXT
+  Numbers: INT, BIGINT, DECIMAL(p,s), FLOAT, DOUBLE
+  Dates: DATE, DATETIME, TIMESTAMP
+  Boolean: BOOLEAN (TINYINT(1))
+  JSON: JSON (MySQL 5.7+)
+      SELECT JSON_EXTRACT(json_col, '$.key') FROM table;
+      SELECT json_col->'$.key' FROM table;           -- Shorthand
+      SELECT json_col->>'$.key' FROM table;          -- Unquoted result

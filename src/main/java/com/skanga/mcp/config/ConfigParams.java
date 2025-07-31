@@ -42,16 +42,47 @@ public record ConfigParams(
             throw new IllegalArgumentException("Database driver cannot be null or empty");
         }
         if (maxConnections <= 0) {
-            throw new IllegalArgumentException("Max connections must be positive");
+            throw new IllegalArgumentException("Max connections must be positive, got: " + maxConnections);
+        }
+        if (maxConnections > 1000) {
+            throw new IllegalArgumentException("Max connections too high (max 1000), got: " + maxConnections);
         }
         if (connectionTimeoutMs <= 0) {
-            throw new IllegalArgumentException("Connection timeout must be positive");
+            throw new IllegalArgumentException("Connection timeout must be positive, got: " + connectionTimeoutMs);
+        }
+        if (connectionTimeoutMs > 300000) { // 5 minutes max
+            throw new IllegalArgumentException("Connection timeout too high (max 300000ms), got: " + connectionTimeoutMs);
         }
         if (queryTimeoutSeconds <= 0) {
-            throw new IllegalArgumentException("Query timeout must be positive");
+            throw new IllegalArgumentException("Query timeout must be positive, got: " + queryTimeoutSeconds);
+        }
+        if (queryTimeoutSeconds > 3600) { // 1 hour max
+            throw new IllegalArgumentException("Query timeout too high (max 3600s), got: " + queryTimeoutSeconds);
         }
         if (maxSqlLength <= 0) {
-            throw new IllegalArgumentException("Max SQL length must be positive");
+            throw new IllegalArgumentException("Max SQL length must be positive, got: " + maxSqlLength);
+        }
+        if (maxSqlLength > 1000000) { // 1MB max
+            throw new IllegalArgumentException("Max SQL length too high (max 1000000), got: " + maxSqlLength);
+        }
+        if (maxRowsLimit <= 0) {
+            throw new IllegalArgumentException("Max rows limit must be positive, got: " + maxRowsLimit);
+        }
+        if (maxRowsLimit > 1000000) { // 1M rows max
+            throw new IllegalArgumentException("Max rows limit too high (max 1000000), got: " + maxRowsLimit);
+        }
+        if (idleTimeoutMs < 0) {
+            throw new IllegalArgumentException("Idle timeout cannot be negative, got: " + idleTimeoutMs);
+        }
+        if (maxLifetimeMs < 0) {
+            throw new IllegalArgumentException("Max lifetime cannot be negative, got: " + maxLifetimeMs);
+        }
+        if (leakDetectionThresholdMs < 0) {
+            throw new IllegalArgumentException("Leak detection threshold cannot be negative, got: " + leakDetectionThresholdMs);
+        }
+        // Logical validation: max lifetime should be longer than idle timeout if both are positive
+        if (maxLifetimeMs > 0 && idleTimeoutMs > 0 && maxLifetimeMs <= idleTimeoutMs) {
+            throw new IllegalArgumentException("Max lifetime (" + maxLifetimeMs + "ms) must be greater than idle timeout (" + idleTimeoutMs + "ms)");
         }
     }
 
@@ -77,7 +108,7 @@ public record ConfigParams(
                 10000,   // maxRowsLimit
                 600000,  // idleTimeoutMs (10 minutes)
                 1800000, // maxLifetimeMs (30 minutes)
-                60000    // leakDetectionThresholdMs (1 minute)
+                20000    // leakDetectionThresholdMs (20 seconds)
         );
     }
 
@@ -99,7 +130,7 @@ public record ConfigParams(
         return new ConfigParams(
                 dbUrl, dbUser, dbPass, dbDriver,
                 10, 30000, 30, selectOnly, maxSqlLength,
-                10000, 600000, 1800000, 60000
+                10000, 600000, 1800000, 20000
         );
     }
 
@@ -149,7 +180,7 @@ public record ConfigParams(
      * @param inputValue The configuration value that may contain sensitive information
      * @return A masked version of the input value with sensitive parts replaced by "***"
      */
-    String maskSensitive(String inputValue) {
+    public String maskSensitive(String inputValue) {
         if (inputValue == null || inputValue.trim().isEmpty()) {
             return inputValue;
         }

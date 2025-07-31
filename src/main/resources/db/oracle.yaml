@@ -1,0 +1,39 @@
+# Oracle Database Help Content
+
+dialect.guidance: |
+  - Oracle Database - Use double quotes (") for case-sensitive identifiers
+  - DATE functions: SYSDATE, TO_DATE(), ADD_MONTHS()
+  - String functions: CONCAT(), SUBSTR(), LENGTH()
+  - Sequences
+      SELECT sequence_name.NEXTVAL FROM DUAL;    -- Get next value
+      SELECT sequence_name.CURRVAL FROM DUAL;    -- Get current value (same session)
+      INSERT INTO table (id, name) VALUES (sequence_name.NEXTVAL, 'value');
+  - Pagination (Oracle 12c+)
+      SELECT * FROM table ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+  - Pagination (Oracle 11g and earlier)
+      SELECT * FROM (SELECT ROWNUM rn, t.* FROM table t WHERE ROWNUM <= 20) WHERE rn > 0;
+  - Pagination Using ROW_NUMBER()
+      SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY id) rn, t.* FROM table t) WHERE rn BETWEEN 1 AND 20;
+
+query.examples: |
+  -- Date queries
+  SELECT * FROM table WHERE date_col >= SYSDATE - 7;
+  SELECT TO_CHAR(created_at, 'YYYY-MM') AS month FROM table;
+
+  -- String operations
+  SELECT CONCAT(first_name, last_name) AS full_name FROM users;
+  SELECT * FROM table WHERE column LIKE '%search%';
+
+  -- Sequences
+  SELECT sequence_name.NEXTVAL FROM DUAL;
+  INSERT INTO table (id, name) VALUES (sequence_name.NEXTVAL, 'value');
+
+  -- Pagination (Oracle 12c+)
+  SELECT * FROM table ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+
+datatype.info: |
+  Text: VARCHAR2(n), CHAR(n), CLOB
+  Numbers: NUMBER, NUMBER(p,s), BINARY_FLOAT, BINARY_DOUBLE
+  Dates: DATE, TIMESTAMP, TIMESTAMP WITH TIME ZONE
+  LOB: BLOB, CLOB, NCLOB
+  Other: ROWID, UROWID

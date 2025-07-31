@@ -1,0 +1,29 @@
+# H2 Database Help Content
+
+dialect.guidance: |
+  - H2 Database - Mixed mode SQL (MySQL/PostgreSQL compatible)
+  - DATE functions: NOW(), CURRENT_DATE
+  - String functions: CONCAT(), SUBSTRING(), LENGTH()
+  - Limit syntax: LIMIT count OFFSET offset
+  - Auto-increment: AUTO_INCREMENT or IDENTITY
+  - Compatibility Mode: Check H2 settings for specific mode
+
+query.examples: |
+  -- Date queries
+  SELECT * FROM table WHERE date_col >= NOW() - INTERVAL 7 DAY;
+  SELECT FORMATDATETIME(created_at, 'yyyy-MM') AS month FROM table;
+
+  -- String operations
+  SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM users;
+  SELECT * FROM table WHERE column LIKE '%search%';
+
+  -- Pagination
+  SELECT * FROM table ORDER BY id LIMIT 20 OFFSET 0;
+
+datatype.info: |
+  Text: VARCHAR(n), CHAR(n), CLOB
+  Numbers: INT, BIGINT, DECIMAL(p,s), REAL, DOUBLE
+  Dates: DATE, TIME, TIMESTAMP
+  Boolean: BOOLEAN
+  Binary: BINARY(n), VARBINARY(n), BLOB
+  Other: UUID, ARRAY

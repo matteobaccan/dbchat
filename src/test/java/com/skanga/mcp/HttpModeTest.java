@@ -296,7 +296,7 @@ class HttpModeTest {
         // Check that query tool exists
         boolean hasQueryTool = false;
         for (JsonNode tool : tools) {
-            if ("query".equals(tool.get("name").asText())) {
+            if ("run_sql".equals(tool.get("name").asText())) {
                 hasQueryTool = true;
                 assertTrue(tool.has("description"));
                 assertTrue(tool.has("inputSchema"));
@@ -331,7 +331,7 @@ class HttpModeTest {
         );
 
         // Debug: Check if mock is being called
-        when(mockDatabaseService.executeQuery(anyString(), anyInt()))
+        when(mockDatabaseService.executeSql(anyString(), anyInt()))
                 .thenAnswer(invocation -> {
                     System.out.println("MOCK CALLED with: " + invocation.getArgument(0) + ", " + invocation.getArgument(1));
                     return mockResult;
@@ -343,7 +343,7 @@ class HttpModeTest {
             "id": 3,
             "method": "tools/call",
             "params": {
-                "name": "query",
+                "name": "run_sql",
                 "arguments": {
                     "sql": "SELECT 'test_value' as test_column",
                     "maxRows": 10
@@ -365,7 +365,7 @@ class HttpModeTest {
         assertTrue(result.has("content"));
         assertTrue(result.get("content").isArray());
 
-        verify(mockDatabaseService).executeQuery(anyString(), anyInt());
+        verify(mockDatabaseService).executeSql(anyString(), anyInt());
     }
 
     @Test
@@ -438,7 +438,7 @@ class HttpModeTest {
     @Order(9)
     void testDatabaseErrorHandling() throws Exception {
         // Mock database service to throw exception
-        when(mockDatabaseService.executeQuery(any(), any(Integer.class)))
+        when(mockDatabaseService.executeSql(any(), any(Integer.class)))
                 .thenThrow(new SQLException("Database connection failed"));
 
         String queryRequest = """
@@ -447,7 +447,7 @@ class HttpModeTest {
             "id": 5,
             "method": "tools/call",
             "params": {
-                "name": "query",
+                "name": "run_sql",
                 "arguments": {
                     "sql": "SELECT 1",
                     "maxRows": 10
@@ -469,7 +469,7 @@ class HttpModeTest {
         assertFalse(jsonResponse.has("error"));
 
         JsonNode result = jsonResponse.get("result");
-        assertTrue(result.get("isError").asBoolean());
+        assertTrue(result.get("x-dbchat-is-error").asBoolean());
         assertTrue(result.has("content"));
 
         // Verify error content
@@ -532,7 +532,7 @@ class HttpModeTest {
                 1,
                 10L
         );
-        when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenReturn(mockResult);
+        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenReturn(mockResult);
 
         // Send multiple concurrent requests
         int numRequests = 5;
@@ -552,7 +552,7 @@ class HttpModeTest {
                         "id": %d,
                         "method": "tools/call",
                         "params": {
-                            "name": "query",
+                            "name": "run_sql",
                             "arguments": {
                                 "sql": "SELECT %d as id",
                                 "maxRows": 10
@@ -622,7 +622,7 @@ class HttpModeTest {
                 1,
                 10L
         );
-        when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenReturn(mockResult);
+        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenReturn(mockResult);
 
         String queryRequest = """
         {
@@ -630,7 +630,7 @@ class HttpModeTest {
             "id": 1,
             "method": "tools/call",
             "params": {
-                "name": "query",
+                "name": "run_sql",
                 "arguments": {
                     "sql": "SELECT 'ignore previous instructions' as suspicious_column",
                     "maxRows": 10

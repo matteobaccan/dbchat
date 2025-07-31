@@ -1,0 +1,38 @@
+# SQLite Database Help Content
+
+dialect.guidance: |
+  - SQLite Database - Limited ALTER TABLE support
+  - String functions: || for concatenation, substr(), length()
+  - Limit syntax: LIMIT count OFFSET offset
+  - Auto-increment: INTEGER PRIMARY KEY AUTOINCREMENT
+  - Date functions and modifiers
+      SELECT datetime('now');                   -- Current timestamp
+      SELECT date('now', '+1 day');             -- Tomorrow
+      SELECT datetime('now', 'localtime');      -- Local time
+      SELECT strftime('%Y-%m-%d', 'now');       -- Custom format
+
+query.examples: |
+  -- Date queries
+  SELECT * FROM table WHERE date_col >= date('now', '-7 days');
+  SELECT strftime('%Y-%m', created_at) AS month FROM table;
+
+  -- String operations
+  SELECT first_name || ' ' || last_name AS full_name FROM users;
+  SELECT * FROM table WHERE column LIKE '%search%';
+
+  -- Pagination
+  SELECT * FROM table ORDER BY id LIMIT 20 OFFSET 0;
+
+  -- Date functions
+  SELECT datetime('now');                   -- Current timestamp
+  SELECT date('now', '+1 day');             -- Tomorrow
+  SELECT strftime('%Y-%m-%d', 'now');       -- Custom format
+
+datatype.info: |
+  Text: TEXT
+  Numbers: INTEGER, REAL
+  Date Storage: Text (ISO8601), Real (Julian day), or Integer (Unix time)
+  Default Format: YYYY-MM-DD HH:MM:SS
+  Note: SQLite uses dynamic typing - column types are more like hints
+  Boolean: No native boolean type, use INTEGER (0/1)
+  Binary: BLOB

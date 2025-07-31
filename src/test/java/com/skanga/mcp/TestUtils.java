@@ -244,6 +244,27 @@ public class TestUtils {
     }
 
     /**
+     * Creates a standard JSON-RPC request for the 'tools/call' MCP method.
+     *
+     * @param toolName  The name of the tool to be called (e.g., "run_sql", "describe_table").
+     * @param arguments The JSON object containing the arguments for the tool.
+     * @return An ObjectNode representing the complete 'tools/call' request.
+     */
+    public static ObjectNode createToolCallRequest(String toolName, ObjectNode arguments, ObjectMapper objectMapper) {
+        ObjectNode request = objectMapper.createObjectNode();
+        request.put("jsonrpc", "2.0");
+        request.put("id", "test-req-1"); // A standard ID for testing
+        request.put("method", "tools/call");
+
+        ObjectNode params = objectMapper.createObjectNode();
+        params.put("name", toolName);
+        params.set("arguments", arguments);
+
+        request.set("params", params);
+        return request;
+    }
+
+    /**
      * Test data factory for creating sample database resources
      */
     public static class TestDataFactory {

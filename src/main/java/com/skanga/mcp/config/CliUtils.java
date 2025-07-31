@@ -190,7 +190,7 @@ public class CliUtils {
         System.out.println("  -t, --connection_timeout_ms=<ms>  Connection timeout (default: 30000)");
         System.out.println("  -i, --idle_timeout_ms=<ms>     Idle timeout (default: 600000)");
         System.out.println("  -l, --max_lifetime_ms=<ms>     Max connection lifetime (default: 1800000)");
-        System.out.println("  -L, --leak_detection_threshold_ms=<ms>  Leak detection (default: 60000)");
+        System.out.println("  -L, --leak_detection_threshold_ms=<ms>  Leak detection (default: 20000)");
         System.out.println();
         System.out.println("QUERY SETTINGS:");
         System.out.println("  -q, --query_timeout_seconds=<sec>  Query timeout (default: 30)");
@@ -305,22 +305,40 @@ public class CliUtils {
 
     /**
      * Returns a map of common JDBC driver classes and their associated database types.
+     * This list is synchronized with all Maven profiles in pom.xml.
      */
     static Map<String, String> getCommonJdbcDrivers() {
         Map<String, String> allDrivers = new LinkedHashMap<>(); // LinkedHashMap to preserve order
 
-        // Most common drivers
-        // TODO: Sync this list with all drivers in the pom.xml for all profiles
+        // Basic drivers (default profile)
         allDrivers.put("org.h2.Driver", "H2 Database");
+        allDrivers.put("org.hsqldb.jdbc.JDBCDriver", "HSQLDB HyperSQL");
         allDrivers.put("org.postgresql.Driver", "PostgreSQL");
-        allDrivers.put("com.mysql.cj.jdbc.Driver", "MySQL 8.0+");
-        allDrivers.put("org.mariadb.jdbc.Driver", "MariaDB");
-        allDrivers.put("com.microsoft.sqlserver.jdbc.SQLServerDriver", "SQL Server");
-        allDrivers.put("oracle.jdbc.OracleDriver", "Oracle Database");
         allDrivers.put("org.sqlite.JDBC", "SQLite");
         allDrivers.put("org.relique.jdbc.csv.CsvDriver", "CSV JDBC Driver");
+
+        // Standard databases profile
+        allDrivers.put("com.mysql.cj.jdbc.Driver", "MySQL 8.0+");
+        allDrivers.put("org.mariadb.jdbc.Driver", "MariaDB");
+        allDrivers.put("com.clickhouse.jdbc.ClickHouseDriver", "ClickHouse");
+
+        // Enterprise databases profile
+        allDrivers.put("oracle.jdbc.OracleDriver", "Oracle Database");
+        allDrivers.put("com.microsoft.sqlserver.jdbc.SQLServerDriver", "SQL Server");
         allDrivers.put("com.ibm.db2.jcc.DB2Driver", "IBM DB2");
-        allDrivers.put("org.hsqldb.jdbc.JDBCDriver", "HSQLDB HyperSQL");
+
+        // Cloud analytics profile
+        allDrivers.put("com.amazon.redshift.jdbc.Driver", "Amazon Redshift");
+        allDrivers.put("com.databricks.client.jdbc.Driver", "Databricks");
+        allDrivers.put("net.snowflake.client.jdbc.SnowflakeDriver", "Snowflake");
+        allDrivers.put("com.google.cloud.bigquery.jdbc.Driver", "Google BigQuery");
+        allDrivers.put("org.duckdb.DuckDBDriver", "DuckDB");
+
+        // Big data profile
+        allDrivers.put("org.apache.hive.jdbc.HiveDriver", "Apache Hive");
+        allDrivers.put("com.dbvis.redis.jdbc.RedisDriver", "Redis");
+        allDrivers.put("com.mongodb.jdbc.MongoDriver", "MongoDB");
+        allDrivers.put("com.github.adejanovski.cassandra.jdbc.CassandraDriver", "Apache Cassandra");
 
         return allDrivers;
     }
@@ -378,18 +396,24 @@ public class CliUtils {
         String maxRowsLimit = getConfigValue("MAX_ROWS_LIMIT", "10000", cliArgs, fileConfig);
         String idleTimeoutMs = getConfigValue("IDLE_TIMEOUT_MS", "600000", cliArgs, fileConfig);
         String maxLifetimeMs = getConfigValue("MAX_LIFETIME_MS", "1800000", cliArgs, fileConfig);
-        String leakDetectionThresholdMs = getConfigValue("LEAK_DETECTION_THRESHOLD_MS", "60000", cliArgs, fileConfig);
+        String leakDetectionThresholdMs = getConfigValue("LEAK_DETECTION_THRESHOLD_MS", "20000", cliArgs, fileConfig);
 
-        return new ConfigParams(dbUrl, dbUser, dbPassword, dbDriver,
-                Integer.parseInt(maxConnections),
-                Integer.parseInt(connectionTimeoutMs),
-                Integer.parseInt(queryTimeoutSeconds),
-                Boolean.parseBoolean(selectOnly),
-                Integer.parseInt(maxSql),
-                Integer.parseInt(maxRowsLimit),
-                Integer.parseInt(idleTimeoutMs),
-                Integer.parseInt(maxLifetimeMs),
-                Integer.parseInt(leakDetectionThresholdMs));
+        try {
+            return new ConfigParams(dbUrl, dbUser, dbPassword, dbDriver,
+                    parseIntegerConfig("MAX_CONNECTIONS", maxConnections),
+                    parseIntegerConfig("CONNECTION_TIMEOUT_MS", connectionTimeoutMs),
+                    parseIntegerConfig("QUERY_TIMEOUT_SECONDS", queryTimeoutSeconds),
+                    parseBooleanConfig("SELECT_ONLY", selectOnly),
+                    parseIntegerConfig("MAX_SQL", maxSql),
+                    parseIntegerConfig("MAX_ROWS_LIMIT", maxRowsLimit),
+                    parseIntegerConfig("IDLE_TIMEOUT_MS", idleTimeoutMs),
+                    parseIntegerConfig("MAX_LIFETIME_MS", maxLifetimeMs),
+                    parseIntegerConfig("LEAK_DETECTION_THRESHOLD_MS", leakDetectionThresholdMs));
+        } catch (IllegalArgumentException e) {
+            // Re-throw with additional context about configuration loading
+            throw new IllegalArgumentException(
+                ResourceManager.getErrorMessage("config.validation.failed", "configuration parameters", e.getMessage()), e);
+        }
     }
 
     /**
@@ -523,5 +547,45 @@ public class CliUtils {
 
         logger.info("Loaded {} configuration parameters from file: {}", configMap.size(), configFilePath);
         return configMap;
+    }
+
+    /**
+     * Parses an integer configuration value with detailed error context.
+     *
+     * @param paramName The parameter name for error reporting
+     * @param value The string value to parse
+     * @return Parsed integer value
+     * @throws IllegalArgumentException if the value cannot be parsed as an integer
+     */
+    private static int parseIntegerConfig(String paramName, String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                ResourceManager.getErrorMessage("config.parse.integer.failed", paramName, value), e);
+        }
+    }
+
+    /**
+     * Parses a boolean configuration value with detailed error context.
+     *
+     * @param paramName The parameter name for error reporting
+     * @param value The string value to parse
+     * @return Parsed boolean value
+     * @throws IllegalArgumentException if the value is not a valid boolean
+     */
+    private static boolean parseBooleanConfig(String paramName, String value) {
+        if (value == null) {
+            throw new IllegalArgumentException(
+                ResourceManager.getErrorMessage("config.parse.boolean.failed", paramName, "null"));
+        }
+        
+        String lowerValue = value.toLowerCase().trim();
+        if ("true".equals(lowerValue) || "false".equals(lowerValue)) {
+            return Boolean.parseBoolean(lowerValue);
+        } else {
+            throw new IllegalArgumentException(
+                ResourceManager.getErrorMessage("config.parse.boolean.failed", paramName, value));
+        }
     }
 }

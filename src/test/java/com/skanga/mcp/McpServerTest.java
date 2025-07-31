@@ -115,14 +115,14 @@ class McpServerTest {
         when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockDatabaseConfig);
         when(mockDatabaseConfig.maxSqlLength()).thenReturn(10000);
         when(mockDatabaseConfig.getDatabaseType()).thenReturn("h2"); // Add this for error message enhancement
-        when(mockDatabaseService.executeQuery(anyString(), anyInt()))
+        when(mockDatabaseService.executeSql(anyString(), anyInt()))
                 .thenThrow(new SQLException("Database connection failed"));
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
         request.put("method", "tools/call");
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM test_table");
         params.set("arguments", args);
@@ -141,7 +141,7 @@ class McpServerTest {
 
         // The result should indicate a tool error
         JsonNode result = response.get("result");
-        assertTrue(result.get("isError").asBoolean());
+        assertTrue(result.get("x-dbchat-is-error").asBoolean());
         assertTrue(result.has("content"));
 
         // Content should contain the SQL error information
@@ -168,7 +168,7 @@ class McpServerTest {
         request.put("method", "tools/call");
         
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM test_table");
         params.set("arguments", args);
@@ -187,7 +187,7 @@ class McpServerTest {
         // Arrange
         when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockDatabaseConfig);
         when(mockDatabaseConfig.maxSqlLength()).thenReturn(10000);
-        when(mockDatabaseService.executeQuery(anyString(), anyInt()))
+        when(mockDatabaseService.executeSql(anyString(), anyInt()))
             .thenThrow(new RuntimeException("Unexpected runtime error"));
 
         ObjectNode request = objectMapper.createObjectNode();
@@ -195,7 +195,7 @@ class McpServerTest {
         request.put("method", "tools/call");
         
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM test_table");
         params.set("arguments", args);
@@ -221,7 +221,7 @@ class McpServerTest {
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "");
         params.set("arguments", args);
@@ -246,7 +246,7 @@ class McpServerTest {
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.putNull("sql");
         params.set("arguments", args);
@@ -274,7 +274,7 @@ class McpServerTest {
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "A".repeat(101)); // SQL longer than max allowed
         params.set("arguments", args);
@@ -443,7 +443,7 @@ class McpServerTest {
         request.put("id", 1);
         request.put("method", "tools/call");
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         // Missing arguments should trigger invalid_request
         request.set("params", params);
 
@@ -462,7 +462,7 @@ class McpServerTest {
         request.put("method", "tools/call");
         
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", ""); // Empty SQL should trigger IllegalArgumentException
         params.set("arguments", args);
@@ -640,7 +640,7 @@ class McpServerTest {
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users");
         args.put("maxRows", 5000); // Exceeds limit
@@ -669,7 +669,7 @@ class McpServerTest {
                 150L
         );
 
-        when(mockDatabaseService.executeQuery("SELECT * FROM users", 1000))
+        when(mockDatabaseService.executeSql("SELECT * FROM users", 1000))
                 .thenReturn(mockResult);
 
         ObjectNode request = objectMapper.createObjectNode();
@@ -677,7 +677,7 @@ class McpServerTest {
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users");
         params.set("arguments", args);
@@ -704,6 +704,92 @@ class McpServerTest {
     }
 
     @Test
+    void describeTable_SuccessfulRequest() throws Exception {
+        TestUtils.initializeServer(mcpServer, objectMapper);
+
+        // Arrange
+        String tableName = "users";
+        String schema = "public";
+        String mockDescription = "COLUMNS:\n  id INTEGER NOT NULL\n  name VARCHAR(255)\n";
+        when(mockDatabaseService.describeTable(tableName, schema)).thenReturn(mockDescription);
+
+        ObjectNode request = TestUtils.createToolCallRequest(
+                "describe_table",
+                objectMapper.createObjectNode()
+                        .put("table_name", tableName)
+                        .put("schema", schema),
+                objectMapper
+        );
+
+        // Act
+        JsonNode response = mcpServer.handleRequest(request);
+
+        // Assert
+        assertNotNull(response);
+        assertTrue(response.has("result"), "Response should have a 'result' field for a successful tool call");
+        assertFalse(response.has("error"), "Response should not have a top-level 'error' field");
+
+        JsonNode result = response.get("result");
+        assertFalse(result.get("x-dbchat-is-error").asBoolean(), "The tool execution itself should not be an error");
+        assertTrue(result.has("content"), "Result should have a 'content' field");
+
+        String contentText = result.get("content").get(0).get("text").asText();
+        assertTrue(contentText.contains("SECURITY WARNING: TABLE METADATA"), "Response should contain security header");
+        assertTrue(contentText.contains("Status: Successfully retrieved table information"), "Response should contain success summary");
+        assertTrue(contentText.contains(mockDescription), "Response should contain the description from the database service");
+        assertTrue(contentText.contains("END OF TABLE METADATA"), "Response should contain security footer");
+    }
+
+    @Test
+    void describeTable_ValidRequest_ReturnsSuccess() throws SQLException {
+        // Arrange
+        String tableName = "products";
+        String mockDescription = "COLUMNS:\n  product_id SERIAL PRIMARY KEY\n";
+        when(mockDatabaseService.describeTable(tableName, null)).thenReturn(mockDescription);
+
+        ObjectNode arguments = objectMapper.createObjectNode().put("table_name", tableName);
+
+        // Act
+        JsonNode result = mcpServer.execToolDescribeTable(arguments);
+
+        // Assert
+        assertNotNull(result);
+        assertFalse(result.get("x-dbchat-is-error").asBoolean());
+        assertTrue(result.has("x-dbchat-security"));
+        assertEquals("UNTRUSTED_METADATA", result.get("x-dbchat-security").get("dataClassification").asText());
+
+        String contentText = result.get("content").get(0).get("text").asText();
+        assertTrue(contentText.contains("=== TABLE DESCRIPTION SUMMARY ==="));
+        assertTrue(contentText.contains("Table: " + tableName));
+        assertTrue(contentText.contains("=== TABLE METADATA (UNTRUSTED CONTENT) ==="));
+        assertTrue(contentText.contains(mockDescription));
+    }
+
+    @Test
+    void describeTable_HandlesSqlException() throws SQLException {
+        // Arrange
+        String tableName = "nonexistent_table";
+        when(mockDatabaseService.describeTable(tableName, null))
+                .thenThrow(new SQLException("Table '" + tableName + "' not found"));
+
+        ObjectNode arguments = objectMapper.createObjectNode().put("table_name", tableName);
+
+        // Act
+        JsonNode result = mcpServer.execToolDescribeTable(arguments);
+
+        // Assert
+        assertNotNull(result, "A tool error should still produce a valid response node");
+        assertTrue(result.get("x-dbchat-is-error").asBoolean(), "The tool result should be marked as an error");
+        assertFalse(result.has("x-dbchat-security"), "Security metadata should not be present on tool error responses");
+
+        String contentText = result.get("content").get(0).get("text").asText();
+        assertTrue(contentText.contains("Failed to describe table: " + tableName));
+        assertTrue(contentText.contains("Error: Table '" + tableName + "' not found"));
+        assertTrue(contentText.contains("Troubleshooting:"), "Error response should provide troubleshooting hints");
+        assertTrue(contentText.contains("Check table name spelling"), "Table not found hint should be present");
+    }
+
+    @Test
     void testHandleListTools_CorrectStructure() {
         TestUtils.initializeServer(mcpServer, objectMapper);
 
@@ -723,13 +809,19 @@ class McpServerTest {
 
         JsonNode tools = result.get("tools");
         assertTrue(tools.isArray());
-        assertEquals(1, tools.size());
+        assertEquals(2, tools.size());
 
         JsonNode queryTool = tools.get(0);
-        assertEquals("query", queryTool.get("name").asText());
+        assertEquals("run_sql", queryTool.get("name").asText());
         assertTrue(queryTool.get("description").asText().contains("CRITICAL SECURITY WARNING"));
         assertTrue(queryTool.has("inputSchema"));
         assertTrue(queryTool.has("security"));
+
+        JsonNode descTool = tools.get(1);
+        assertEquals("describe_table", descTool.get("name").asText());
+        assertTrue(descTool.get("description").asText().contains("SECURITY WARNING: Describes database table structure including columns, data types, constraints, and indexes."));
+        assertTrue(descTool.has("inputSchema"));
+        assertTrue(descTool.has("security"));
     }
 
     @Test
@@ -897,7 +989,7 @@ class McpServerTest {
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         try {
-            when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenThrow(sqlException);
+            when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
         } catch (Exception e) {
             // Expected
         }
@@ -907,7 +999,7 @@ class McpServerTest {
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users");
         params.set("arguments", args);
@@ -919,7 +1011,7 @@ class McpServerTest {
         assertNotNull(response);
         assertTrue(response.has("result"));
         JsonNode result = response.get("result");
-        assertTrue(result.get("isError").asBoolean());
+        assertTrue(result.get("x-dbchat-is-error").asBoolean());
 
         String errorText = result.get("content").get(0).get("text").asText();
         assertTrue(errorText.contains("Table not found troubleshooting"));
@@ -927,26 +1019,21 @@ class McpServerTest {
     }
 
     @Test
-    void testGetSqlSyntaxHints_MySQL() {
+    void testGetSqlSyntaxHints_MySQL() throws SQLException {
         // Test through error message creation
         when(mockDatabaseConfig.getDatabaseType()).thenReturn("mysql");
 
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'ORDER'");
-
-        try {
-            when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenThrow(sqlException);
-        } catch (Exception e) {
-            // Expected
-        }
+        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users ORDER BY name");
         params.set("arguments", args);
@@ -960,25 +1047,20 @@ class McpServerTest {
     }
 
     @Test
-    void testGetSqlSyntaxHints_PostgreSQL() {
+    void testGetSqlSyntaxHints_PostgreSQL() throws SQLException {
         when(mockDatabaseConfig.getDatabaseType()).thenReturn("postgresql");
 
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'GROUP'");
-
-        try {
-            when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenThrow(sqlException);
-        } catch (Exception e) {
-            // Expected
-        }
+        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users GROUP BY name");
         params.set("arguments", args);
@@ -1295,25 +1377,20 @@ class McpServerTest {
     }
 
     @Test
-    void testGetSqlSyntaxHints_SqlServer() {
+    void testGetSqlSyntaxHints_SqlServer() throws SQLException {
         when(mockDatabaseConfig.getDatabaseType()).thenReturn("sqlserver");
 
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'SELECT'");
-
-        try {
-            when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenThrow(sqlException);
-        } catch (Exception e) {
-            // Expected
-        }
+        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users");
         params.set("arguments", args);
@@ -1328,25 +1405,20 @@ class McpServerTest {
     }
 
     @Test
-    void testGetSqlSyntaxHints_H2() {
+    void testGetSqlSyntaxHints_H2() throws SQLException {
         when(mockDatabaseConfig.getDatabaseType()).thenReturn("h2");
 
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'WHERE'");
-
-        try {
-            when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenThrow(sqlException);
-        } catch (Exception e) {
-            // Expected
-        }
+        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users WHERE active = 1");
         params.set("arguments", args);
@@ -1362,26 +1434,21 @@ class McpServerTest {
     }
 
     @Test
-    void testGetSqlSyntaxHints_Cassandra() {
+    void testGetSqlSyntaxHints_Cassandra() throws SQLException {
         when(mockDatabaseConfig.getDatabaseType()).thenReturn("cassandra");
 
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         // Use "syntax error" to trigger the hints section
         SQLException sqlException = new SQLException("syntax error near 'SELECT'");
-
-        try {
-            when(mockDatabaseService.executeQuery(anyString(), anyInt())).thenThrow(sqlException);
-        } catch (Exception e) {
-            // Expected
-        }
+        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
         request.put("method", "tools/call");
 
         ObjectNode params = objectMapper.createObjectNode();
-        params.put("name", "query");
+        params.put("name", "run_sql");
         ObjectNode args = objectMapper.createObjectNode();
         args.put("sql", "SELECT * FROM users");
         params.set("arguments", args);

@@ -37,8 +37,8 @@ public class DatabaseServicePoolIntegrationTest {
 
         // Set up test data
         try {
-            service.executeQuery("CREATE TABLE IF NOT EXISTS users (id INT, name VARCHAR(50))", 1000);
-            service.executeQuery("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')", 1000);
+            service.executeSql("CREATE TABLE IF NOT EXISTS users (id INT, name VARCHAR(50))", 1000);
+            service.executeSql("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')", 1000);
         } catch (SQLException e) {
             // Initial setup, ignore validation errors
         }
@@ -57,7 +57,7 @@ public class DatabaseServicePoolIntegrationTest {
         for (int i = 0; i < 10; i++) {
             CompletableFuture<QueryResult> future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    return service.executeQuery("SELECT COUNT(*) as count FROM users", 1000);
+                    return service.executeSql("SELECT COUNT(*) as count FROM users", 1000);
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
@@ -83,7 +83,7 @@ public class DatabaseServicePoolIntegrationTest {
         // This test would be more complex - could test pool exhaustion
         // by holding connections and then trying to exceed pool size
         assertDoesNotThrow(() -> {
-            service.executeQuery("SELECT 1", 1000);
+            service.executeSql("SELECT 1", 1000);
         });
     }
 }

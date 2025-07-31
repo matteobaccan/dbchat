@@ -58,7 +58,7 @@ class DatabaseServiceExceptionTest {
             new DatabaseService(badConfig);
         });
         
-        assertEquals("Database driver not found", exception.getMessage());
+        assertTrue(exception.getMessage().contains("Database driver class 'com.nonexistent.Driver' not found in classpath"));
         assertTrue(exception.getCause() instanceof ClassNotFoundException);
     }
 
@@ -99,7 +99,7 @@ class DatabaseServiceExceptionTest {
             new DatabaseService(badConfig, mockDataSource);
         });
         
-        assertEquals("Database driver not found", exception.getMessage());
+        assertTrue(exception.getMessage().contains("Database driver class 'com.nonexistent.Driver' not found in classpath"));
         assertTrue(exception.getCause() instanceof ClassNotFoundException);
     }
 
@@ -109,7 +109,7 @@ class DatabaseServiceExceptionTest {
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Database connection failed"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM test", 100);
+            databaseService.executeSql("SELECT * FROM test", 100);
         });
         
         assertEquals("Database connection failed", exception.getMessage());
@@ -122,7 +122,7 @@ class DatabaseServiceExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenThrow(new SQLException("Invalid SQL syntax"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("INVALID SQL", 100);
+            databaseService.executeSql("INVALID SQL", 100);
         });
         
         assertEquals("Invalid SQL syntax", exception.getMessage());
@@ -136,7 +136,7 @@ class DatabaseServiceExceptionTest {
         when(mockStatement.execute()).thenThrow(new SQLException("Table does not exist"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM nonexistent_table", 100);
+            databaseService.executeSql("SELECT * FROM nonexistent_table", 100);
         });
         
         assertEquals("Table does not exist", exception.getMessage());
@@ -152,7 +152,7 @@ class DatabaseServiceExceptionTest {
         when(mockResultSet.getMetaData()).thenThrow(new SQLException("ResultSet metadata error"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM test", 100);
+            databaseService.executeSql("SELECT * FROM test", 100);
         });
         
         assertEquals("ResultSet metadata error", exception.getMessage());
@@ -171,7 +171,7 @@ class DatabaseServiceExceptionTest {
         when(mockRsMetaData.getColumnName(2)).thenThrow(new SQLException("Column metadata error"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM test", 100);
+            databaseService.executeSql("SELECT * FROM test", 100);
         });
         
         assertEquals("Column metadata error", exception.getMessage());
@@ -190,7 +190,7 @@ class DatabaseServiceExceptionTest {
         when(mockResultSet.next()).thenThrow(new SQLException("ResultSet iteration error"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM test", 100);
+            databaseService.executeSql("SELECT * FROM test", 100);
         });
         
         assertEquals("ResultSet iteration error", exception.getMessage());
@@ -210,7 +210,7 @@ class DatabaseServiceExceptionTest {
         when(mockResultSet.getObject(1)).thenThrow(new SQLException("Data conversion error"));
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM test", 100);
+            databaseService.executeSql("SELECT * FROM test", 100);
         });
         
         assertEquals("Data conversion error", exception.getMessage());
@@ -221,7 +221,7 @@ class DatabaseServiceExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("", 100);
+            databaseService.executeSql("", 100);
         });
         
         assertEquals("SQL query cannot be empty", exception.getMessage());
@@ -232,7 +232,7 @@ class DatabaseServiceExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery(null, 100);
+            databaseService.executeSql(null, 100);
         });
         
         assertEquals("SQL query cannot be empty", exception.getMessage());
@@ -243,7 +243,7 @@ class DatabaseServiceExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
 
         SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("   \t\n  ", 100);
+            databaseService.executeSql("   \t\n  ", 100);
         });
         
         assertEquals("SQL query cannot be empty", exception.getMessage());
@@ -270,7 +270,7 @@ class DatabaseServiceExceptionTest {
 
         for (String query : dangerousQueries) {
             SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeQuery(query, 100);
+                databaseService.executeSql(query, 100);
             });
             
             assertTrue(exception.getMessage().startsWith("Operation not allowed:"));
@@ -291,7 +291,7 @@ class DatabaseServiceExceptionTest {
 
         for (String query : dangerousQueries) {
             SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeQuery(query, 100);
+                databaseService.executeSql(query, 100);
             });
             
             assertTrue(exception.getMessage().startsWith("Operation not allowed:"));
@@ -311,7 +311,7 @@ class DatabaseServiceExceptionTest {
 
         for (String query : multiStatementQueries) {
             SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeQuery(query, 100);
+                databaseService.executeSql(query, 100);
             });
 
             assertEquals("Multiple statements not allowed", exception.getMessage());
@@ -324,13 +324,13 @@ class DatabaseServiceExceptionTest {
 
         // Test line comments
         SQLException exception1 = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM test -- comment", 100);
+            databaseService.executeSql("SELECT * FROM test -- comment", 100);
         });
         assertEquals("SQL comments not allowed", exception1.getMessage());
 
         // Test block comments
         SQLException exception2 = assertThrows(SQLException.class, () -> {
-            databaseService.executeQuery("SELECT * FROM test /* comment */", 100);
+            databaseService.executeSql("SELECT * FROM test /* comment */", 100);
         });
         assertEquals("SQL comments not allowed", exception2.getMessage());
     }

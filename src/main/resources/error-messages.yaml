@@ -1,0 +1,95 @@
+# Error Messages
+# User-facing startup errors and system error messages
+
+# User-facing startup errors
+startup.config.error.title: "CONFIGURATION ERROR:"
+
+startup.config.error.file: "CONFIGURATION ERROR in file: {0}"
+
+startup.config.error.format: |
+  Please check your configuration file format.
+  Expected format: KEY=VALUE (one per line)
+  Comments start with #
+
+startup.port.error.title: "ERROR: Cannot start server"
+
+startup.port.error.specific: "ERROR: Cannot start server on port {0}"
+
+startup.port.inuse: "The specified port is already in use by another application."
+
+startup.port.inuse.specific: "Port {0} is already in use by another application."
+
+startup.port.solutions: |
+  Solutions:
+  1. Stop the application using the port
+  2. Use a different port: --http_port=9090
+  3. Find what's using the port: netstat -ano | findstr :<port>
+
+startup.generic.error.title: "ERROR: Cannot start server"
+
+startup.generic.error.reason: "Reason: {0}"
+
+startup.unexpected.error: "UNEXPECTED ERROR: {0}"
+
+# HTTP server errors
+http.server.port.inuse: "ERROR: Failed to start HTTP server: Port {0} is already in use"
+
+http.server.port.suggestion: "Please try a different port or stop the service using port {0}"
+
+http.server.port.help: "You can specify a different port with: --http_port=<port>"
+
+http.server.generic.error: "ERROR: Failed to start HTTP server on port {0}: {1}"
+
+# Server lifecycle errors
+lifecycle.not.initialized: "Server not initialized. First request must be 'initialize'"
+
+lifecycle.initializing: "Server is initializing. Only 'initialize' response or 'initialized' notification allowed"
+
+lifecycle.shutdown: "Server is shut down"
+
+# Protocol validation errors
+protocol.unsupported.version: "Unsupported protocol version: {0}. Supported versions: [{1}]"
+
+protocol.method.not.found: "Method not found: {0}"
+
+protocol.tool.unknown: "Unknown tool: {0}"
+
+protocol.resource.not.found: "Resource not found: {0}"
+
+# Query validation errors
+query.null: "SQL query cannot be null"
+
+query.empty: "SQL query cannot be empty"
+
+query.too.long: "SQL query too long (max {0} characters)"
+
+query.row.limit.exceeded: "Requested row limit exceeds maximum allowed: {0}"
+
+# SQL security validation errors
+sql.validation.empty: "SQL query cannot be empty"
+
+sql.validation.operation.denied: "Operation not allowed: {0}"
+
+sql.validation.multiple.statements: "Multiple statements not allowed"
+
+sql.validation.comments.denied: "SQL comments not allowed"
+
+# Database system errors
+database.driver.not.found: "Database driver not found: {0}"
+
+database.driver.not.found.detailed: "Database driver class ''{0}'' not found in classpath. Ensure the appropriate JDBC driver JAR is included in the build profile."
+
+database.driver.suggestions: "Common solutions: 1) Check Maven profile is active 2) Verify driver class name 3) Ensure JAR is in classpath"
+
+database.pool.init.failed: "Database connection pool initialization failed"
+
+database.pool.init.failed.detailed: "Database connection pool initialization failed for URL: {0}. Check connection parameters and database availability."
+
+database.pool.config.failed: "Connection pool configuration failed for parameter {0}: {1}"
+
+# Configuration parameter parsing errors
+config.parse.integer.failed: "Invalid integer value for configuration parameter {0}: ''{1}''. Expected a numeric value."
+
+config.parse.boolean.failed: "Invalid boolean value for configuration parameter {0}: ''{1}''. Expected ''true'' or ''false''."
+
+config.validation.failed: "Configuration parameter validation failed for {0}: {1}"
