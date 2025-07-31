@@ -6,7 +6,7 @@
 
     <groupId>com.skanga</groupId>
     <artifactId>dbchat</artifactId>
-    <version>3.0.2</version>
+    <version>3.0.4</version>
     <packaging>jar</packaging>
 
     <name>DBChat - Database MCP Server</name>
@@ -1016,7 +1016,7 @@
                         <configuration>
                             <basedir>${project.basedir}</basedir>
                             <includes>
-                                <include>src/main/java/com/skanga/mcp/CliUtils.java</include>
+                                <include>src/main/java/com/skanga/mcp/config/CliUtils.java</include>
                             </includes>
                             <replacements>
                                 <replacement>
