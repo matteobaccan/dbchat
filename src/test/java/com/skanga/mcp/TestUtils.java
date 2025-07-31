@@ -9,6 +9,8 @@ import com.skanga.mcp.db.QueryResult;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -207,6 +209,37 @@ public class TestUtils {
             conn.commit();
             conn.setAutoCommit(true);
         }
+    }
+
+    /**
+     * Executes code with suppressed logging for expected exception tests
+     */
+    public static <T> T withSuppressedLogging(java.util.function.Supplier<T> operation) {
+        // For slf4j-simple, we can't programmatically change log levels easily
+        // But we can redirect System.err temporarily to suppress stack traces
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to a null stream to suppress exception stack traces
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
+            return operation.get();
+        } finally {
+            System.setErr(originalErr);
+        }
+    }
+
+    /**
+     * Executes code with suppressed logging for expected exception tests (void version)
+     */
+    public static void withSuppressedLogging(Runnable operation) {
+        withSuppressedLogging(() -> {
+            operation.run();
+            return null;
+        });
     }
 
     /**

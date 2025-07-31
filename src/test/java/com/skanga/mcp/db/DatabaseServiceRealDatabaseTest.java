@@ -81,10 +81,13 @@ class DatabaseServiceRealDatabaseTest {
         // Given
         String invalidSql = "SELECT * FROM non_existent_table";
 
-        // When/Then
-        assertThatThrownBy(() -> databaseService.executeSql(invalidSql, 100))
-            .isInstanceOf(SQLException.class)
-            .hasMessageContaining("not found"); // H2 specific error message
+        // When/Then - Suppress expected exception logging for cleaner test output
+        TestUtils.withSuppressedLogging(() -> {
+            assertThatThrownBy(() -> databaseService.executeSql(invalidSql, 100))
+                .isInstanceOf(SQLException.class)
+                .hasMessageContaining("not found"); // H2 specific error message
+            return null;
+        });
     }
 
     @Test

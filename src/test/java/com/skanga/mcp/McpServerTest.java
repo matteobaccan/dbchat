@@ -14,12 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
@@ -160,9 +155,14 @@ class McpServerTest {
     }
 
     @Test
-    void testHandleRequest_DatabaseError_Notification() {
+    void testHandleRequest_DatabaseError_Notification() throws Exception {
         TestUtils.initializeServer(mcpServer, objectMapper);    // Initialize server first
         // Arrange
+        when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockDatabaseConfig);
+        when(mockDatabaseConfig.maxSqlLength()).thenReturn(10000);
+        when(mockDatabaseConfig.getDatabaseType()).thenReturn("h2");
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any()))
+                .thenThrow(new SQLException("Database connection failed"));
         lenient().when(mockDatabaseConfig.maxRowsLimit()).thenReturn(10000);
 
         ObjectNode request = objectMapper.createObjectNode();
@@ -189,7 +189,7 @@ class McpServerTest {
         // Arrange
         when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockDatabaseConfig);
         when(mockDatabaseConfig.maxSqlLength()).thenReturn(10000);
-        when(mockDatabaseService.executeSql(anyString(), anyInt()))
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any()))
             .thenThrow(new RuntimeException("Unexpected runtime error"));
 
         ObjectNode request = objectMapper.createObjectNode();
@@ -203,8 +203,8 @@ class McpServerTest {
         params.set("arguments", args);
         request.set("params", params);
 
-        // Act
-        JsonNode response = mcpServer.handleRequest(request);
+        // Act - suppress expected exception logging
+        JsonNode response = TestUtils.withSuppressedLogging(() -> mcpServer.handleRequest(request));
 
         // Assert
         assertNotNull(response);
@@ -354,8 +354,8 @@ class McpServerTest {
         params.put("uri", "test://resource");
         request.set("params", params);
 
-        // Act
-        JsonNode response = mcpServer.handleRequest(request);
+        // Act - suppress expected exception logging
+        JsonNode response = TestUtils.withSuppressedLogging(() -> mcpServer.handleRequest(request));
 
         // Assert
         assertNotNull(response);
@@ -420,20 +420,40 @@ class McpServerTest {
     }
 
     @Test
-    void testStdioMode_InvalidJson() {
+    void testStdioMode_InvalidJson() throws Exception {
         // Arrange
         String invalidJson = "{ invalid json }";
         ByteArrayInputStream inputStream = new ByteArrayInputStream(invalidJson.getBytes());
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         
-        System.setIn(inputStream);
-        System.setOut(new PrintStream(outputStream));
+        InputStream originalIn = System.in;
+        PrintStream originalOut = System.out;
+        
+        try {
+            System.setIn(inputStream);
+            System.setOut(new PrintStream(outputStream));
 
-        // Act
-        assertDoesNotThrow(() -> mcpServer.startStdioMode());
+            // Act - should handle the JSON parsing error gracefully and not crash (suppress expected exception logging)
+            TestUtils.withSuppressedLogging(() -> {
+                assertDoesNotThrow(() -> mcpServer.startStdioMode());
+            });
 
-        // The method should handle the JSON parsing error gracefully
-        // and not crash the server
+            // Assert - an error response should be written for invalid JSON 
+            // (since the server can't determine if it's a notification, it defaults to sending a response)
+            String output = outputStream.toString();
+            assertFalse(output.isEmpty(), "Error response should be written for invalid JSON");
+            
+            // Verify it's a valid JSON error response
+            JsonNode errorResponse = objectMapper.readTree(output.trim());
+            assertTrue(errorResponse.has("error"), "Response should contain error field");
+            assertEquals("-32603", errorResponse.get("error").get("code").asText());
+            assertTrue(errorResponse.get("error").get("message").asText().contains("Internal server error"));
+            
+        } finally {
+            // Restore original streams
+            System.setIn(originalIn);
+            System.setOut(originalOut);
+        }
     }
 
     @Test
@@ -518,8 +538,8 @@ class McpServerTest {
         request.put("id", 1);
         request.put("method", "resources/list");
 
-        // Act
-        JsonNode response = mcpServer.handleRequest(request);
+        // Act - suppress expected exception logging
+        JsonNode response = TestUtils.withSuppressedLogging(() -> mcpServer.handleRequest(request));
 
         // Assert
         assertNotNull(response);

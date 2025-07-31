@@ -167,9 +167,23 @@ class DatabaseServiceTest {
         when(connection.prepareStatement(sql)).thenReturn(statement);
         when(statement.execute()).thenThrow(new SQLException("Table not found"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> service.executeSql(sql, 10));
+        // Suppress expected exception logging for cleaner test output
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to suppress SQLException stack trace
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
 
-        assertEquals("Table not found", exception.getMessage());
+            SQLException exception = assertThrows(SQLException.class, () -> service.executeSql(sql, 10));
+            assertEquals("Table not found", exception.getMessage());
+
+        } finally {
+            System.setErr(originalErr);
+        }
     }
 
     // ========================================
@@ -302,10 +316,24 @@ class DatabaseServiceTest {
     void testConnectionPoolExhaustion() throws Exception {
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Connection pool exhausted"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> service.executeSql("SELECT 1", 10));
+        // Suppress expected exception logging for cleaner test output
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to suppress SQLException stack trace
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
 
-        assertEquals("Connection pool exhausted", exception.getMessage());
-        verify(mockDataSource).getConnection();
+            SQLException exception = assertThrows(SQLException.class, () -> service.executeSql("SELECT 1", 10));
+            assertEquals("Connection pool exhausted", exception.getMessage());
+            verify(mockDataSource).getConnection();
+
+        } finally {
+            System.setErr(originalErr);
+        }
     }
 
     @Test
@@ -636,11 +664,26 @@ class DatabaseServiceTest {
         // Mock the row count query to fail
         when(connection.prepareStatement(anyString())).thenThrow(new SQLException("Permission denied"));
 
-        // Execute and Assert
-        String description = service.describeTable(tableName, null);
-        assertNotNull(description);
-        assertTrue(description.contains("Row Count: Not available"));
-        assertFalse(description.contains("Permission denied")); // Exception should be handled gracefully
+        // Suppress expected exception logging for cleaner test output
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to suppress SQLException stack trace
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
+
+            // Execute and Assert
+            String description = service.describeTable(tableName, null);
+            assertNotNull(description);
+            assertTrue(description.contains("Row Count: Not available"));
+            assertFalse(description.contains("Permission denied")); // Exception should be handled gracefully
+
+        } finally {
+            System.setErr(originalErr);
+        }
     }
 
     @Test
@@ -984,10 +1027,24 @@ class DatabaseServiceTest {
     void testClose_ThrowsException() {
         doThrow(new RuntimeException("Close failed")).when(mockDataSource).close();
 
-        // Should not throw exception
-        assertDoesNotThrow(() -> service.close());
+        // Suppress expected exception logging for cleaner test output
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to suppress RuntimeException stack trace
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
 
-        verify(mockDataSource).close();
+            // Should not throw exception - verifies graceful error handling
+            assertDoesNotThrow(() -> service.close());
+            verify(mockDataSource).close();
+
+        } finally {
+            System.setErr(originalErr);
+        }
     }
 
     @Test
@@ -998,15 +1055,30 @@ class DatabaseServiceTest {
 
     @Test
     void testConstructor_ThrowsIfDriverNotFound() {
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            ConfigParams badConfig = mock(ConfigParams.class);
-            when(badConfig.dbDriver()).thenReturn("non.existent.Driver");
-            when(badConfig.getDatabaseType()).thenReturn("unknown");
+        // Suppress expected exception logging for cleaner test output
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to suppress ClassNotFoundException stack trace
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
 
-            new DatabaseService(badConfig);
-        });
+            RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+                ConfigParams badConfig = mock(ConfigParams.class);
+                when(badConfig.dbDriver()).thenReturn("non.existent.Driver");
+                when(badConfig.getDatabaseType()).thenReturn("unknown");
 
-        assertTrue(exception.getMessage().contains("Database driver class 'non.existent.Driver' not found in classpath."));
+                new DatabaseService(badConfig);
+            });
+
+            assertTrue(exception.getMessage().contains("Database driver class 'non.existent.Driver' not found in classpath."));
+
+        } finally {
+            System.setErr(originalErr);
+        }
     }
 
     // ========================================

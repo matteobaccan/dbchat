@@ -130,26 +130,41 @@ class McpServerIntegrationTest {
     @Timeout(5)
     @EnabledIf("isNetworkAvailable")
     void testHttpRequest_InvalidJson() throws Exception {
-        URL url = new URL("http://localhost:" + sharedPort + "/mcp");
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(2000);
-        conn.setReadTimeout(2000);
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setDoOutput(true);
+        // Suppress expected exception logging for cleaner test output
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to suppress JsonParseException stack trace
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
 
-        String invalidJson = "{ invalid json content }";
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(invalidJson.getBytes(StandardCharsets.UTF_8));
-        }
+            URL url = new URL("http://localhost:" + sharedPort + "/mcp");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(2000);
+            conn.setReadTimeout(2000);
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setDoOutput(true);
 
-        int responseCode = conn.getResponseCode();
-        assertEquals(500, responseCode);
+            String invalidJson = "{ invalid json content }";
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(invalidJson.getBytes(StandardCharsets.UTF_8));
+            }
 
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(conn.getErrorStream()))) {
-            String response = reader.lines().reduce("", String::concat);
-            assertTrue(response.contains("Internal server error"));
+            int responseCode = conn.getResponseCode();
+            assertEquals(500, responseCode);
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(conn.getErrorStream()))) {
+                String response = reader.lines().reduce("", String::concat);
+                assertTrue(response.contains("Internal server error"));
+            }
+
+        } finally {
+            System.setErr(originalErr);
         }
     }
 
@@ -203,9 +218,18 @@ class McpServerIntegrationTest {
 
         InputStream originalIn = System.in;
         PrintStream originalOut = System.out;
+        PrintStream originalErr = System.err;
         try {
             System.setIn(inputStream);
             System.setOut(new PrintStream(outputStream));
+            
+            // Suppress expected exception logging for cleaner test output
+            System.setErr(new PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
 
             // Create separate server instance for stdio tests
             McpServer stdioServer = new McpServer(new ConfigParams(
@@ -221,6 +245,7 @@ class McpServerIntegrationTest {
         } finally {
             System.setIn(originalIn);
             System.setOut(originalOut);
+            System.setErr(originalErr);
         }
     }
 

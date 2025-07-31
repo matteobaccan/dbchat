@@ -1,5 +1,6 @@
 package com.skanga.mcp.db;
 
+import com.skanga.mcp.TestUtils;
 import com.skanga.mcp.config.ConfigParams;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +22,6 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 class DatabaseServiceValidationExceptionTest {
-
     @Mock
     private HikariDataSource mockDataSource;
     @Mock
@@ -379,7 +379,9 @@ class DatabaseServiceValidationExceptionTest {
         // These should not throw validation exceptions (though they may fail for other reasons like missing connection)
         for (String query : validQueries) {
             // Since we're only testing validation, we expect SQLException but not validation-specific messages
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
+            SQLException exception = TestUtils.withSuppressedLogging(() ->
+                assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100))
+            );
 
             // Should not be validation errors
             assertFalse(exception.getMessage().contains("Operation not allowed"));
@@ -402,7 +404,10 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : dangerousQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> nonSelectOnlyService.executeSql(query, 100));
+            // Since we're only testing validation, we expect SQLException but not validation-specific messages
+            SQLException exception = TestUtils.withSuppressedLogging(() ->
+                    assertThrows(SQLException.class, () -> nonSelectOnlyService.executeSql(query, 100))
+            );
 
             // Should NOT be validation errors since validation is bypassed when selectOnly=false
             assertFalse(exception.getMessage().startsWith("Operation not allowed:"));
@@ -481,8 +486,10 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : complexValidQueries) {
-            // These should pass validation but fail due to mocked execution failure
-            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
+            // Since we're only testing validation, we expect SQLException but not validation-specific messages
+            SQLException exception = TestUtils.withSuppressedLogging(() ->
+                    assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100))
+            );
 
             // Should not be validation errors
             assertFalse(exception.getMessage().contains("Operation not allowed"));

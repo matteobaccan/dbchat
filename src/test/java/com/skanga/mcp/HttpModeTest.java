@@ -399,13 +399,28 @@ class HttpModeTest {
     void testInvalidJsonRequest() throws Exception {
         String invalidJson = "{ invalid json }";
 
-        HttpResponse<String> response = sendMcpRequest(invalidJson);
+        // Suppress expected exception logging for cleaner test output
+        java.io.PrintStream originalErr = System.err;
+        try {
+            // Redirect stderr to suppress JsonParseException stack trace
+            System.setErr(new java.io.PrintStream(new java.io.OutputStream() {
+                @Override
+                public void write(int b) {
+                    // Discard output
+                }
+            }));
 
-        assertEquals(500, response.statusCode());
+            HttpResponse<String> response = sendMcpRequest(invalidJson);
 
-        JsonNode errorResponse = objectMapper.readTree(response.body());
-        assertTrue(errorResponse.has("error"));
-        assertTrue(errorResponse.get("error").get("message").asText().contains("Internal server error"));
+            assertEquals(500, response.statusCode());
+
+            JsonNode errorResponse = objectMapper.readTree(response.body());
+            assertTrue(errorResponse.has("error"));
+            assertTrue(errorResponse.get("error").get("message").asText().contains("Internal server error"));
+
+        } finally {
+            System.setErr(originalErr);
+        }
     }
 
     @Test
