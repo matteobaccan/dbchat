@@ -1,13 +1,17 @@
 package com.skanga.mcp.db;
 
-import com.skanga.mcp.db.QueryResult;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
-import static org.assertj.core.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class QueryResultTest {
     @Test
@@ -76,9 +80,9 @@ class QueryResultTest {
     @DisplayName("Should handle single column result")
     void shouldHandleSingleColumnResult() {
         // Given
-        List<String> columns = Arrays.asList("count");
-        List<List<Object>> rows = Arrays.asList(
-            Arrays.asList(42)
+        List<String> columns = List.of("count");
+        List<List<Object>> rows = List.of(
+                List.of(42)
         );
         int rowCount = 1;
         long executionTime = 25L;
@@ -97,8 +101,8 @@ class QueryResultTest {
     @DisplayName("Should handle large execution time")
     void shouldHandleLargeExecutionTime() {
         // Given
-        List<String> columns = Arrays.asList("id");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1));
+        List<String> columns = List.of("id");
+        List<List<Object>> rows = List.of(List.of(1));
         int rowCount = 1;
         long executionTime = 5000L; // 5 seconds
 
@@ -204,7 +208,7 @@ class QueryResultTest {
     void shouldThrowExceptionWhenColumnsIsNull() {
         // Given
         List<String> columns = null;
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         int rowCount = 1;
         long executionTime = 100L;
 
@@ -234,7 +238,7 @@ class QueryResultTest {
     void shouldThrowExceptionWhenRowCountIsNegative() {
         // Given
         List<String> columns = Arrays.asList("id", "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         int rowCount = -1;
         long executionTime = 100L;
 
@@ -249,7 +253,7 @@ class QueryResultTest {
     void shouldThrowExceptionWhenExecutionTimeIsNegative() {
         // Given
         List<String> columns = Arrays.asList("id", "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         int rowCount = 1;
         long executionTime = -1L;
 
@@ -282,7 +286,7 @@ class QueryResultTest {
     void shouldAcceptZeroExecutionTime() {
         // Given
         List<String> columns = Arrays.asList("id", "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         int rowCount = 1;
         long executionTime = 0L;
 
@@ -310,7 +314,7 @@ class QueryResultTest {
     void shouldReturnFalseForIsEmptyWhenRowsContainsData() {
         // Given
         List<String> columns = Arrays.asList("id", "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         QueryResult result = new QueryResult(columns, rows, 1, 100L);
 
         // When & Then
@@ -334,7 +338,7 @@ class QueryResultTest {
     void shouldReturnTrueForHasResultsWhenRowsContainsData() {
         // Given
         List<String> columns = Arrays.asList("id", "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         QueryResult result = new QueryResult(columns, rows, 1, 100L);
 
         // When & Then
@@ -388,7 +392,7 @@ class QueryResultTest {
     void shouldHandleColumnsWithNullValues() {
         // Given
         List<String> columns = Arrays.asList("id", null, "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "data", "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "data", "John"));
         int rowCount = 1;
         long executionTime = 50L;
 
@@ -429,8 +433,8 @@ class QueryResultTest {
     @DisplayName("Should handle maximum possible execution time")
     void shouldHandleMaximumExecutionTime() {
         // Given
-        List<String> columns = Arrays.asList("id");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1));
+        List<String> columns = List.of("id");
+        List<List<Object>> rows = List.of(List.of(1));
         int rowCount = 1;
         long executionTime = Long.MAX_VALUE;
 
@@ -445,8 +449,8 @@ class QueryResultTest {
     @DisplayName("Should handle maximum possible row count")
     void shouldHandleMaximumRowCount() {
         // Given
-        List<String> columns = Arrays.asList("id");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1));
+        List<String> columns = List.of("id");
+        List<List<Object>> rows = List.of(List.of(1));
         int rowCount = Integer.MAX_VALUE;
         long executionTime = 100L;
 
@@ -463,7 +467,7 @@ class QueryResultTest {
         // Given
         List<String> originalColumns = new java.util.ArrayList<>(Arrays.asList("id", "name"));
         List<List<Object>> originalRows = new java.util.ArrayList<>(
-                Arrays.asList(new java.util.ArrayList<>(Arrays.asList(1, "John")))
+                List.of(new ArrayList<>(Arrays.asList(1, "John")))
         );
 
         QueryResult result = new QueryResult(originalColumns, originalRows, 1, 100L);
@@ -504,7 +508,7 @@ class QueryResultTest {
         // Given - Create defensive copies when creating the record
         List<String> originalColumns = new java.util.ArrayList<>(Arrays.asList("id", "name"));
         List<List<Object>> originalRows = new java.util.ArrayList<>(
-                Arrays.asList(new java.util.ArrayList<>(Arrays.asList(1, "John")))
+                List.of(new ArrayList<>(Arrays.asList(1, "John")))
         );
 
         // Create defensive copies
@@ -531,11 +535,11 @@ class QueryResultTest {
     void shouldHandleSqlSpecificDataTypes() {
         // Given
         List<String> columns = Arrays.asList("id", "timestamp", "decimal", "blob_size");
-        List<List<Object>> rows = Arrays.asList(
+        List<List<Object>> rows = List.of(
                 Arrays.asList(
                         1L,
-                        java.sql.Timestamp.valueOf("2023-01-15 10:30:45"),
-                        java.math.BigDecimal.valueOf(123.45),
+                        Timestamp.valueOf("2023-01-15 10:30:45"),
+                        BigDecimal.valueOf(123.45),
                         null
                 )
         );
@@ -557,7 +561,7 @@ class QueryResultTest {
     void shouldHandleEdgeCaseWhereRowCountIsZeroButRowsExist() {
         // Given - This might happen in some database scenarios
         List<String> columns = Arrays.asList("id", "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         int rowCount = 0; // Inconsistent with rows.size()
         long executionTime = 50L;
 
@@ -576,7 +580,7 @@ class QueryResultTest {
     void shouldSupportEqualsAndHashCodeForRecords() {
         // Given
         List<String> columns = Arrays.asList("id", "name");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(1, "John"));
+        List<List<Object>> rows = List.of(Arrays.asList(1, "John"));
         int rowCount = 1;
         long executionTime = 100L;
 
@@ -595,8 +599,8 @@ class QueryResultTest {
     @DisplayName("Should handle UPDATE/INSERT/DELETE result format")
     void shouldHandleUpdateInsertDeleteResultFormat() {
         // Given - Typical format for non-SELECT queries
-        List<String> columns = Arrays.asList("affected_rows");
-        List<List<Object>> rows = Arrays.asList(Arrays.asList(5));
+        List<String> columns = List.of("affected_rows");
+        List<List<Object>> rows = List.of(List.of(5));
         int rowCount = 5;
         long executionTime = 75L;
 

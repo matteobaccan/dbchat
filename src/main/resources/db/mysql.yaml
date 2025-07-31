@@ -8,6 +8,12 @@ dialect.guidance: |
   - Auto-increment: AUTO_INCREMENT
 
 query.examples: |
+  -- Parameterized queries (RECOMMENDED for security)
+  SELECT * FROM users WHERE id = ?;                    -- params: [123]
+  SELECT * FROM products WHERE price BETWEEN ? AND ?;  -- params: [10.50, 100.00]
+  INSERT INTO users (name, email) VALUES (?, ?);       -- params: ["John Doe", "john@example.com"]
+  UPDATE users SET status = ? WHERE created_at > ?;    -- params: ["active", "2024-01-01"]
+
   -- Date queries
   SELECT * FROM table WHERE date_col >= CURDATE() - INTERVAL 7 DAY;
   SELECT DATE_FORMAT(created_at, '%Y-%m') AS month FROM table;

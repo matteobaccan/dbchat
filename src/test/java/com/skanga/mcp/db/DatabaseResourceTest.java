@@ -1,9 +1,10 @@
 package com.skanga.mcp.db;
 
-import com.skanga.mcp.db.DatabaseResource;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
-import static org.assertj.core.api.Assertions.*;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DatabaseResourceTest {
     @Test

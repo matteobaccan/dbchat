@@ -6,6 +6,7 @@ import com.skanga.mcp.SecurityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -129,6 +130,21 @@ public class DatabaseService {
      * @throws SQLException if the query fails, contains invalid syntax, or violates security restrictions
      */
     public QueryResult executeSql(String sqlQuery, int maxRows) throws SQLException {
+        return executeSql(sqlQuery, maxRows, null);
+    }
+
+    /**
+     * Executes a SQL query with optional parameters and returns the results with metadata.
+     * Applies security validation if selectOnly mode is enabled and enforces query timeouts.
+     * Supports parameterized queries for enhanced security against SQL injection.
+     *
+     * @param sqlQuery The SQL query to execute (may contain ? placeholders)
+     * @param maxRows Maximum number of rows to return (enforced at database level)
+     * @param paramList Optional array of parameters to bind to the query placeholders
+     * @return QueryResult containing columns, rows, count, and execution time
+     * @throws SQLException if the query fails, contains invalid syntax, or violates security restrictions
+     */
+    public QueryResult executeSql(String sqlQuery, int maxRows, List<Object> paramList) throws SQLException {
         long startTime = System.currentTimeMillis();
 
         // Add validation before executing
@@ -140,6 +156,13 @@ public class DatabaseService {
 
             prepStmt.setMaxRows(maxRows);
             prepStmt.setQueryTimeout(configParams.queryTimeoutSeconds());
+
+            // Set parameters if provided
+            if (paramList != null && !paramList.isEmpty()) {
+                for (int i = 0; i < paramList.size(); i++) {
+                    setParameterValue(prepStmt, i + 1, paramList.get(i));
+                }
+            }
 
             boolean isResultSet = prepStmt.execute();
             List<String> resultColumns = new ArrayList<>();
@@ -160,8 +183,7 @@ public class DatabaseService {
                     while (resultSet.next() && rowCount < maxRows) {
                         List<Object> currRow = new ArrayList<>();
                         for (int i = 1; i <= columnCount; i++) {
-                            Object colValue = resultSet.getObject(i);
-                            currRow.add(colValue);
+                            currRow.add(resultSet.getObject(i));
                         }
                         resultRows.add(currRow);
                         rowCount++;
@@ -181,6 +203,47 @@ public class DatabaseService {
         } catch (SQLException e) {
             logger.error("Query execution failed: {}", sqlQuery, e);
             throw e;
+        }
+    }
+
+    /**
+     * Sets a parameter value in a PreparedStatement with appropriate type handling.
+     * Handles common Java types and converts them to appropriate SQL types.
+     *
+     * @param prepStmt The PreparedStatement to set the parameter on
+     * @param paramIndex The 1-based parameter index
+     * @param paramValue The parameter value to set
+     * @throws SQLException if parameter setting fails
+     */
+    private void setParameterValue(PreparedStatement prepStmt, int paramIndex, Object paramValue) throws SQLException {
+        if (paramValue == null) {
+            prepStmt.setNull(paramIndex, java.sql.Types.NULL);
+        } else if (paramValue instanceof String) {
+            prepStmt.setString(paramIndex, (String) paramValue);
+        } else if (paramValue instanceof Integer) {
+            prepStmt.setInt(paramIndex, (Integer) paramValue);
+        } else if (paramValue instanceof Long) {
+            prepStmt.setLong(paramIndex, (Long) paramValue);
+        } else if (paramValue instanceof Double) {
+            prepStmt.setDouble(paramIndex, (Double) paramValue);
+        } else if (paramValue instanceof Float) {
+            prepStmt.setFloat(paramIndex, (Float) paramValue);
+        } else if (paramValue instanceof Boolean) {
+            prepStmt.setBoolean(paramIndex, (Boolean) paramValue);
+        } else if (paramValue instanceof java.sql.Date) {
+            prepStmt.setDate(paramIndex, (java.sql.Date) paramValue);
+        } else if (paramValue instanceof java.sql.Time) {
+            prepStmt.setTime(paramIndex, (java.sql.Time) paramValue);
+        } else if (paramValue instanceof java.sql.Timestamp) {
+            prepStmt.setTimestamp(paramIndex, (java.sql.Timestamp) paramValue);
+        } else if (paramValue instanceof java.util.Date) {
+            // Convert java.util.Date to java.sql.Timestamp
+            prepStmt.setTimestamp(paramIndex, new java.sql.Timestamp(((java.util.Date) paramValue).getTime()));
+        } else if (paramValue instanceof BigDecimal) {
+            prepStmt.setBigDecimal(paramIndex, (BigDecimal) paramValue);
+        } else {
+            // For other types, convert to string and let the database handle it
+            prepStmt.setString(paramIndex, paramValue.toString());
         }
     }
 
@@ -877,7 +940,15 @@ public class DatabaseService {
      * @return Formatted string with SQL dialect guidance
      */
     private String getSqlDialectGuidance(String dbType, Connection dbConn) {
-        return ResourceManager.getDatabaseHelp(dbType, ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
+        StringBuilder guidance = new StringBuilder();
+        guidance.append(ResourceManager.getDatabaseHelp(dbType, ResourceManager.DatabaseHelp.DIALECT_GUIDANCE));
+        
+        // Add H2-specific compatibility mode information
+        if ("h2".equalsIgnoreCase(dbType) && dbConn != null) {
+            guidance.append("\n").append(getH2CompatibilityMode(dbConn));
+        }
+        
+        return guidance.toString();
     }
 
     /**
@@ -934,41 +1005,38 @@ public class DatabaseService {
      * This method provides comprehensive table information by querying the database system catalogs.
      *
      * @param tableName The name of the table to describe
-     * @param schema The schema/database name (optional, can be null for default schema)
+     * @param schemaName The schema/database name (optional, can be null for default schema)
      * @return A formatted string containing detailed table structure information
      * @throws SQLException if the table doesn't exist or metadata cannot be retrieved
      */
-    public String describeTable(String tableName, String schema) throws SQLException {
+    public String describeTable(String tableName, String schemaName) throws SQLException {
         try (Connection dbConn = getConnection()) {
             DatabaseMetaData metaData = dbConn.getMetaData();
             
             // Normalize case based on database type
             String normalizedTableName = normalizeIdentifier(tableName, metaData);
-            String normalizedSchema = schema != null ? normalizeIdentifier(schema, metaData) : null;
-            
-            StringBuilder description = new StringBuilder();
-            
+            String normalizedSchema = schemaName != null ? normalizeIdentifier(schemaName, metaData) : null;
+
             // Basic table information
-            description.append("COLUMNS:\n");
-            description.append(describeTableColumns(metaData, normalizedSchema, normalizedTableName));
-            
-            // Primary keys
-            description.append("\nPRIMARY KEYS:\n");
-            description.append(describeTablePrimaryKeys(metaData, normalizedSchema, normalizedTableName));
-            
-            // Foreign keys
-            description.append("\nFOREIGN KEYS:\n");
-            description.append(describeTableForeignKeys(metaData, normalizedSchema, normalizedTableName));
-            
-            // Indexes
-            description.append("\nINDEXES:\n");
-            description.append(describeTableIndexes(metaData, normalizedSchema, normalizedTableName));
-            
-            // Table statistics (if available)
-            description.append("\nTABLE INFORMATION:\n");
-            description.append(describeTableInfo(metaData, normalizedSchema, normalizedTableName));
-            
-            return description.toString();
+
+            return "COLUMNS:\n" +
+                    describeTableColumns(metaData, normalizedSchema, normalizedTableName) +
+
+                    // Primary keys
+                    "\nPRIMARY KEYS:\n" +
+                    describeTablePrimaryKeys(metaData, normalizedSchema, normalizedTableName) +
+
+                    // Foreign keys
+                    "\nFOREIGN KEYS:\n" +
+                    describeTableForeignKeys(metaData, normalizedSchema, normalizedTableName) +
+
+                    // Indexes
+                    "\nINDEXES:\n" +
+                    describeTableIndexes(metaData, normalizedSchema, normalizedTableName) +
+
+                    // Table statistics (if available)
+                    "\nTABLE INFORMATION:\n" +
+                    describeTableInfo(metaData, normalizedSchema, normalizedTableName);
         }
     }
     
@@ -981,23 +1049,23 @@ public class DatabaseService {
         String dbType = getDatabaseConfig().getDatabaseType().toLowerCase();
         
         // Database-specific identifier normalization
-        switch (dbType) {
-            case "postgresql":
+        return switch (dbType) {
+            case "postgresql" ->
                 // PostgreSQL stores unquoted identifiers in lowercase
-                return identifier.toLowerCase();
-            case "oracle":
+                    identifier.toLowerCase();
+            case "oracle" ->
                 // Oracle stores unquoted identifiers in uppercase
-                return identifier.toUpperCase();
-            case "mysql", "mariadb":
+                    identifier.toUpperCase();
+            case "mysql", "mariadb" ->
                 // MySQL case sensitivity depends on OS, but metadata usually matches input case
-                return identifier;
-            case "sqlserver":
+                    identifier;
+            case "sqlserver" ->
                 // SQL Server is case-insensitive but preserves case in metadata
-                return identifier;
-            default:
+                    identifier;
+            default ->
                 // For other databases, try as-is first
-                return identifier;
-        }
+                    identifier;
+        };
     }
     
     /**

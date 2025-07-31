@@ -477,6 +477,60 @@ class MCPTester:
                 expected_fields=["jsonrpc", "id", "result", "result.content"]
             ),
 
+            # PARAMETERIZED QUERY TESTS
+            # Insert with parameters (int, string)
+            TestCase(
+                name="Parameterized Insert (run_sql)",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 11,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "run_sql",
+                        "arguments": {
+                            "sql": "INSERT INTO protocol_test VALUES (?, ?)",
+                            "params": [1, "Alice Smith"]
+                        }
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.content"]
+            ),
+
+            # Insert with null parameter
+            TestCase(
+                name="Parameterized Insert with Null (run_sql)",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 13,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "run_sql",
+                        "arguments": {
+                            "sql": "INSERT INTO protocol_test VALUES (?, ?)",
+                            "params": [2, None]
+                        }
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.content"]
+            ),
+
+            # Mixed parameter types test
+            TestCase(
+                name="Mixed Parameter Types (run_sql)",
+                request={
+                    "jsonrpc": "2.0",
+                    "id": 16,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "run_sql",
+                        "arguments": {
+                            "sql": "INSERT INTO protocol_test VALUES (?, ?)",
+                            "params": [3, "Bob Jones"]
+                        }
+                    }
+                },
+                expected_fields=["jsonrpc", "id", "result", "result.content"]
+            ),
 
             TestCase(
                 name="Read Database Info Resource",

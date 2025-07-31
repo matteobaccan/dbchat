@@ -1,11 +1,9 @@
 package com.skanga.mcp.config;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,10 +13,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ResourceManagerTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(ResourceManagerTest.class);
-
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         // Clear the cache before each test to ensure isolation
         clearResourceManagerCache();
     }
@@ -26,7 +22,7 @@ class ResourceManagerTest {
     /**
      * Helper method to clear the ResourceManager cache using reflection
      */
-    private void clearResourceManagerCache() throws Exception {
+    private void clearResourceManagerCache() {
         ResourceManager.yamlCache.clear();
     }
 
@@ -209,7 +205,7 @@ class ResourceManagerTest {
 
         @Test
         @DisplayName("Should cache properties after first load")
-        void testCaching_PropertiesAreCached() throws Exception {
+        void testCaching_PropertiesAreCached() {
             // Load the same resource twice
             String result1 = ResourceManager.getDatabaseHelp("mysql", ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
             String result2 = ResourceManager.getDatabaseHelp("mysql", ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
@@ -223,7 +219,7 @@ class ResourceManagerTest {
 
         @Test
         @DisplayName("Should cache multiple different resources")
-        void testCaching_MultipleDifferentResources() throws Exception {
+        void testCaching_MultipleDifferentResources() {
             // Load different database types
             ResourceManager.getDatabaseHelp("mysql", ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
             ResourceManager.getDatabaseHelp("postgresql", ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
@@ -244,9 +240,7 @@ class ResourceManagerTest {
 
             for (int i = 0; i < 5; i++) {
                 final int index = i;
-                threads[i] = new Thread(() -> {
-                    results[index] = ResourceManager.getDatabaseHelp("mysql", ResourceManager.DatabaseHelp.DIALECT_GUIDANCE);
-                });
+                threads[i] = new Thread(() -> results[index] = ResourceManager.getDatabaseHelp("mysql", ResourceManager.DatabaseHelp.DIALECT_GUIDANCE));
             }
 
             // Start all threads
@@ -310,7 +304,7 @@ class ResourceManagerTest {
         @DisplayName("Should handle parameter formatting errors gracefully")
         void testMessageFormatting_InvalidParameters() {
             // Test with a template that has placeholders but insufficient parameters  
-            // http.server.generic.error expects 2 parameters but we're only providing 1
+            // http.server.generic.error expects 2 parameters, but we're only providing 1
             String result = ResourceManager.getErrorMessage("http.server.generic.error", "8080"); // Missing second parameter
 
             assertNotNull(result);

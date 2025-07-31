@@ -22,31 +22,8 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 
-class Config {
-    public final String dbUrl;
-    public final String dbUser;
-    public final String dbPassword;
-    public final String dbDriver;
-    public final String schemaName;
-    public final int employeesTable;
-    public final int customersTable;
-    public final int ordersTable;
-    public final int warehousesTable;
-    public final int suppliersTable;
-
-    public Config(String dbUrl, String dbDriver, String dbUser, String dbPassword, String schemaName,
-                  int employeesTable, int customersTable, int ordersTable, int warehousesTable, int suppliersTable) {
-        this.dbUrl = dbUrl;
-        this.dbDriver = dbDriver;
-        this.dbUser = dbUser;
-        this.dbPassword = dbPassword;
-        this.schemaName = schemaName;
-        this.employeesTable = employeesTable;
-        this.customersTable = customersTable;
-        this.ordersTable = ordersTable;
-        this.warehousesTable = warehousesTable;
-        this.suppliersTable = suppliersTable;
-    }
+record Config(String dbUrl, String dbDriver, String dbUser, String dbPassword, String schemaName, int employeesTable,
+              int customersTable, int ordersTable, int warehousesTable, int suppliersTable) {
 }
 
 // Simple database helper
@@ -120,8 +97,8 @@ public class SchemaGenerator {
 
     public SchemaGenerator(Config dbConfig) throws SQLException, ClassNotFoundException {
         this.dbConfig = dbConfig;
-        Class.forName(dbConfig.dbDriver);
-        this.dbConnection = DriverManager.getConnection(dbConfig.dbUrl, dbConfig.dbUser, dbConfig.dbPassword);
+        Class.forName(dbConfig.dbDriver());
+        this.dbConnection = DriverManager.getConnection(dbConfig.dbUrl(), dbConfig.dbUser(), dbConfig.dbPassword());
         this.dbHelper = new DatabaseHelper(dbConnection);
         this.dbFaker = new Faker();
 
@@ -129,12 +106,12 @@ public class SchemaGenerator {
     }
 
     public void generateSchema() throws SQLException {
-        switch (dbConfig.schemaName.toLowerCase()) {
+        switch (dbConfig.schemaName().toLowerCase()) {
             case "hr" -> generateHR();
             case "sales" -> generateSales();
             case "inventory" -> generateInventory();
             case "combined" -> generateCombined();
-            default -> throw new IllegalArgumentException("Unknown schema: " + dbConfig.schemaName);
+            default -> throw new IllegalArgumentException("Unknown schema: " + dbConfig.schemaName());
         }
         showResults();
     }
@@ -540,7 +517,7 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= dbConfig.employeesTable; i++) {
+        for (int i = 1; i <= dbConfig.employeesTable(); i++) {
             String firstName = dbFaker.name().firstName();
             String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
@@ -562,7 +539,7 @@ public class SchemaGenerator {
         String[] relationships = {"Spouse", "Child", "Parent"};
         int dependentId = 1;
 
-        for (int employeeId = 1; employeeId <= dbConfig.employeesTable; employeeId++) {
+        for (int employeeId = 1; employeeId <= dbConfig.employeesTable(); employeeId++) {
             if (randomGen.nextDouble() < 0.4) { // 40% chance of having dependents
                 int numDependents = randomGen.nextInt(3) + 1;
                 for (int j = 0; j < numDependents; j++) {
@@ -623,7 +600,7 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= dbConfig.customersTable; i++) {
+        for (int i = 1; i <= dbConfig.customersTable(); i++) {
             String firstName = dbFaker.name().firstName();
             String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
@@ -646,11 +623,11 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= dbConfig.customersTable; i++) {
+        for (int i = 1; i <= dbConfig.customersTable(); i++) {
             String firstName = dbFaker.name().firstName();
             String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
-            Integer repId = randomGen.nextDouble() < 0.8 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
+            Integer repId = randomGen.nextDouble() < 0.8 ? randomGen.nextInt(dbConfig.employeesTable()) + 1 : null;
 
             data.add(new Object[]{
                     i, dbFaker.company().name(),
@@ -670,11 +647,11 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         String[] statuses = {"Pending", "Processing", "Shipped", "Delivered"};
 
-        for (int i = 1; i <= dbConfig.ordersTable; i++) {
+        for (int i = 1; i <= dbConfig.ordersTable(); i++) {
             Date orderDate = Date.valueOf(LocalDate.now().minusDays(randomGen.nextInt(365)));
 
             data.add(new Object[]{
-                    i, randomGen.nextInt(dbConfig.customersTable) + 1, orderDate,
+                    i, randomGen.nextInt(dbConfig.customersTable()) + 1, orderDate,
                     BigDecimal.valueOf(50 + randomGen.nextDouble() * 4950),
                     statuses[randomGen.nextInt(statuses.length)]
             });
@@ -686,12 +663,12 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         String[] statuses = {"Pending", "Processing", "Shipped", "Delivered"};
 
-        for (int i = 1; i <= dbConfig.ordersTable; i++) {
+        for (int i = 1; i <= dbConfig.ordersTable(); i++) {
             Date orderDate = Date.valueOf(LocalDate.now().minusDays(randomGen.nextInt(365)));
-            Integer empId = randomGen.nextDouble() < 0.7 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
+            Integer empId = randomGen.nextDouble() < 0.7 ? randomGen.nextInt(dbConfig.employeesTable()) + 1 : null;
 
             data.add(new Object[]{
-                    i, randomGen.nextInt(dbConfig.customersTable) + 1, empId, orderDate,
+                    i, randomGen.nextInt(dbConfig.customersTable()) + 1, empId, orderDate,
                     BigDecimal.valueOf(50 + randomGen.nextDouble() * 4950),
                     statuses[randomGen.nextInt(statuses.length)]
             });
@@ -703,7 +680,7 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         int itemId = 1;
 
-        for (int orderId = 1; orderId <= dbConfig.ordersTable; orderId++) {
+        for (int orderId = 1; orderId <= dbConfig.ordersTable(); orderId++) {
             int numItems = randomGen.nextInt(5) + 1;
             Set<Integer> usedProducts = new HashSet<>();
 
@@ -726,7 +703,7 @@ public class SchemaGenerator {
     private void populateWarehouses() throws SQLException {
         List<Object[]> data = new ArrayList<>();
 
-        for (int i = 1; i <= dbConfig.warehousesTable; i++) {
+        for (int i = 1; i <= dbConfig.warehousesTable(); i++) {
             data.add(new Object[]{
                     i, "Warehouse " + i,
                     dbFaker.address().fullAddress(),
@@ -742,8 +719,8 @@ public class SchemaGenerator {
     private void populateWarehousesWithManagers() throws SQLException {
         List<Object[]> data = new ArrayList<>();
 
-        for (int i = 1; i <= dbConfig.warehousesTable; i++) {
-            Integer managerId = randomGen.nextDouble() < 0.8 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
+        for (int i = 1; i <= dbConfig.warehousesTable(); i++) {
+            Integer managerId = randomGen.nextDouble() < 0.8 ? randomGen.nextInt(dbConfig.employeesTable()) + 1 : null;
             data.add(new Object[]{
                     i, "Warehouse " + i,
                     dbFaker.address().fullAddress(),
@@ -760,7 +737,7 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= dbConfig.suppliersTable; i++) {
+        for (int i = 1; i <= dbConfig.suppliersTable(); i++) {
             String firstName = dbFaker.name().firstName();
             String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
@@ -781,11 +758,11 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         Set<String> usedEmails = new HashSet<>();
 
-        for (int i = 1; i <= dbConfig.suppliersTable; i++) {
+        for (int i = 1; i <= dbConfig.suppliersTable(); i++) {
             String firstName = dbFaker.name().firstName();
             String lastName = dbFaker.name().lastName();
             String email = generateUniqueEmail(firstName, lastName, usedEmails);
-            Integer managerId = randomGen.nextDouble() < 0.6 ? randomGen.nextInt(dbConfig.employeesTable) + 1 : null;
+            Integer managerId = randomGen.nextDouble() < 0.6 ? randomGen.nextInt(dbConfig.employeesTable()) + 1 : null;
 
             data.add(new Object[]{
                     i, dbFaker.company().name(),
@@ -803,7 +780,7 @@ public class SchemaGenerator {
         List<Object[]> data = new ArrayList<>();
         int inventoryId = 1;
 
-        for (int warehouseId = 1; warehouseId <= dbConfig.warehousesTable; warehouseId++) {
+        for (int warehouseId = 1; warehouseId <= dbConfig.warehousesTable(); warehouseId++) {
             for (int productId = 1; productId <= 20; productId++) {
                 if (randomGen.nextDouble() < 0.7) {
                     data.add(new Object[]{
@@ -898,7 +875,7 @@ public class SchemaGenerator {
                 "DB_DRIVER": "%s",
                 "SELECT_ONLY": true
               }
-            }""", config.schemaName + "-database", getJava().replace("\\", "/"), getJar().replace("\\", "/"), config.dbUrl, config.dbUser, config.dbPassword, config.dbDriver);
+            }""", config.schemaName() + "-database", getJava().replace("\\", "/"), getJar().replace("\\", "/"), config.dbUrl(), config.dbUser(), config.dbPassword(), config.dbDriver());
         System.out.println("\nAdd this to claude_desktop_config.json inside the curly braces of the \"mcpServers\": {} node:\n");
         System.out.println(jsonTemplate);
     }

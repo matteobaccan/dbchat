@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.sql.*;
 import java.util.Arrays;
 import java.util.List;
@@ -166,9 +167,7 @@ class DatabaseServiceTest {
         when(connection.prepareStatement(sql)).thenReturn(statement);
         when(statement.execute()).thenThrow(new SQLException("Table not found"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeSql(sql, 10);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> service.executeSql(sql, 10));
 
         assertEquals("Table not found", exception.getMessage());
     }
@@ -178,7 +177,7 @@ class DatabaseServiceTest {
     // ========================================
 
     @Test
-    void testExecuteQuery_SelectOnly_BlocksDangerousOperations() throws Exception {
+    void testExecuteQuery_SelectOnly_BlocksDangerousOperations() {
         when(config.selectOnly()).thenReturn(true);
 
         String[] dangerousQueries = {
@@ -197,27 +196,23 @@ class DatabaseServiceTest {
         };
 
         for (String sql : dangerousQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> {
-                service.executeSql(sql, 10);
-            });
+            SQLException exception = assertThrows(SQLException.class, () -> service.executeSql(sql, 10));
             assertTrue(exception.getMessage().contains("Operation not allowed") ||
                     exception.getMessage().contains("not allowed"));
         }
     }
 
     @Test
-    void testExecuteQuery_SelectOnly_BlocksMultipleStatements() throws Exception {
+    void testExecuteQuery_SelectOnly_BlocksMultipleStatements() {
         when(config.selectOnly()).thenReturn(true);
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeSql("SELECT * FROM users; DROP TABLE users;", 10);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> service.executeSql("SELECT * FROM users; DROP TABLE users;", 10));
 
         assertTrue(exception.getMessage().contains("Multiple statements not allowed"));
     }
 
     @Test
-    void testExecuteQuery_SelectOnly_BlocksComments() throws Exception {
+    void testExecuteQuery_SelectOnly_BlocksComments() {
         when(config.selectOnly()).thenReturn(true);
 
         String[] commentQueries = {
@@ -227,9 +222,7 @@ class DatabaseServiceTest {
         };
 
         for (String sql : commentQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> {
-                service.executeSql(sql, 10);
-            });
+            SQLException exception = assertThrows(SQLException.class, () -> service.executeSql(sql, 10));
             assertTrue(exception.getMessage().contains("SQL comments not allowed"));
         }
     }
@@ -260,23 +253,19 @@ class DatabaseServiceTest {
     }
 
     @Test
-    void testExecuteQuery_EmptyQuery() throws Exception {
+    void testExecuteQuery_EmptyQuery() {
         when(config.selectOnly()).thenReturn(true);
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeSql("", 10);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> service.executeSql("", 10));
 
         assertTrue(exception.getMessage().contains("SQL query cannot be empty"));
     }
 
     @Test
-    void testExecuteQuery_NullQuery() throws Exception {
+    void testExecuteQuery_NullQuery() {
         when(config.selectOnly()).thenReturn(true);
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeSql(null, 10);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> service.executeSql(null, 10));
 
         assertTrue(exception.getMessage().contains("SQL query cannot be empty"));
     }
@@ -313,9 +302,7 @@ class DatabaseServiceTest {
     void testConnectionPoolExhaustion() throws Exception {
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Connection pool exhausted"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            service.executeSql("SELECT 1", 10);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> service.executeSql("SELECT 1", 10));
 
         assertEquals("Connection pool exhausted", exception.getMessage());
         verify(mockDataSource).getConnection();
@@ -538,7 +525,7 @@ class DatabaseServiceTest {
         when(columnsRs.getInt("COLUMN_SIZE")).thenReturn(10, 255);
         when(columnsRs.getInt("DECIMAL_DIGITS")).thenReturn(0, 0);
         when(columnsRs.getString("IS_NULLABLE")).thenReturn("NO", "YES");
-        when(columnsRs.getString("COLUMN_DEF")).thenReturn("AUTOINCREMENT", null);
+        when(columnsRs.getString("COLUMN_DEF")).thenReturn("AUTOINCREMENT", (String) null);
         when(columnsRs.getString("REMARKS")).thenReturn("Primary key for orders", "Name of the customer");
 
         // 2. Mock Primary Keys
@@ -613,9 +600,7 @@ class DatabaseServiceTest {
         // Mock to return empty results for any attempt
         when(metaData.getColumns(any(), any(), eq("NONEXISTENT_TABLE"), any())).thenReturn(emptyRs);
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            service.describeTable("NONEXISTENT_TABLE", null);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> service.describeTable("NONEXISTENT_TABLE", null));
 
         assertEquals("Table not found: NONEXISTENT_TABLE", exception.getMessage());
     }
@@ -981,13 +966,13 @@ class DatabaseServiceTest {
     // ========================================
 
     @Test
-    void testClose() throws Exception {
+    void testClose() {
         service.close();
         verify(mockDataSource).close();
     }
 
     @Test
-    void testClose_AlreadyClosed() throws Exception {
+    void testClose_AlreadyClosed() {
         when(mockDataSource.isClosed()).thenReturn(true);
 
         service.close();
@@ -996,7 +981,7 @@ class DatabaseServiceTest {
     }
 
     @Test
-    void testClose_ThrowsException() throws Exception {
+    void testClose_ThrowsException() {
         doThrow(new RuntimeException("Close failed")).when(mockDataSource).close();
 
         // Should not throw exception
@@ -1027,6 +1012,19 @@ class DatabaseServiceTest {
     // ========================================
     // HELPER METHODS
     // ========================================
+    
+    private void setupBasicQueryMocks(String sql) throws SQLException {
+        when(connection.prepareStatement(sql)).thenReturn(statement);
+        when(statement.execute()).thenReturn(true);
+        when(statement.getResultSet()).thenReturn(resultSet);
+    }
+    
+    private void setupBasicInsertMocks(String sql) throws SQLException {
+        when(connection.prepareStatement(sql)).thenReturn(statement);
+        when(statement.execute()).thenReturn(false);
+        when(statement.getUpdateCount()).thenReturn(1);
+    }
+    
     private void setupH2MetaDataMocks() throws SQLException {
         lenient().when(metaData.getDatabaseProductName()).thenReturn("H2");
         lenient().when(metaData.getDatabaseProductVersion()).thenReturn("1.4");
@@ -1214,5 +1212,309 @@ class DatabaseServiceTest {
         lenient().when(sessionTimezoneStmt.executeQuery()).thenReturn(sessionTimezoneRs);
         lenient().when(sessionTimezoneRs.next()).thenReturn(true);
         lenient().when(sessionTimezoneRs.getString(1)).thenReturn("+00:00");
+    }
+
+    // ========================================
+    // PARAMETERIZED QUERY TESTS
+    // ========================================
+
+    @Test
+    void testExecuteSql_WithParametersSuccess() throws Exception {
+        String sql = "SELECT * FROM users WHERE id = ? AND name = ?";
+        List<Object> parameters = Arrays.asList(123, "John Doe");
+
+        when(connection.prepareStatement(sql)).thenReturn(statement);
+        when(statement.execute()).thenReturn(true);
+        when(statement.getResultSet()).thenReturn(resultSet);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(2);
+        when(rsMeta.getColumnName(1)).thenReturn("id");
+        when(rsMeta.getColumnName(2)).thenReturn("name");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(123);
+        when(resultSet.getObject(2)).thenReturn("John Doe");
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        assertEquals(Arrays.asList("id", "name"), result.allColumns());
+        assertEquals(123, result.allRows().get(0).get(0));
+        assertEquals("John Doe", result.allRows().get(0).get(1));
+
+        // Verify parameters were set correctly
+        verify(statement).setInt(1, 123);
+        verify(statement).setString(2, "John Doe");
+    }
+
+    @Test
+    void testExecuteSql_WithNullParameter() throws Exception {
+        String sql = "SELECT * FROM users WHERE id = ? AND name = ?";
+        List<Object> parameters = Arrays.asList(123, null);
+
+        when(connection.prepareStatement(sql)).thenReturn(statement);
+        when(statement.execute()).thenReturn(true);
+        when(statement.getResultSet()).thenReturn(resultSet);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(2);
+        when(rsMeta.getColumnName(1)).thenReturn("id");
+        when(rsMeta.getColumnName(2)).thenReturn("name");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(123);
+        when(resultSet.getObject(2)).thenReturn(null);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setInt(1, 123);
+        verify(statement).setNull(2, java.sql.Types.NULL);
+    }
+
+    @Test
+    void testExecuteSql_WithDifferentParameterTypes() throws Exception {
+        String sql = "INSERT INTO products (name, price, active, created_at) VALUES (?, ?, ?, ?)";
+        List<Object> parameters = Arrays.asList(
+            "Test Product",                         // String
+            99.99,                                  // Double
+            true,                                   // Boolean
+            java.sql.Timestamp.valueOf("2024-01-01 12:00:00")  // Timestamp
+        );
+
+        setupBasicInsertMocks(sql);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setString(1, "Test Product");
+        verify(statement).setDouble(2, 99.99);
+        verify(statement).setBoolean(3, true);
+        verify(statement).setTimestamp(4, java.sql.Timestamp.valueOf("2024-01-01 12:00:00"));
+    }
+
+    @Test
+    void testExecuteSql_WithIntegerAndLongParameters() throws Exception {
+        String sql = "SELECT * FROM table WHERE int_col = ? AND long_col = ?";
+        List<Object> parameters = Arrays.asList(42, 9223372036854775807L);
+
+        setupBasicQueryMocks(sql);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("result");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(1);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setInt(1, 42);
+        verify(statement).setLong(2, 9223372036854775807L);
+    }
+
+    @Test
+    void testExecuteSql_WithFloatParameter() throws Exception {
+        String sql = "SELECT * FROM table WHERE float_col = ?";
+        List<Object> parameters = List.of(3.14f);
+        
+        setupBasicQueryMocks(sql);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("result");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(1);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setFloat(1, 3.14f);
+    }
+
+    @Test
+    void testExecuteSql_WithUtilDateParameter() throws Exception {
+        String sql = "SELECT * FROM table WHERE date_col = ?";
+        java.util.Date utilDate = new java.util.Date();
+        List<Object> parameters = List.of(utilDate);
+        
+        setupBasicQueryMocks(sql);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("result");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(1);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setTimestamp(1, new java.sql.Timestamp(utilDate.getTime()));
+    }
+
+    @Test
+    void testExecuteSql_WithSqlDateTypes() throws Exception {
+        String sql = "SELECT * FROM table WHERE date_col = ? AND time_col = ? AND timestamp_col = ?";
+        java.sql.Date sqlDate = java.sql.Date.valueOf("2024-01-01");
+        java.sql.Time sqlTime = java.sql.Time.valueOf("12:30:45");
+        java.sql.Timestamp sqlTimestamp = java.sql.Timestamp.valueOf("2024-01-01 12:30:45");
+        
+        List<Object> parameters = Arrays.asList(sqlDate, sqlTime, sqlTimestamp);
+        
+        setupBasicQueryMocks(sql);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("result");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(1);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setDate(1, sqlDate);
+        verify(statement).setTime(2, sqlTime);
+        verify(statement).setTimestamp(3, sqlTimestamp);
+    }
+
+    @Test
+    void testExecuteSql_WithBigDecimalParameter() throws Exception {
+        String sql = "SELECT * FROM table WHERE decimal_col = ?";
+        setupBasicQueryMocks(sql);
+        BigDecimal bigDecimal = new BigDecimal("123.456789");
+        List<Object> parameters = List.of(bigDecimal);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("result");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(1);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setBigDecimal(1, bigDecimal);
+    }
+
+    @Test
+    void testExecuteSql_WithCustomObjectParameter() throws Exception {
+        String sql = "SELECT * FROM table WHERE custom_col = ?";
+        setupBasicQueryMocks(sql);
+        Object customObject = new Object() {
+            @Override
+            public String toString() {
+                return "CustomValue";
+            }
+        };
+        List<Object> parameters = List.of(customObject);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("result");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(1);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setString(1, "CustomValue");
+    }
+
+    @Test
+    void testExecuteSql_WithEmptyParametersList() throws Exception {
+        String sql = "SELECT * FROM users";
+        setupBasicQueryMocks(sql);
+        List<Object> parameters = List.of();
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("id");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(123);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        // Verify no parameters were set (empty list should work like null parameters)
+        verify(statement, never()).setString(anyInt(), anyString());
+        verify(statement, never()).setInt(anyInt(), anyInt());
+    }
+
+    @Test
+    void testExecuteSql_ParametersWithSelectOnlyMode() throws Exception {
+        when(config.selectOnly()).thenReturn(true);
+
+        String sql = "SELECT * FROM users WHERE id = ?";
+        setupBasicQueryMocks(sql);
+        List<Object> parameters = List.of(123);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("id");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false);
+        when(resultSet.getObject(1)).thenReturn(123);
+
+        QueryResult result = service.executeSql(sql, 10, parameters);
+
+        assertEquals(1, result.rowCount());
+        verify(statement).setInt(1, 123);
+    }
+
+    @Test
+    void testExecuteSql_ParametersWithSelectOnlyMode_BlocksNonSelect() {
+        when(config.selectOnly()).thenReturn(true);
+        
+        String sql = "INSERT INTO users (name) VALUES (?)";
+        List<Object> parameters = List.of("John");
+
+        SQLException exception = assertThrows(SQLException.class, 
+            () -> service.executeSql(sql, 10, parameters));
+
+        assertTrue(exception.getMessage().contains("Operation not allowed: INSERT"));
+    }
+
+    @Test
+    void testExecuteSql_BackwardCompatibility_NullParameters() throws Exception {
+        String sql = "SELECT 1 AS result";
+        
+        // Setup mocks for multiple calls
+        when(connection.prepareStatement(sql)).thenReturn(statement);
+        when(statement.execute()).thenReturn(true);
+        when(statement.getResultSet()).thenReturn(resultSet);
+
+        ResultSetMetaData rsMeta = mock(ResultSetMetaData.class);
+        when(rsMeta.getColumnCount()).thenReturn(1);
+        when(rsMeta.getColumnName(1)).thenReturn("result");
+
+        when(resultSet.getMetaData()).thenReturn(rsMeta);
+        when(resultSet.next()).thenReturn(true, false, true, false); // For two calls
+        when(resultSet.getObject(1)).thenReturn(1);
+
+        // Test both legacy method and new method with null parameters
+        QueryResult result1 = service.executeSql(sql, 10);
+        QueryResult result2 = service.executeSql(sql, 10, null);
+
+        assertEquals(result1.rowCount(), result2.rowCount());
+        assertEquals(result1.allColumns(), result2.allColumns());
+        assertEquals(result1.allRows(), result2.allRows());
     }
 }

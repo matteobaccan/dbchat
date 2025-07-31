@@ -316,7 +316,7 @@ class DatabaseServiceValidationExceptionTest {
     }
 
     @Test
-    void testValidateSqlQuery_MultipleStatements() throws SQLException {
+    void testValidateSqlQuery_MultipleStatements() {
         // Use only SELECT statements (safe operations) to test multiple statement detection
         String[] multiStatementQueries = {
                 "SELECT 1; SELECT 2",                           // No trailing semicolon
@@ -325,9 +325,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : multiStatementQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeSql(query, 100);
-            });
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
 
             assertEquals("Multiple statements not allowed", exception.getMessage());
         }
@@ -381,9 +379,7 @@ class DatabaseServiceValidationExceptionTest {
         // These should not throw validation exceptions (though they may fail for other reasons like missing connection)
         for (String query : validQueries) {
             // Since we're only testing validation, we expect SQLException but not validation-specific messages
-            SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeSql(query, 100);
-            });
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
 
             // Should not be validation errors
             assertFalse(exception.getMessage().contains("Operation not allowed"));
@@ -406,9 +402,7 @@ class DatabaseServiceValidationExceptionTest {
         };
 
         for (String query : dangerousQueries) {
-            SQLException exception = assertThrows(SQLException.class, () -> {
-                nonSelectOnlyService.executeSql(query, 100);
-            });
+            SQLException exception = assertThrows(SQLException.class, () -> nonSelectOnlyService.executeSql(query, 100));
 
             // Should NOT be validation errors since validation is bypassed when selectOnly=false
             assertFalse(exception.getMessage().startsWith("Operation not allowed:"));
@@ -419,7 +413,7 @@ class DatabaseServiceValidationExceptionTest {
     }
 
     @Test
-    void testValidateSqlQuery_EdgeCaseSpacing() throws SQLException {
+    void testValidateSqlQuery_EdgeCaseSpacing() {
         String[] spacingQueries = {
             "  DROP  TABLE  test  ",
             "\tDELETE\tFROM\ttest\t",
@@ -469,7 +463,7 @@ class DatabaseServiceValidationExceptionTest {
         }
     }
     @Test
-    void testValidateSqlQuery_ComplexValidQueries() throws SQLException {
+    void testValidateSqlQuery_ComplexValidQueries() {
         // Override the mock behavior for this specific test
         try {
             when(mockStatement.execute()).thenThrow(new SQLException("Table not found"));
@@ -488,9 +482,7 @@ class DatabaseServiceValidationExceptionTest {
 
         for (String query : complexValidQueries) {
             // These should pass validation but fail due to mocked execution failure
-            SQLException exception = assertThrows(SQLException.class, () -> {
-                databaseService.executeSql(query, 100);
-            });
+            SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql(query, 100));
 
             // Should not be validation errors
             assertFalse(exception.getMessage().contains("Operation not allowed"));

@@ -64,9 +64,7 @@ class McpServerContainerTest {
             .withConnectTimeoutSeconds(120)
             .withReuse(false)
             .withTmpFs(java.util.Map.of("/var/lib/postgresql/data", "rw"))
-            .withLogConsumer(outputFrame -> {
-                System.out.print("[POSTGRES] " + outputFrame.getUtf8String());
-            });
+            .withLogConsumer(outputFrame -> System.out.print("[POSTGRES] " + outputFrame.getUtf8String()));
 
     private ObjectMapper objectMapper;
 

@@ -28,7 +28,7 @@ class McpServerIntegrationTest {
     private static CompletableFuture<Void> sharedServerFuture;
 
     static boolean isNetworkAvailable() {
-        try (ServerSocket socket = new ServerSocket(0)) {
+        try (ServerSocket ignored = new ServerSocket(0)) {
             return true;
         } catch (Exception e) {
             return false;
@@ -90,7 +90,7 @@ class McpServerIntegrationTest {
     @Order(1)
     @Timeout(10)
     @EnabledIf("isNetworkAvailable")
-    void testHttpMode_PortAlreadyInUse() throws Exception {
+    void testHttpMode_PortAlreadyInUse() {
         // Try to start second server on same port - should fail
         McpServer secondServer = new McpServer(sharedTestConfig);
         try {
@@ -213,7 +213,7 @@ class McpServerIntegrationTest {
                     10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
             ));
 
-            assertDoesNotThrow(() -> stdioServer.startStdioMode());
+            assertDoesNotThrow(stdioServer::startStdioMode);
 
             String output = outputStream.toString();
             // The output should contain error responses for malformed JSON
@@ -246,7 +246,7 @@ class McpServerIntegrationTest {
                     10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
             ));
 
-            assertDoesNotThrow(() -> stdioServer.startStdioMode());
+            assertDoesNotThrow(stdioServer::startStdioMode);
 
             String output = outputStream.toString().trim();
             assertFalse(output.contains("error"));
@@ -287,7 +287,7 @@ class McpServerIntegrationTest {
                     10, 30000, 30, true, 10000, 10000, 600000, 1800000, 60000
             ));
 
-            assertDoesNotThrow(() -> stdioServer.startStdioMode());
+            assertDoesNotThrow(stdioServer::startStdioMode);
 
             String output = outputStream.toString().trim();
             String[] responses = output.split("\n");

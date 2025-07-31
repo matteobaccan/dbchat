@@ -21,10 +21,12 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -115,7 +117,7 @@ class McpServerTest {
         when(mockDatabaseService.getDatabaseConfig()).thenReturn(mockDatabaseConfig);
         when(mockDatabaseConfig.maxSqlLength()).thenReturn(10000);
         when(mockDatabaseConfig.getDatabaseType()).thenReturn("h2"); // Add this for error message enhancement
-        when(mockDatabaseService.executeSql(anyString(), anyInt()))
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any()))
                 .thenThrow(new SQLException("Database connection failed"));
 
         ObjectNode request = objectMapper.createObjectNode();
@@ -669,7 +671,7 @@ class McpServerTest {
                 150L
         );
 
-        when(mockDatabaseService.executeSql("SELECT * FROM users", 1000))
+        when(mockDatabaseService.executeSql("SELECT * FROM users", 1000, null))
                 .thenReturn(mockResult);
 
         ObjectNode request = objectMapper.createObjectNode();
@@ -989,7 +991,7 @@ class McpServerTest {
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         try {
-            when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
+            when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenThrow(sqlException);
         } catch (Exception e) {
             // Expected
         }
@@ -1026,7 +1028,7 @@ class McpServerTest {
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'ORDER'");
-        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
@@ -1053,7 +1055,7 @@ class McpServerTest {
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'GROUP'");
-        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
@@ -1383,7 +1385,7 @@ class McpServerTest {
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'SELECT'");
-        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
@@ -1411,7 +1413,7 @@ class McpServerTest {
         TestUtils.initializeServer(mcpServer, objectMapper);
 
         SQLException sqlException = new SQLException("syntax error near 'WHERE'");
-        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
@@ -1441,7 +1443,7 @@ class McpServerTest {
 
         // Use "syntax error" to trigger the hints section
         SQLException sqlException = new SQLException("syntax error near 'SELECT'");
-        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenThrow(sqlException);
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenThrow(sqlException);
 
         ObjectNode request = objectMapper.createObjectNode();
         request.put("id", 1);
@@ -1538,5 +1540,157 @@ class McpServerTest {
         assertEquals(2, config.size());
         assertEquals("jdbc:h2:mem:test", config.get("DB_URL"));
         assertEquals("testuser", config.get("DB_USER"));
+    }
+
+    @Test
+    void testExecToolRunSql_WithParametersArray() throws Exception {
+        // Mock query result
+        QueryResult mockResult = mock(QueryResult.class);
+        when(mockResult.isEmpty()).thenReturn(false);
+        when(mockResult.allColumns()).thenReturn(List.of("id", "name"));
+        when(mockResult.allRows()).thenReturn(List.of(List.of(123, "John Doe")));
+        when(mockResult.rowCount()).thenReturn(1);
+        when(mockResult.executionTimeMs()).thenReturn(50L);
+
+        // Mock database service to capture the parameters
+        when(mockDatabaseService.executeSql("SELECT * FROM users WHERE id = ? AND name = ?", 1000, List.of(123, "John Doe")))
+                .thenReturn(mockResult);
+
+        // Create JSON arguments with parameters
+        ObjectNode arguments = objectMapper.createObjectNode();
+        arguments.put("sql", "SELECT * FROM users WHERE id = ? AND name = ?");
+        arguments.put("maxRows", 1000);
+        arguments.set("params", objectMapper.createArrayNode().add(123).add("John Doe"));
+
+        JsonNode result = mcpServer.execToolRunSql(arguments);
+
+        assertNotNull(result);
+        assertFalse(result.path("isError").asBoolean(false));
+        assertNotNull(result.path("content"));
+    }
+
+    @Test
+    void testExecToolRunSql_WithDifferentParameterTypes() throws Exception {
+        QueryResult mockResult = mock(QueryResult.class);
+        when(mockResult.isEmpty()).thenReturn(false);
+        when(mockResult.allColumns()).thenReturn(List.of("affected_rows"));
+        when(mockResult.allRows()).thenReturn(List.of(List.of(1)));
+        when(mockResult.rowCount()).thenReturn(1);
+        when(mockResult.executionTimeMs()).thenReturn(25L);
+
+        // Test with mixed parameter types: string, double, boolean, null
+        List<Object> expectedParams = Arrays.asList("Test Product", 99.99, true, null);
+        when(mockDatabaseService.executeSql(
+                "INSERT INTO products (name, price, active, description) VALUES (?, ?, ?, ?)", 
+                1000, 
+                expectedParams))
+                .thenReturn(mockResult);
+
+        ObjectNode arguments = objectMapper.createObjectNode();
+        arguments.put("sql", "INSERT INTO products (name, price, active, description) VALUES (?, ?, ?, ?)");
+        arguments.set("params", objectMapper.createArrayNode()
+                .add("Test Product")
+                .add(99.99)
+                .add(true)
+                .addNull());
+
+        JsonNode result = mcpServer.execToolRunSql(arguments);
+
+        assertNotNull(result);
+        assertFalse(result.path("x-dbchat-is-error").asBoolean(true));
+    }
+
+    @Test
+    void testExecToolRunSql_WithEmptyParametersArray() throws Exception {
+        QueryResult mockResult = mock(QueryResult.class);
+        when(mockResult.isEmpty()).thenReturn(false);
+        when(mockResult.allColumns()).thenReturn(List.of("count"));
+        when(mockResult.allRows()).thenReturn(List.of(List.of(5)));
+        when(mockResult.rowCount()).thenReturn(1);
+        when(mockResult.executionTimeMs()).thenReturn(10L);
+
+        // Empty parameters array should be treated like null parameters
+        when(mockDatabaseService.executeSql("SELECT COUNT(*) FROM users", 1000, List.of()))
+                .thenReturn(mockResult);
+
+        ObjectNode arguments = objectMapper.createObjectNode();
+        arguments.put("sql", "SELECT COUNT(*) FROM users");
+        arguments.set("params", objectMapper.createArrayNode());
+
+        JsonNode result = mcpServer.execToolRunSql(arguments);
+
+        assertNotNull(result);
+        assertFalse(result.path("x-dbchat-is-error").asBoolean(true));
+    }
+
+    @Test
+    void testExecToolRunSql_BackwardCompatibility_NoParameters() throws Exception {
+        QueryResult mockResult = mock(QueryResult.class);
+        when(mockResult.isEmpty()).thenReturn(false);
+        when(mockResult.allColumns()).thenReturn(List.of("id"));
+        when(mockResult.allRows()).thenReturn(List.of(List.of(1)));
+        when(mockResult.rowCount()).thenReturn(1);
+        when(mockResult.executionTimeMs()).thenReturn(15L);
+
+        // Without params field, should call the method with null parameters
+        when(mockDatabaseService.executeSql("SELECT 1", 1000, null))
+                .thenReturn(mockResult);
+
+        ObjectNode arguments = objectMapper.createObjectNode();
+        arguments.put("sql", "SELECT 1");
+
+        JsonNode result = mcpServer.execToolRunSql(arguments);
+
+        assertNotNull(result);
+        assertFalse(result.path("x-dbchat-is-error").asBoolean(true));
+    }
+
+    @Test
+    void testExecToolRunSql_ParametersWithException() throws Exception {
+        // Test that SQL exceptions are properly handled with parameterized queries
+        when(mockDatabaseService.executeSql("SELECT * FROM nonexistent WHERE id = ?", 1000, List.of(123)))
+                .thenThrow(new SQLException("Table 'nonexistent' doesn't exist"));
+
+        ObjectNode arguments = objectMapper.createObjectNode();
+        arguments.put("sql", "SELECT * FROM nonexistent WHERE id = ?");
+        arguments.set("params", objectMapper.createArrayNode().add(123));
+
+        JsonNode result = mcpServer.execToolRunSql(arguments);
+
+        assertNotNull(result);
+        assertTrue(result.path("x-dbchat-is-error").asBoolean(false));
+        assertTrue(result.path("content").get(0).get("text").asText().contains("Table 'nonexistent' doesn't exist"));
+    }
+
+    @Test
+    void testConvertJsonNodeToParameter() throws Exception {
+        // This tests the private method indirectly through execToolRunSql
+        QueryResult mockResult = mock(QueryResult.class);
+        when(mockResult.isEmpty()).thenReturn(false);
+        when(mockResult.allColumns()).thenReturn(List.of("result"));
+        when(mockResult.allRows()).thenReturn(List.of(List.of("success")));
+        when(mockResult.rowCount()).thenReturn(1);
+        when(mockResult.executionTimeMs()).thenReturn(20L);
+
+        // Test conversion of different JSON types
+        List<Object> expectedParams = Arrays.asList("string_value", 42L, false, null);
+        when(mockDatabaseService.executeSql(
+                "SELECT ? as str, ? as num, ? as bool, ? as null_val", 
+                1000, 
+                expectedParams))
+                .thenReturn(mockResult);
+
+        ObjectNode arguments = objectMapper.createObjectNode();
+        arguments.put("sql", "SELECT ? as str, ? as num, ? as bool, ? as null_val");
+        arguments.set("params", objectMapper.createArrayNode()
+                .add("string_value")
+                .add(42L)
+                .add(false)
+                .addNull());
+
+        JsonNode result = mcpServer.execToolRunSql(arguments);
+
+        assertNotNull(result);
+        assertFalse(result.path("x-dbchat-is-error").asBoolean(true));
     }
 }

@@ -41,13 +41,12 @@ class McpServerPerformanceTest {
     @Mock
     private ResultSetMetaData mockMetaData;
 
-    private ConfigParams config;
     private MockDatabaseService databaseService;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        config = ConfigParams.defaultConfig("jdbc:h2:mem:test", "sa", "", "org.h2.Driver");
+        ConfigParams config = ConfigParams.defaultConfig("jdbc:h2:mem:test", "sa", "", "org.h2.Driver");
         databaseService = new MockDatabaseService(config, mockConnection);
         objectMapper = new ObjectMapper();
     }
@@ -140,8 +139,8 @@ class McpServerPerformanceTest {
 
     @Test
     @DisplayName("Should enforce max rows limit to prevent memory issues")
-    @Timeout(value = 3, unit = TimeUnit.SECONDS)
-    void shouldEnforceMaxRowsLimitEfficently() throws SQLException {
+    @Timeout(value = 3)
+    void shouldEnforceMaxRowsLimitEfficiently() throws SQLException {
         // Given - Mock unlimited result set
         int maxRows = 100;
         String sql = "SELECT * FROM unlimited_table";

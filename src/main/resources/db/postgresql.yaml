@@ -13,6 +13,12 @@ dialect.guidance: |
       SELECT ARRAY[1, 2, 3] AS int_array;
 
 query.examples: |
+  -- Parameterized queries (RECOMMENDED for security)
+  SELECT * FROM users WHERE id = ?;                    -- params: [123]
+  SELECT * FROM products WHERE price BETWEEN ? AND ?;  -- params: [10.50, 100.00]
+  INSERT INTO users (name, email) VALUES (?, ?);       -- params: ["John Doe", "john@example.com"]
+  UPDATE users SET status = ? WHERE created_at > ?;    -- params: ["active", "2024-01-01"]
+
   -- Date queries
   SELECT * FROM table WHERE date_col >= CURRENT_DATE - INTERVAL '7 days';
   SELECT TO_CHAR(created_at, 'YYYY-MM') AS month FROM table;

@@ -49,7 +49,7 @@ class McpServerEdgeCaseTest {
     void testFormatResultsAsTable_LongValues() {
         String longValue = "A".repeat(100);
         List<String> columns = Arrays.asList("short", "long");
-        List<List<Object>> rows = Arrays.asList(
+        List<List<Object>> rows = List.of(
                 Arrays.asList("a", longValue)
         );
 
@@ -122,7 +122,7 @@ class McpServerEdgeCaseTest {
         when(mockConfig.maxSqlLength()).thenReturn(10000);
         when(mockConfig.getDatabaseType()).thenReturn("h2");
         when(mockService.getDatabaseConfig()).thenReturn(mockConfig);
-        when(mockService.executeSql("SELECT * FROM test", 500)).thenReturn(result);
+        when(mockService.executeSql("SELECT * FROM test", 500, null)).thenReturn(result);
         McpServer server = createMcpServer(mockService);
 
         ObjectMapper mapper = new ObjectMapper();

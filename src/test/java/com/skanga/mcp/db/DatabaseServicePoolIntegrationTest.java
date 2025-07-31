@@ -10,7 +10,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,12 +18,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class DatabaseServicePoolIntegrationTest {
 
     private DatabaseService service;
-    private ConfigParams config;
 
     @BeforeAll
     void setUp() {
         // Use H2 in-memory database for testing
-        config = new ConfigParams(
+        // small pool for testing
+        ConfigParams config = new ConfigParams(
                 "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
                 "sa",
                 "",
@@ -50,7 +49,7 @@ public class DatabaseServicePoolIntegrationTest {
     }
 
     @Test
-    void testRealPoolBehavior() throws Exception {
+    void testRealPoolBehavior() {
         // Test that we can execute multiple queries concurrently
         List<CompletableFuture<QueryResult>> futures = new ArrayList<>();
 
@@ -68,7 +67,7 @@ public class DatabaseServicePoolIntegrationTest {
         // Wait for all queries to complete
         List<QueryResult> results = futures.stream()
                 .map(CompletableFuture::join)
-                .collect(Collectors.toList());
+                .toList();
 
         // All should succeed
         assertEquals(10, results.size());
@@ -79,7 +78,7 @@ public class DatabaseServicePoolIntegrationTest {
     }
 
     @Test
-    void testConnectionPoolLimits() throws Exception {
+    void testConnectionPoolLimits() {
         // This test would be more complex - could test pool exhaustion
         // by holding connections and then trying to exceed pool size
         assertDoesNotThrow(() -> {

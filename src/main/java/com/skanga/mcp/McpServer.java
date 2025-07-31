@@ -22,6 +22,7 @@ import java.io.PrintWriter;
 import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -566,6 +567,34 @@ public class McpServer {
 
         queryProperties.set("maxRows", maxRowsProperty);
 
+        // Enhanced params property for parameterized queries
+        ObjectNode paramsProperty = objectMapper.createObjectNode();
+        paramsProperty.put("type", "array");
+        paramsProperty.put("description",
+               "Optional array of parameters for parameterized queries. " +
+               "Use ? placeholders in SQL and provide values here for enhanced security. " +
+               "Helps prevent SQL injection by separating SQL structure from data values. " +
+               "Supports strings, numbers, booleans, and null values.");
+
+        ObjectNode paramsItems = objectMapper.createObjectNode();
+        // Allow multiple types for parameters
+        ArrayNode paramTypes = objectMapper.createArrayNode();
+        paramTypes.add("string");
+        paramTypes.add("number");
+        paramTypes.add("boolean");
+        paramTypes.add("null");
+        paramsItems.set("type", paramTypes);
+        paramsProperty.set("items", paramsItems);
+
+        // Add security metadata for params
+        ObjectNode paramsSecurity = objectMapper.createObjectNode();
+        paramsSecurity.put("securityBenefit", "HIGH");
+        paramsSecurity.put("rationale", "Parameterized queries prevent SQL injection attacks");
+        paramsSecurity.put("recommendation", "Use parameterized queries when possible");
+        paramsProperty.set("security", paramsSecurity);
+
+        queryProperties.set("params", paramsProperty);
+
         querySchema.set("properties", queryProperties);
 
         ArrayNode requiredNode = objectMapper.createArrayNode();
@@ -623,6 +652,16 @@ public class McpServer {
         String sqlText = sqlNode.asText();
         int maxRows = argsNode.path("maxRows").asInt(1000);
         
+        // Handle optional parameters array
+        List<Object> paramList = null;
+        JsonNode paramsNode = argsNode.path("params");
+        if (!paramsNode.isMissingNode() && paramsNode.isArray()) {
+            paramList = new ArrayList<>();
+            for (JsonNode paramNode : paramsNode) {
+                paramList.add(convertJsonNodeToParameter(paramNode));
+            }
+        }
+        
         if (sqlText == null || sqlText.trim().isEmpty()) {
             throw new IllegalArgumentException(ResourceManager.getErrorMessage("query.empty"));
         }
@@ -639,15 +678,16 @@ public class McpServer {
                     "query.row.limit.exceeded", databaseService.getDatabaseConfig().maxRowsLimit()));
         }
 
-        logger.warn("SECURITY: Executing SQL query - this represents arbitrary code execution. Query: {}",
-                sqlText.length() > 100 ? sqlText.substring(0, 100) + "..." : sqlText);
+        logger.warn("SECURITY: Executing SQL query - this represents arbitrary code execution. Query: {}{}",
+                sqlText.length() > 100 ? sqlText.substring(0, 100) + "..." : sqlText,
+                paramList != null ? " (with " + paramList.size() + " parameters)" : "");
 
-        logSecurityEvent("SQL_EXECUTION", String.format("Query length: %d, Max rows: %d, DB type: %s",
-                sqlText.length(), maxRows, databaseService.getDatabaseConfig().getDatabaseType()));
+        logSecurityEvent("SQL_EXECUTION", String.format("Query length: %d, Max rows: %d, DB type: %s, Parameterized: %s",
+                sqlText.length(), maxRows, databaseService.getDatabaseConfig().getDatabaseType(), paramList != null));
 
         try {
             // Execute the SQL statement
-            QueryResult queryResult = databaseService.executeSql(sqlText, maxRows);
+            QueryResult queryResult = databaseService.executeSql(sqlText, maxRows, paramList);
 
             // SUCCESS: Return successful tool result
             return getSuccessResponse(queryResult);
@@ -655,6 +695,32 @@ public class McpServer {
             // TOOL ERROR: Return successful MCP response with error content
             // This allows the LLM to see and handle the database error
             return getFailureResponse(e);
+        }
+    }
+
+    /**
+     * Converts a JsonNode parameter to an appropriate Java object for PreparedStatement binding.
+     * Handles JSON primitive types and converts them to corresponding Java types.
+     *
+     * @param paramNode The JsonNode containing the parameter value
+     * @return The converted Java object suitable for PreparedStatement parameter binding
+     */
+    private Object convertJsonNodeToParameter(JsonNode paramNode) {
+        if (paramNode == null || paramNode.isNull()) {
+            return null;
+        } else if (paramNode.isBoolean()) {
+            return paramNode.asBoolean();
+        } else if (paramNode.isInt()) {
+            return paramNode.asInt();
+        } else if (paramNode.isLong()) {
+            return paramNode.asLong();
+        } else if (paramNode.isDouble() || paramNode.isFloat()) {
+            return paramNode.asDouble();
+        } else if (paramNode.isTextual()) {
+            return paramNode.asText();
+        } else {
+            // For complex types, convert to string representation
+            return paramNode.toString();
         }
     }
 

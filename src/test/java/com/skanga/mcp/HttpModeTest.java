@@ -331,7 +331,7 @@ class HttpModeTest {
         );
 
         // Debug: Check if mock is being called
-        when(mockDatabaseService.executeSql(anyString(), anyInt()))
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any()))
                 .thenAnswer(invocation -> {
                     System.out.println("MOCK CALLED with: " + invocation.getArgument(0) + ", " + invocation.getArgument(1));
                     return mockResult;
@@ -365,7 +365,7 @@ class HttpModeTest {
         assertTrue(result.has("content"));
         assertTrue(result.get("content").isArray());
 
-        verify(mockDatabaseService).executeSql(anyString(), anyInt());
+        verify(mockDatabaseService).executeSql(anyString(), anyInt(), any());
     }
 
     @Test
@@ -438,7 +438,7 @@ class HttpModeTest {
     @Order(9)
     void testDatabaseErrorHandling() throws Exception {
         // Mock database service to throw exception
-        when(mockDatabaseService.executeSql(any(), any(Integer.class)))
+        when(mockDatabaseService.executeSql(any(), any(Integer.class), any()))
                 .thenThrow(new SQLException("Database connection failed"));
 
         String queryRequest = """
@@ -532,7 +532,7 @@ class HttpModeTest {
                 1,
                 10L
         );
-        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenReturn(mockResult);
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenReturn(mockResult);
 
         // Send multiple concurrent requests
         int numRequests = 5;
@@ -622,7 +622,7 @@ class HttpModeTest {
                 1,
                 10L
         );
-        when(mockDatabaseService.executeSql(anyString(), anyInt())).thenReturn(mockResult);
+        when(mockDatabaseService.executeSql(anyString(), anyInt(), any())).thenReturn(mockResult);
 
         String queryRequest = """
         {

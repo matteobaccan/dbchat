@@ -46,9 +46,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Connection pool exhausted"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.getConnection();
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.getConnection());
         
         assertEquals("Connection pool exhausted", exception.getMessage());
     }
@@ -58,9 +56,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Unable to create connection"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.createConnection();
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.createConnection());
         
         assertEquals("Unable to create connection", exception.getMessage());
     }
@@ -70,9 +66,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
         when(mockDataSource.getConnection()).thenThrow(new SQLTimeoutException("Connection timeout"));
 
-        SQLTimeoutException exception = assertThrows(SQLTimeoutException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLTimeoutException exception = assertThrows(SQLTimeoutException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Connection timeout", exception.getMessage());
     }
@@ -84,9 +78,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLException("Connection is closed"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Connection is closed", exception.getMessage());
     }
@@ -98,9 +90,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLTimeoutException("Query timeout"));
 
-        SQLTimeoutException exception = assertThrows(SQLTimeoutException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLTimeoutException exception = assertThrows(SQLTimeoutException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Query timeout", exception.getMessage());
     }
@@ -112,9 +102,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         doThrow(new SQLException("Statement is closed")).when(mockStatement).setMaxRows(anyInt());
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Statement is closed", exception.getMessage());
     }
@@ -126,9 +114,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         doThrow(new SQLException("Cannot set query timeout")).when(mockStatement).setQueryTimeout(anyInt());
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Cannot set query timeout", exception.getMessage());
     }
@@ -140,9 +126,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         doThrow(new SQLException("Cannot set max rows")).when(mockStatement).setMaxRows(anyInt());
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Cannot set max rows", exception.getMessage());
     }
@@ -168,9 +152,7 @@ class DatabaseServiceConnectionExceptionTest {
         });
 
         // Second query should fail due to pool exhaustion
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("INSERT INTO test VALUES(2)", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("INSERT INTO test VALUES(2)", 100));
         
         assertTrue(exception.getMessage().contains("connection leak"));
     }
@@ -180,9 +162,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Database is unavailable", "08S01"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Database is unavailable", exception.getMessage());
         assertEquals("08S01", exception.getSQLState());
@@ -193,9 +173,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Authentication failed", "28000"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Authentication failed", exception.getMessage());
         assertEquals("28000", exception.getSQLState());
@@ -206,9 +184,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
         when(mockDataSource.getConnection()).thenThrow(new SQLException("Network connection failed", "08006"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Network connection failed", exception.getMessage());
         assertEquals("08006", exception.getSQLState());
@@ -221,9 +197,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLTransactionRollbackException("Transaction rolled back", "40001"));
 
-        SQLTransactionRollbackException exception = assertThrows(SQLTransactionRollbackException.class, () -> {
-            databaseService.executeSql("UPDATE test SET col=1", 100);
-        });
+        SQLTransactionRollbackException exception = assertThrows(SQLTransactionRollbackException.class, () -> databaseService.executeSql("UPDATE test SET col=1", 100));
         
         assertEquals("Transaction rolled back", exception.getMessage());
         assertEquals("40001", exception.getSQLState());
@@ -236,9 +210,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLIntegrityConstraintViolationException("Unique constraint violation", "23000"));
 
-        SQLIntegrityConstraintViolationException exception = assertThrows(SQLIntegrityConstraintViolationException.class, () -> {
-            databaseService.executeSql("INSERT INTO test VALUES(1)", 100);
-        });
+        SQLIntegrityConstraintViolationException exception = assertThrows(SQLIntegrityConstraintViolationException.class, () -> databaseService.executeSql("INSERT INTO test VALUES(1)", 100));
         
         assertEquals("Unique constraint violation", exception.getMessage());
         assertEquals("23000", exception.getSQLState());
@@ -251,9 +223,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLFeatureNotSupportedException("Feature not supported", "0A000"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("CALL unsupported_function()", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("CALL unsupported_function()", 100));
 
         assertTrue(exception instanceof SQLFeatureNotSupportedException);
         assertEquals("Feature not supported", exception.getMessage());
@@ -266,9 +236,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
 
         // Should not throw exception when data source is already closed
-        assertDoesNotThrow(() -> {
-            databaseService.close();
-        });
+        assertDoesNotThrow(() -> databaseService.close());
 
         // Verify close() is not called on already closed data source
         verify(mockDataSource, never()).close();
@@ -281,9 +249,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, mockDataSource);
 
         // Should not throw exception even if close fails
-        assertDoesNotThrow(() -> {
-            databaseService.close();
-        });
+        assertDoesNotThrow(() -> databaseService.close());
     }
 
     @Test
@@ -292,9 +258,7 @@ class DatabaseServiceConnectionExceptionTest {
         databaseService = new DatabaseService(testConfig, null);
 
         // Should not throw exception with null data source
-        assertDoesNotThrow(() -> {
-            databaseService.close();
-        });
+        assertDoesNotThrow(() -> databaseService.close());
     }
 
     @Test
@@ -306,9 +270,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement("SELECT * FROM test")).thenReturn(mockStatement);
         doThrow(new SQLException("Statement setup failed")).when(mockStatement).setMaxRows(anyInt());
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Statement setup failed", exception.getMessage());
         
@@ -323,9 +285,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLException("Connection interrupted", "57014"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM test", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM test", 100));
         
         assertEquals("Connection interrupted", exception.getMessage());
         assertEquals("57014", exception.getSQLState());
@@ -338,9 +298,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLException("Out of memory", "53200"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("SELECT * FROM huge_table", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("SELECT * FROM huge_table", 100));
         
         assertEquals("Out of memory", exception.getMessage());
         assertEquals("53200", exception.getSQLState());
@@ -353,9 +311,7 @@ class DatabaseServiceConnectionExceptionTest {
         when(mockConnection.prepareStatement(anyString())).thenReturn(mockStatement);
         when(mockStatement.execute()).thenThrow(new SQLException("Disk full", "53100"));
 
-        SQLException exception = assertThrows(SQLException.class, () -> {
-            databaseService.executeSql("CREATE TABLE large_table AS SELECT * FROM huge_table", 100);
-        });
+        SQLException exception = assertThrows(SQLException.class, () -> databaseService.executeSql("CREATE TABLE large_table AS SELECT * FROM huge_table", 100));
         
         assertEquals("Disk full", exception.getMessage());
         assertEquals("53100", exception.getSQLState());

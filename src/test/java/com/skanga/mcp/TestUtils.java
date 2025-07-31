@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,15 +72,15 @@ public class TestUtils {
 
             // Create view
             stmt.execute("""
-                CREATE VIEW active_users AS 
-                SELECT id, name, email, age 
-                FROM users 
+                CREATE VIEW active_users AS
+                SELECT id, name, email, age
+                FROM users
                 WHERE is_active = TRUE
                 """);
 
             // Insert test data
             stmt.execute("""
-                INSERT INTO users (name, email, age, is_active) VALUES 
+                INSERT INTO users (name, email, age, is_active) VALUES
                 ('John Doe', 'john@example.com', 30, TRUE),
                 ('Jane Smith', 'jane@example.com', 25, TRUE),
                 ('Bob Johnson', 'bob@example.com', 35, FALSE),
@@ -87,7 +88,7 @@ public class TestUtils {
                 """);
 
             stmt.execute("""
-                INSERT INTO orders (user_id, product_name, amount) VALUES 
+                INSERT INTO orders (user_id, product_name, amount) VALUES
                 (1, 'Laptop', 999.99),
                 (1, 'Mouse', 29.99),
                 (2, 'Keyboard', 79.99),
@@ -128,7 +129,7 @@ public class TestUtils {
                 """);
 
             stmt.execute("""
-                INSERT INTO data_types_test VALUES 
+                INSERT INTO data_types_test VALUES
                 (1, 'Sample Text', 123.45, '2024-01-15', '2024-01-15 10:30:00', TRUE, NULL),
                 (2, 'Another Text', 67.89, '2024-02-20', '2024-02-20 14:45:30', FALSE, 'Not Null'),
                 (3, NULL, NULL, NULL, NULL, NULL, NULL)
@@ -189,10 +190,10 @@ public class TestUtils {
             for (int i = 1; i <= rowCount; i++) {
                 stmt.addBatch(String.format("""
                     INSERT INTO large_table VALUES (
-                        %d, 
-                        'Name %d', 
-                        'Description for record %d with some longer text content', 
-                        %.2f, 
+                        %d,
+                        'Name %d',
+                        'Description for record %d with some longer text content',
+                        %.2f,
                         '2024-01-01'
                     )
                     """, i, i, i, i * 10.5));
@@ -322,8 +323,8 @@ public class TestUtils {
         
         public static QueryResult createUpdateQueryResult(int affectedRows) {
             return new QueryResult(
-                java.util.Arrays.asList("affected_rows"),
-                java.util.Arrays.asList(java.util.Arrays.asList(affectedRows)),
+                    List.of("affected_rows"),
+                    List.of(List.of(affectedRows)),
                 affectedRows,
                 75L
             );

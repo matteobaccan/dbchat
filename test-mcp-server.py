@@ -469,6 +469,73 @@ class DatabaseMcpTester:
                 "id": 16,
                 "method": "resources/read",
                 "params": {"uri": "database://table/TEST_TABLE"}  # Use uppercase as H2 stores it
+            },
+
+            # PARAMETERIZED QUERY TESTS
+            # Insert with parameters (string, int, date)
+            {
+                "jsonrpc": "2.0",
+                "id": 17,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_sql",
+                    "arguments": {
+                        "sql": "INSERT INTO test_table VALUES (?, ?, ?)",
+                        "params": [3, "Alice Brown", "2024-01-03"]
+                    }
+                }
+            },
+            # Select with parameter (int)
+            {
+                "jsonrpc": "2.0",
+                "id": 18,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_sql",
+                    "arguments": {
+                        "sql": "SELECT * FROM test_table WHERE id = ?",
+                        "params": [3]
+                    }
+                }
+            },
+            # Select with multiple parameters (string pattern, int)
+            {
+                "jsonrpc": "2.0",
+                "id": 19,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_sql",
+                    "arguments": {
+                        "sql": "SELECT * FROM test_table WHERE name LIKE ? AND id > ?",
+                        "params": ["%e%", 1]
+                    }
+                }
+            },
+            # Select with boolean and numeric parameters (mixed types)
+            {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_sql",
+                    "arguments": {
+                        "sql": "SELECT * FROM test_table WHERE id BETWEEN ? AND ? ORDER BY id",
+                        "params": [2, 4]
+                    }
+                }
+            },
+            # Empty parameters array (backward compatibility)
+            {
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_sql",
+                    "arguments": {
+                        "sql": "SELECT COUNT(*) as total_count FROM test_table",
+                        "params": []
+                    }
+                }
             }
         ]
 
@@ -479,7 +546,13 @@ class DatabaseMcpTester:
             ["content"],                                        # Req 4: run_sql (INSERT)
             ["content"],                                        # Req 5: run_sql (SELECT)
             ["content"],                                        # Req 6: describe_table call
-            ["contents"]                                        # Req 7: resources/read call
+            ["contents"],                                       # Req 7: resources/read call
+            # PARAMETERIZED QUERY TESTS
+            ["content"],                                        # Req 8: parameterized INSERT
+            ["content"],                                        # Req 9: parameterized SELECT (single param)
+            ["content"],                                        # Req 10: parameterized SELECT (multiple params)
+            ["content"],                                        # Req 11: parameterized SELECT (range)
+            ["content"]                                         # Req 12: empty params array
         ]
 
         self.run_session_test(
