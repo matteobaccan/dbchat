@@ -35,6 +35,10 @@ class HealthCheckHandler implements HttpHandler {
         } catch (Exception e) {
             healthResponse.put("database", "error: " + e.getMessage());
         }
+        // Enhanced health check
+        healthResponse.put("database_version", mcpServer.databaseService.getDatabaseVersion());
+        healthResponse.put("database_type", mcpServer.databaseService.getDatabaseConfig().getDatabaseType());
+        healthResponse.put("connection_pool_active", mcpServer.databaseService.getActiveConnections());
 
         String responseJson = objectMapper.writeValueAsString(healthResponse);
         httpExchange.getResponseHeaders().set("Content-Type", "application/json");
