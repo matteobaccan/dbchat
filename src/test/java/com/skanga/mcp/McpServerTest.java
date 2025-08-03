@@ -53,6 +53,9 @@ class McpServerTest {
         lenient().when(mockDatabaseConfig.maxSqlLength()).thenReturn(10000);
         lenient().when(mockDatabaseConfig.maxRowsLimit()).thenReturn(10000);
         lenient().when(mockDatabaseConfig.getDatabaseType()).thenReturn("h2");
+        
+        // Setup mockConfigParams for InsightsService and PromptService creation
+        lenient().when(mockConfigParams.getDatabaseType()).thenReturn("h2");
 
         // Create a testable McpServer with mocked dependencies
         mcpServer = new TestableMcpServer(mockConfigParams);
@@ -831,7 +834,7 @@ class McpServerTest {
 
         JsonNode tools = result.get("tools");
         assertTrue(tools.isArray());
-        assertEquals(2, tools.size());
+        assertEquals(6, tools.size());
 
         JsonNode queryTool = tools.get(0);
         assertEquals("run_sql", queryTool.get("name").asText());
@@ -844,6 +847,27 @@ class McpServerTest {
         assertTrue(descTool.get("description").asText().contains("SECURITY WARNING: Describes database table structure including columns, data types, constraints, and indexes."));
         assertTrue(descTool.has("inputSchema"));
         assertTrue(descTool.has("security"));
+
+        JsonNode appendInsightTool = tools.get(2);
+        assertEquals("append_insight", appendInsightTool.get("name").asText());
+        assertTrue(appendInsightTool.get("description").asText().contains("INSIGHT COLLECTION"));
+        assertTrue(appendInsightTool.has("inputSchema"));
+        assertTrue(appendInsightTool.has("security"));
+
+        JsonNode setupDemoTool = tools.get(3);
+        assertEquals("setup_demo_scenario", setupDemoTool.get("name").asText());
+        assertTrue(setupDemoTool.get("description").asText().contains("Sets up realistic demo data"));
+        assertTrue(setupDemoTool.has("inputSchema"));
+
+        JsonNode startWorkflowTool = tools.get(4);
+        assertEquals("start_workflow", startWorkflowTool.get("name").asText());
+        assertTrue(startWorkflowTool.get("description").asText().contains("INTERACTIVE WORKFLOW"));
+        assertTrue(startWorkflowTool.has("inputSchema"));
+
+        JsonNode workflowChoiceTool = tools.get(5);
+        assertEquals("workflow_choice", workflowChoiceTool.get("name").asText());
+        assertTrue(workflowChoiceTool.get("description").asText().contains("WORKFLOW PROGRESSION"));
+        assertTrue(workflowChoiceTool.has("inputSchema"));
     }
 
     @Test
@@ -873,11 +897,28 @@ class McpServerTest {
 
         JsonNode resources = result.get("resources");
         assertTrue(resources.isArray());
-        assertEquals(2, resources.size());
+        assertEquals(5, resources.size());
 
         JsonNode firstResource = resources.get(0);
         assertEquals("database://info", firstResource.get("uri").asText());
         assertEquals("Database Info", firstResource.get("name").asText());
+
+        JsonNode secondResource = resources.get(1);
+        assertEquals("database://table/users", secondResource.get("uri").asText());
+        assertEquals("users", secondResource.get("name").asText());
+
+        // Check demo resources are present
+        JsonNode scenariosResource = resources.get(2);
+        assertEquals("demo://scenarios", scenariosResource.get("uri").asText());
+        assertEquals("Available Demo Scenarios", scenariosResource.get("name").asText());
+
+        JsonNode statusResource = resources.get(3);
+        assertEquals("demo://status", statusResource.get("uri").asText());
+        assertEquals("Demo Scenario Status", statusResource.get("name").asText());
+
+        JsonNode workflowStatusResource = resources.get(4);
+        assertEquals("workflow://status", workflowStatusResource.get("uri").asText());
+        assertEquals("Active Workflow Status", workflowStatusResource.get("name").asText());
     }
 
     @Test

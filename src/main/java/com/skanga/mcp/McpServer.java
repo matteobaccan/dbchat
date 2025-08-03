@@ -11,6 +11,10 @@ import com.skanga.mcp.config.ResourceManager;
 import com.skanga.mcp.db.DatabaseResource;
 import com.skanga.mcp.db.DatabaseService;
 import com.skanga.mcp.db.QueryResult;
+import com.skanga.mcp.demo.DemoDataService;
+import com.skanga.mcp.insights.InsightsService;
+import com.skanga.mcp.prompts.PromptService;
+import com.skanga.mcp.workflow.WorkflowService;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +44,10 @@ public class McpServer {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     final DatabaseService databaseService;
+    private final PromptService promptService;
+    private final InsightsService insightsService;
+    private final DemoDataService demoDataService;
+    private final WorkflowService workflowService;
     private final Map<String, Object> serverInfo;
 
     // Lifecycle management
@@ -62,6 +70,10 @@ public class McpServer {
      */
     public McpServer(ConfigParams configParams) {
         this.databaseService = createDatabaseService(configParams);
+        this.promptService = new PromptService(configParams.getDatabaseType());
+        this.insightsService = new InsightsService(configParams.getDatabaseType());
+        this.demoDataService = new DemoDataService(this.databaseService, configParams.getDatabaseType());
+        this.workflowService = new WorkflowService(configParams.getDatabaseType());
         this.serverInfo = createServerInfo();
     }
 
@@ -73,6 +85,10 @@ public class McpServer {
      */
     public McpServer(DatabaseService databaseService) {
         this.databaseService = databaseService;
+        this.promptService = new PromptService(databaseService.getDatabaseConfig().getDatabaseType());
+        this.insightsService = new InsightsService(databaseService.getDatabaseConfig().getDatabaseType());
+        this.demoDataService = new DemoDataService(databaseService, databaseService.getDatabaseConfig().getDatabaseType());
+        this.workflowService = new WorkflowService(databaseService.getDatabaseConfig().getDatabaseType());
         this.serverInfo = createServerInfo();
     }
 
@@ -150,7 +166,7 @@ public class McpServer {
      * @param requestNode The parsed JSON-RPC request
      * @return JSON response node, or null for notifications (requests without id)
      */
-    protected JsonNode handleRequest(JsonNode requestNode) {
+    public JsonNode handleRequest(JsonNode requestNode) {
         String requestMethod = requestNode.path("method").asText();
         JsonNode requestParams = requestNode.path("params");
 
@@ -208,6 +224,8 @@ public class McpServer {
             case "tools/call" -> handleCallTool(requestParams);
             case "resources/list" -> handleListResources();
             case "resources/read" -> handleReadResource(requestParams);
+            case "prompts/list" -> handleListPrompts();
+            case "prompts/get" -> handleGetPrompt(requestParams);
             case "ping" -> handlePing();
             default -> throw new IllegalArgumentException(
                     ResourceManager.getErrorMessage("protocol.method.not.found", requestMethod));
@@ -421,6 +439,18 @@ public class McpServer {
         ObjectNode describeTableTool = listToolDescribeTable();
         toolsNode.add(describeTableTool);
 
+        ObjectNode appendInsightTool = listToolAppendInsight();
+        toolsNode.add(appendInsightTool);
+
+        ObjectNode setupDemoTool = listToolSetupDemo();
+        toolsNode.add(setupDemoTool);
+
+        ObjectNode startWorkflowTool = listToolStartWorkflow();
+        toolsNode.add(startWorkflowTool);
+
+        ObjectNode workflowChoiceTool = listToolWorkflowChoice();
+        toolsNode.add(workflowChoiceTool);
+
         ObjectNode resultNode = objectMapper.createObjectNode();
         resultNode.set("tools", toolsNode);
         return resultNode;
@@ -614,6 +644,87 @@ public class McpServer {
         return queryTool;
     }
 
+    private static ObjectNode listToolAppendInsight() {
+        // Append insight tool
+        ObjectNode appendInsightTool = objectMapper.createObjectNode();
+        appendInsightTool.put("name", "append_insight");
+        appendInsightTool.put("description",
+            "INSIGHT COLLECTION: Captures and stores business insights discovered during database analysis. " +
+            "SECURITY: All insight content is treated as potentially untrusted user input and is sanitized " +
+            "before storage. Insights are automatically categorized and used to generate comprehensive " +
+            "business intelligence memos. Use this tool whenever you discover significant patterns, " +
+            "trends, or actionable findings in the data.");
+
+        ObjectNode appendInsightSchema = objectMapper.createObjectNode();
+        appendInsightSchema.put("type", "object");
+        appendInsightSchema.put("additionalProperties", false);
+        appendInsightSchema.put("description",
+            "Captures a business insight with optional categorization for organized reporting.");
+
+        ObjectNode appendInsightProperties = objectMapper.createObjectNode();
+
+        // Insight content property
+        ObjectNode insightProperty = objectMapper.createObjectNode();
+        insightProperty.put("type", "string");
+        insightProperty.put("description",
+            "The business insight or finding to capture. Should be clear, specific, and actionable. " +
+            "Examples: 'Customer retention rate is 85% - above industry average', " +
+            "'Peak sales occur between 2-4 PM on weekdays', 'Inventory turnover is low for electronics category'.");
+        insightProperty.put("minLength", 10);
+        insightProperty.put("maxLength", 500);
+
+        // Add security metadata to the insight property
+        ObjectNode insightSecurity = objectMapper.createObjectNode();
+        insightSecurity.put("inputRisk", "MEDIUM");
+        insightSecurity.put("sanitization", "REQUIRED");
+        insightSecurity.put("dataClassification", "USER_GENERATED_CONTENT");
+        insightProperty.set("security", insightSecurity);
+
+        appendInsightProperties.set("insight", insightProperty);
+
+        // Optional category property
+        ObjectNode categoryProperty = objectMapper.createObjectNode();
+        categoryProperty.put("type", "string");
+        categoryProperty.put("description",
+            "Optional category for organizing insights (e.g., 'sales', 'customers', 'inventory', 'performance'). " +
+            "If not specified, will be automatically categorized as 'general'. " +
+            "Common categories: sales, customers, products, inventory, finance, performance, quality, trends, risk, opportunity.");
+        categoryProperty.put("maxLength", 50);
+
+        appendInsightProperties.set("category", categoryProperty);
+
+        appendInsightSchema.set("properties", appendInsightProperties);
+
+        ArrayNode appendInsightRequired = objectMapper.createArrayNode();
+        appendInsightRequired.add("insight");
+        appendInsightSchema.set("required", appendInsightRequired);
+
+        // Add tool-level security metadata
+        ObjectNode appendInsightToolSecurity = objectMapper.createObjectNode();
+        appendInsightToolSecurity.put("riskLevel", "LOW");
+        appendInsightToolSecurity.put("executionType", "DATA_COLLECTION");
+        appendInsightToolSecurity.put("dataHandling", "USER_INPUT_SANITIZATION");
+        appendInsightToolSecurity.put("requiresUserConsent", false);
+        appendInsightToolSecurity.put("auditRequired", true);
+        appendInsightToolSecurity.put("persistence", "LOCAL_FILE_STORAGE");
+        appendInsightTool.set("security", appendInsightToolSecurity);
+
+        appendInsightTool.set("inputSchema", appendInsightSchema);
+        return appendInsightTool;
+    }
+
+    private ObjectNode listToolSetupDemo() {
+        return (ObjectNode) demoDataService.createSetupDemoTool();
+    }
+
+    private ObjectNode listToolStartWorkflow() {
+        return (ObjectNode) workflowService.createStartWorkflowTool();
+    }
+
+    private ObjectNode listToolWorkflowChoice() {
+        return (ObjectNode) workflowService.createWorkflowChoiceTool();
+    }
+
     /**
      * Handles the tools/call MCP method.
      * Executes the specified tool with provided arguments.
@@ -630,6 +741,10 @@ public class McpServer {
         return switch (toolName) {
             case "run_sql" -> execToolRunSql(arguments);
             case "describe_table" -> execToolDescribeTable(arguments);
+            case "append_insight" -> execToolAppendInsight(arguments);
+            case "setup_demo_scenario" -> execToolSetupDemo(arguments);
+            case "start_workflow" -> execToolStartWorkflow(arguments);
+            case "workflow_choice" -> execToolWorkflowChoice(arguments);
             default -> throw new IllegalArgumentException(
                     ResourceManager.getErrorMessage("protocol.tool.unknown", toolName));
         };
@@ -730,10 +845,8 @@ public class McpServer {
      *
      * @param argsNode Arguments containing table name and optional schema
      * @return JSON node containing formatted table description
-     * @throws SQLException if database operations fail
-     * @throws IllegalArgumentException if arguments are invalid
      */
-    JsonNode execToolDescribeTable(JsonNode argsNode) throws SQLException {
+    JsonNode execToolDescribeTable(JsonNode argsNode) {
         JsonNode tableNameNode = argsNode.path("table_name");
         if (tableNameNode.isNull() || tableNameNode.isMissingNode()) {
             throw new IllegalArgumentException("Table name cannot be null");
@@ -777,6 +890,293 @@ public class McpServer {
         } catch (SQLException e) {
             // TOOL ERROR: Return successful MCP response with error content
             return getTableDescriptionFailureResponse(e, tableName, schema);
+        }
+    }
+
+    /**
+     * Executes insight capture using the 'append_insight' tool.
+     * Captures business insights with optional categorization and generates formatted responses.
+     *
+     * @param argsNode Arguments containing insight content and optional category
+     * @return JSON node containing formatted insight capture confirmation
+     * @throws IllegalArgumentException if arguments are invalid
+     */
+    JsonNode execToolAppendInsight(JsonNode argsNode) {
+        JsonNode insightNode = argsNode.path("insight");
+        if (insightNode.isNull() || insightNode.isMissingNode()) {
+            throw new IllegalArgumentException("Missing required parameter: insight");
+        }
+        
+        String insightContent = insightNode.asText();
+        if (insightContent == null || insightContent.trim().isEmpty()) {
+            throw new IllegalArgumentException("Insight content cannot be empty");
+        }
+        
+        // Validate insight length
+        if (insightContent.length() < 10) {
+            throw new IllegalArgumentException("Insight content too short (minimum 10 characters)");
+        }
+        if (insightContent.length() > 500) {
+            throw new IllegalArgumentException("Insight content too long (maximum 500 characters)");
+        }
+        
+        // Get optional category
+        String category = null;
+        JsonNode categoryNode = argsNode.path("category");
+        if (!categoryNode.isNull() && !categoryNode.isMissingNode()) {
+            category = categoryNode.asText();
+            if (category != null && category.length() > 50) {
+                throw new IllegalArgumentException("Category name too long (maximum 50 characters)");
+            }
+        }
+        
+        logger.info("INSIGHT CAPTURE: Adding insight with category: {}", category != null ? category : "general");
+        
+        // Log security event for insight capture
+        logSecurityEvent("INSIGHT_CAPTURE", String.format("Category: %s, Length: %d", 
+                category != null ? category : "general", insightContent.length()));
+        
+        try {
+            // Add insight to the collection
+            boolean success = insightsService.addInsight(insightContent, category);
+            
+            if (success) {
+                return getInsightCaptureSuccessResponse(insightContent, category);
+            } else {
+                return getInsightCaptureFailureResponse("Failed to capture insight", insightContent, category);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to capture insight: {}", e.getMessage(), e);
+            return getInsightCaptureFailureResponse("Internal error: " + e.getMessage(), insightContent, category);
+        }
+    }
+
+    JsonNode execToolSetupDemo(JsonNode argsNode) {
+        JsonNode scenarioNode = argsNode.path("scenario");
+        if (scenarioNode.isNull() || scenarioNode.isMissingNode()) {
+            throw new IllegalArgumentException("Missing required parameter: scenario");
+        }
+        
+        String scenario = scenarioNode.asText();
+        if (scenario == null || scenario.trim().isEmpty()) {
+            throw new IllegalArgumentException("Scenario parameter cannot be empty");
+        }
+        
+        // Get optional reset parameter (default true)
+        boolean reset = argsNode.path("reset").asBoolean(true);
+        
+        logger.info("DEMO SETUP: Setting up scenario '{}' with reset={}", scenario, reset);
+        
+        // Log security event for demo setup
+        logSecurityEvent("DEMO_SCENARIO_SETUP", String.format("Scenario: %s, Reset: %b", scenario, reset));
+        
+        try {
+            // Execute demo setup through service
+            JsonNode result = demoDataService.executeSetupDemoScenario(scenario, reset);
+            
+            // Wrap response in standard MCP tool result format
+            ObjectNode responseNode = objectMapper.createObjectNode();
+            ArrayNode contentNode = objectMapper.createArrayNode();
+            
+            ObjectNode textContent = objectMapper.createObjectNode();
+            textContent.put("type", "text");
+            
+            if (result.has("success") && result.get("success").asBoolean()) {
+                // Success response
+                JsonNode details = result.get("details");
+                String scenarioDisplayName = details.get("scenarioName").asText();
+                int tablesCreated = details.get("tablesCreated").asInt();
+                String recommendedNextSteps = details.get("recommendedNextSteps").asText();
+                
+                String successMessage = String.format("""
+                    DEMO SCENARIO SETUP SUCCESSFUL
+                    
+                    Successfully set up '%s' demo scenario
+                    Created %d tables with realistic business data
+                    Database Type: %s
+                    Reset: %s
+                    
+                    Tables Created:
+                    %s
+                    
+                    RECOMMENDED NEXT STEPS:
+                    %s
+                    
+                    TIP: Use 'resources/list' to explore the new tables and their structure.
+                    """, 
+                    scenarioDisplayName,
+                    tablesCreated,
+                    details.get("databaseType").asText(),
+                    reset ? "Cleaned existing data" : "Preserved existing data",
+                    String.join(", ", details.get("tables").asText().split(",")),
+                    recommendedNextSteps
+                );
+                
+                textContent.put("text", successMessage);
+            } else {
+                // Error response
+                String errorMessage = String.format("""
+                    DEMO SCENARIO SETUP FAILED
+                    
+                    Failed to set up demo scenario: %s
+                    Error: %s
+                    
+                    TROUBLESHOOTING:
+                    • Check database connectivity and permissions
+                    • Ensure the database supports table creation (DDL operations)
+                    • Try a different scenario: retail, finance, or logistics
+                    • Check logs for detailed error information
+                    """,
+                    scenario,
+                    result.get("error").asText()
+                );
+                
+                textContent.put("text", errorMessage);
+            }
+            
+            contentNode.add(textContent);
+            responseNode.set("content", contentNode);
+            
+            return responseNode;
+            
+        } catch (Exception e) {
+            logger.error("Error executing demo setup tool: {}", e.getMessage(), e);
+            
+            ObjectNode errorResponse = objectMapper.createObjectNode();
+            ArrayNode errorContent = objectMapper.createArrayNode();
+            
+            ObjectNode errorText = objectMapper.createObjectNode();
+            errorText.put("type", "text");
+            errorText.put("text", String.format("""
+                DEMO SETUP ERROR
+                
+                Failed to execute demo scenario setup: %s
+                
+                Error Details: %s
+                
+                Please check your database configuration and permissions.
+                """, scenario, e.getMessage()));
+            
+            errorContent.add(errorText);
+            errorResponse.set("content", errorContent);
+            
+            return errorResponse;
+        }
+    }
+
+    JsonNode execToolStartWorkflow(JsonNode argsNode) {
+        JsonNode scenarioNode = argsNode.path("scenario");
+        if (scenarioNode.isNull() || scenarioNode.isMissingNode()) {
+            throw new IllegalArgumentException("Missing required parameter: scenario");
+        }
+        
+        String scenario = scenarioNode.asText();
+        if (scenario == null || scenario.trim().isEmpty()) {
+            throw new IllegalArgumentException("Scenario parameter cannot be empty");
+        }
+        
+        // Get optional userId parameter
+        String userId = "user";
+        JsonNode userIdNode = argsNode.path("userId");
+        if (!userIdNode.isNull() && !userIdNode.isMissingNode()) {
+            userId = userIdNode.asText();
+            if (userId == null || userId.trim().isEmpty()) {
+                userId = "user";
+            }
+        }
+        
+        logger.info("WORKFLOW START: Starting workflow '{}' for user '{}'", scenario, userId);
+        
+        // Log security event for workflow start
+        logSecurityEvent("WORKFLOW_START", String.format("Scenario: %s, User: %s", scenario, userId));
+        
+        try {
+            return workflowService.executeStartWorkflow(scenario, userId);
+        } catch (Exception e) {
+            logger.error("Error executing start workflow tool: {}", e.getMessage(), e);
+            
+            ObjectNode errorResponse = objectMapper.createObjectNode();
+            ArrayNode errorContent = objectMapper.createArrayNode();
+            
+            ObjectNode errorText = objectMapper.createObjectNode();
+            errorText.put("type", "text");
+            errorText.put("text", String.format("""
+                WORKFLOW START ERROR
+                
+                Failed to start workflow: %s
+                
+                Error Details: %s
+                
+                Available scenarios: retail, finance, logistics, generic
+                """, scenario, e.getMessage()));
+            
+            errorContent.add(errorText);
+            errorResponse.set("content", errorContent);
+            
+            return errorResponse;
+        }
+    }
+
+    JsonNode execToolWorkflowChoice(JsonNode argsNode) {
+        JsonNode workflowIdNode = argsNode.path("workflowId");
+        if (workflowIdNode.isNull() || workflowIdNode.isMissingNode()) {
+            throw new IllegalArgumentException("Missing required parameter: workflowId");
+        }
+        
+        JsonNode choiceIdNode = argsNode.path("choiceId");
+        if (choiceIdNode.isNull() || choiceIdNode.isMissingNode()) {
+            throw new IllegalArgumentException("Missing required parameter: choiceId");
+        }
+        
+        String workflowId = workflowIdNode.asText();
+        String choiceId = choiceIdNode.asText();
+        
+        if (workflowId == null || workflowId.trim().isEmpty()) {
+            throw new IllegalArgumentException("WorkflowId parameter cannot be empty");
+        }
+        
+        if (choiceId == null || choiceId.trim().isEmpty()) {
+            throw new IllegalArgumentException("ChoiceId parameter cannot be empty");
+        }
+        
+        // Get optional additional data
+        Map<String, String> additionalData = new HashMap<>();
+        JsonNode additionalDataNode = argsNode.path("additionalData");
+        if (!additionalDataNode.isNull() && !additionalDataNode.isMissingNode() && additionalDataNode.isObject()) {
+            additionalDataNode.fields().forEachRemaining(entry -> additionalData.put(entry.getKey(), entry.getValue().asText()));
+        }
+        
+        logger.info("WORKFLOW CHOICE: Processing choice '{}' for workflow '{}'", choiceId, workflowId);
+        
+        // Log security event for workflow progression
+        logSecurityEvent("WORKFLOW_CHOICE", String.format("WorkflowId: %s, Choice: %s", workflowId, choiceId));
+        
+        try {
+            return workflowService.executeWorkflowChoice(workflowId, choiceId, additionalData);
+        } catch (Exception e) {
+            logger.error("Error executing workflow choice tool: {}", e.getMessage(), e);
+            
+            ObjectNode errorResponse = objectMapper.createObjectNode();
+            ArrayNode errorContent = objectMapper.createArrayNode();
+            
+            ObjectNode errorText = objectMapper.createObjectNode();
+            errorText.put("type", "text");
+            errorText.put("text", String.format("""
+                WORKFLOW CHOICE ERROR
+                
+                Failed to process workflow choice: %s
+                
+                Workflow ID: %s
+                Choice ID: %s
+                Error Details: %s
+                
+                Check that the workflow ID is valid and the choice ID matches available options.
+                """, choiceId, workflowId, choiceId, e.getMessage()));
+            
+            errorContent.add(errorText);
+            errorResponse.set("content", errorContent);
+            
+            return errorResponse;
         }
     }
 
@@ -1006,6 +1406,99 @@ public class McpServer {
     }
 
     /**
+     * Creates a successful response for insight capture
+     */
+    private ObjectNode getInsightCaptureSuccessResponse(String insightContent, String category) {
+        ObjectNode responseNode = objectMapper.createObjectNode();
+        ArrayNode contentNode = objectMapper.createArrayNode();
+
+        ObjectNode textContent = objectMapper.createObjectNode();
+        textContent.put("type", "text");
+
+        StringBuilder resultText = new StringBuilder();
+        String borderString = "=".repeat(60);
+
+        // Success header
+        resultText.append("INSIGHT CAPTURED SUCCESSFULLY\n");
+        resultText.append(borderString).append("\n\n");
+
+        // Insight details
+        resultText.append("Business insight has been captured and stored\n\n");
+        resultText.append("Content: ").append(insightContent).append("\n");
+        resultText.append("Category: ").append(category != null ? category : "general").append("\n");
+        resultText.append("Timestamp: ").append(java.time.LocalDateTime.now().format(
+                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
+
+        // Collection stats
+        int totalInsights = insightsService.getInsightCount();
+        int categoryCount = insightsService.getCategories().size();
+        resultText.append("Collection Status:\n");
+        resultText.append("   • Total insights: ").append(totalInsights).append("\n");
+        resultText.append("   • Categories: ").append(categoryCount).append("\n");
+        
+        if (insightsService.hasInsights()) {
+            resultText.append("\nInsight Memo:\n");
+            resultText.append("   Use resources/read with URI 'insights://memo' to view comprehensive analysis report\n");
+            resultText.append("   Use resources/read with URI 'insights://summary' for quick overview\n");
+        }
+
+        resultText.append("\n").append(borderString).append("\n");
+        resultText.append("Security: All insight content has been sanitized and is stored securely.\n");
+        resultText.append("Analytics: This insight will be included in business intelligence reports.\n");
+
+        textContent.put("text", resultText.toString());
+        contentNode.add(textContent);
+
+        responseNode.set("content", contentNode);
+        responseNode.put("x-dbchat-is-error", false);
+
+        // Add insight metadata to response
+        ObjectNode insightMeta = objectMapper.createObjectNode();
+        insightMeta.put("insightCaptured", true);
+        insightMeta.put("category", category != null ? category : "general");
+        insightMeta.put("totalInsights", totalInsights);
+        insightMeta.put("categoryCount", categoryCount);
+        responseNode.set("x-dbchat-insight", insightMeta);
+
+        return responseNode;
+    }
+
+    /**
+     * Creates a failure response for insight capture
+     */
+    private ObjectNode getInsightCaptureFailureResponse(String errorMessage, String insightContent, String category) {
+        logger.warn("Insight capture failed: {}", errorMessage);
+        ObjectNode responseNode = objectMapper.createObjectNode();
+        ArrayNode contentNode = objectMapper.createArrayNode();
+
+        ObjectNode textContent = objectMapper.createObjectNode();
+        textContent.put("type", "text");
+
+        String errorText = "INSIGHT CAPTURE FAILED\n" +
+                "=".repeat(60) + "\n\n" +
+                "Failed to capture insight: " + errorMessage + "\n\n" +
+                "Attempted Content: " + (insightContent != null ?
+                (insightContent.length() > 100 ? insightContent.substring(0, 97) + "..." : insightContent) : "null") +
+                "\n" +
+                "Attempted Category: " + (category != null ? category : "general") + "\n\n" +
+                "Troubleshooting:\n" +
+                "• Ensure insight content is between 10-500 characters\n" +
+                "• Category name should be under 50 characters\n" +
+                "• Check that content contains meaningful business insight\n\n" +
+                "Current Collection Stats:\n" +
+                "• Total insights: " + insightsService.getInsightCount() + "\n" +
+                "• Categories: " + insightsService.getCategories().size() + "\n";
+
+        textContent.put("text", errorText);
+        contentNode.add(textContent);
+
+        responseNode.set("content", contentNode);
+        responseNode.put("x-dbchat-is-error", true);
+
+        return responseNode;
+    }
+
+    /**
      * Handles the resources/list MCP method.
      * Returns all available database resources that can be read by clients.
      *
@@ -1016,6 +1509,8 @@ public class McpServer {
         List<DatabaseResource> resourceList = databaseService.listResources();
 
         ArrayNode resourceArray = objectMapper.createArrayNode();
+        
+        // Add database resources
         for (DatabaseResource databaseResource : resourceList) {
             ObjectNode resourceNode = objectMapper.createObjectNode();
             resourceNode.put("uri", databaseResource.uri());
@@ -1024,6 +1519,28 @@ public class McpServer {
             resourceNode.put("mimeType", databaseResource.mimeType());
             resourceArray.add(resourceNode);
         }
+        
+        // Add insights resources if we have any insights
+        if (insightsService.hasInsights()) {
+            // Add comprehensive memo resource
+            JsonNode memoResource = insightsService.createMemoResource();
+            resourceArray.add(memoResource);
+            
+            // Add summary resource
+            JsonNode summaryResource = insightsService.createSummaryResource();
+            resourceArray.add(summaryResource);
+        }
+        
+        // Add demo data resources
+        JsonNode scenariosResource = demoDataService.createListScenariosResource();
+        resourceArray.add(scenariosResource);
+        
+        JsonNode statusResource = demoDataService.createScenarioStatusResource();
+        resourceArray.add(statusResource);
+        
+        // Add workflow resources
+        JsonNode workflowStatusResource = workflowService.createWorkflowStatusResource();
+        resourceArray.add(workflowStatusResource);
 
         ObjectNode resultNode = objectMapper.createObjectNode();
         resultNode.set("resources", resourceArray);
@@ -1042,6 +1559,22 @@ public class McpServer {
     JsonNode handleReadResource(JsonNode paramsNode) throws SQLException {
         String uri = paramsNode.path("uri").asText();
 
+        // Handle insights resources first
+        if (uri.startsWith("insights://")) {
+            return handleInsightsResource(uri);
+        }
+        
+        // Handle demo resources
+        if (uri.startsWith("demo://")) {
+            return handleDemoResource(uri);
+        }
+        
+        // Handle workflow resources
+        if (uri.startsWith("workflow://")) {
+            return handleWorkflowResource(uri);
+        }
+
+        // Handle database resources
         DatabaseResource databaseResource = databaseService.readResource(uri);
         if (databaseResource == null) {
             throw new IllegalArgumentException(
@@ -1061,6 +1594,96 @@ public class McpServer {
 
         ObjectNode resultNode = objectMapper.createObjectNode();
         resultNode.set("contents", contentsArray);
+        return resultNode;
+    }
+
+    /**
+     * Handles insights-specific resources (insights://memo, insights://summary)
+     */
+    private JsonNode handleInsightsResource(String uri) {
+        logger.debug("Handling insights resource: {}", uri);
+        
+        String content;
+        String mimeType = "text/plain";
+        
+        switch (uri) {
+            case "insights://memo" -> {
+                if (!insightsService.hasInsights()) {
+                    throw new IllegalArgumentException("No insights available. Use append_insight tool to capture findings.");
+                }
+                content = insightsService.generateMemo();
+            }
+            case "insights://summary" -> {
+                if (!insightsService.hasInsights()) {
+                    throw new IllegalArgumentException("No insights available. Use append_insight tool to capture findings.");
+                }
+                content = insightsService.generateSimpleMemo();
+            }
+            default -> throw new IllegalArgumentException("Unknown insights resource: " + uri);
+        }
+        
+        ObjectNode contentNode = objectMapper.createObjectNode();
+        contentNode.put("uri", uri);
+        contentNode.put("mimeType", mimeType);
+        contentNode.put("text", content);
+        
+        ArrayNode contentsArray = objectMapper.createArrayNode();
+        contentsArray.add(contentNode);
+        
+        ObjectNode resultNode = objectMapper.createObjectNode();
+        resultNode.set("contents", contentsArray);
+        
+        return resultNode;
+    }
+
+    private JsonNode handleDemoResource(String uri) {
+        logger.debug("Handling demo resource: {}", uri);
+        
+        JsonNode content;
+        String mimeType = "application/json";
+        
+        switch (uri) {
+            case "demo://scenarios" -> content = demoDataService.getDemoScenariosContent();
+            case "demo://status" -> content = demoDataService.getDemoStatusContent();
+            default -> throw new IllegalArgumentException("Unknown demo resource: " + uri);
+        }
+        
+        ObjectNode contentNode = objectMapper.createObjectNode();
+        contentNode.put("uri", uri);
+        contentNode.put("mimeType", mimeType);
+        contentNode.put("text", content.toString());
+        
+        ArrayNode contentsArray = objectMapper.createArrayNode();
+        contentsArray.add(contentNode);
+        
+        ObjectNode resultNode = objectMapper.createObjectNode();
+        resultNode.set("contents", contentsArray);
+        
+        return resultNode;
+    }
+
+    private JsonNode handleWorkflowResource(String uri) {
+        logger.debug("Handling workflow resource: {}", uri);
+        
+        JsonNode content;
+        String mimeType = "application/json";
+
+        switch (uri) {
+            case "workflow://status" -> content = workflowService.getWorkflowStatusContent();
+            default -> throw new IllegalArgumentException("Unknown workflow resource: " + uri);
+        }
+        
+        ObjectNode contentNode = objectMapper.createObjectNode();
+        contentNode.put("uri", uri);
+        contentNode.put("mimeType", mimeType);
+        contentNode.put("text", content.toString());
+        
+        ArrayNode contentsArray = objectMapper.createArrayNode();
+        contentsArray.add(contentNode);
+        
+        ObjectNode resultNode = objectMapper.createObjectNode();
+        resultNode.set("contents", contentsArray);
+        
         return resultNode;
     }
 
@@ -1093,6 +1716,56 @@ public class McpServer {
     }
 
     /**
+     * Handles the prompts/list MCP method.
+     * Returns all available structured prompts for guided database analysis.
+     *
+     * @return JSON node containing the list of available prompts
+     */
+    private JsonNode handleListPrompts() {
+        logger.debug("Handling prompts/list request");
+        return promptService.listPrompts();
+    }
+
+    /**
+     * Handles the prompts/get MCP method.
+     * Returns a specific prompt with arguments for structured database analysis.
+     *
+     * @param paramsNode Parameters containing prompt name and arguments
+     * @return JSON node containing the formatted prompt
+     * @throws IllegalArgumentException if the prompt is unknown or arguments are invalid
+     */
+    private JsonNode handleGetPrompt(JsonNode paramsNode) {
+        String promptName = paramsNode.path("name").asText();
+        if (promptName == null || promptName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Missing required parameter: name");
+        }
+
+        logger.info("Handling prompts/get request for prompt: {}", promptName);
+
+        // Extract arguments if present
+        Map<String, String> arguments = new HashMap<>();
+        JsonNode argumentsNode = paramsNode.path("arguments");
+        if (!argumentsNode.isMissingNode() && argumentsNode.isObject()) {
+            argumentsNode.fields().forEachRemaining(entry -> {
+                String key = entry.getKey();
+                JsonNode valueNode = entry.getValue();
+                String value = valueNode.isTextual() ? valueNode.asText() : valueNode.toString();
+                arguments.put(key, value);
+            });
+        }
+
+        logger.debug("Prompt arguments: {}", arguments);
+
+        try {
+            return promptService.getPrompt(promptName, arguments);
+        } catch (IllegalArgumentException e) {
+            // Log the error but don't expose internal details
+            logger.warn("Invalid prompt request: {} - {}", promptName, e.getMessage());
+            throw new IllegalArgumentException("Invalid prompt request: " + e.getMessage());
+        }
+    }
+
+    /**
      * Creates the server capabilities object for MCP initialization.
      * Only declares capabilities that this server actually supports.
      * Follows MCP specification patterns for capability negotiation.
@@ -1113,7 +1786,11 @@ public class McpServer {
         resourcesNode.put("listChanged", false); // Our resource list is static
         capabilitiesNode.set("resources", resourcesNode);
 
-        // We DON'T support prompts - so we don't declare this capability
+        // Prompts capability - we support sophisticated structured prompts
+        ObjectNode promptsNode = objectMapper.createObjectNode();
+        promptsNode.put("listChanged", false); // Our prompt list is static
+        capabilitiesNode.set("prompts", promptsNode);
+
         // We DON'T support sampling - so we don't declare this capability
         // We DON'T support logging - so we don't declare this capability
 

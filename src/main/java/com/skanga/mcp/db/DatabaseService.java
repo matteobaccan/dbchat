@@ -24,7 +24,8 @@ import com.zaxxer.hikari.HikariDataSource;
 
 /**
  * Service class that provides database operations and connection management.
- * Handles SQL query execution, metadata retrieval, and resource management using HikariCP connection pooling.
+ * Handles SQL query execution, metadata retrieval, and resource management.
+ * We use <a href="https://www.baeldung.com/hikaricp">HikariCP connection pooling</a>
  * This class is thread-safe and manages database connections efficiently.
  */
 public class DatabaseService {
@@ -82,6 +83,8 @@ public class DatabaseService {
         poolConfig.setIdleTimeout(configParams.idleTimeoutMs());                       // 10 minutes default
         poolConfig.setMaxLifetime(configParams.maxLifetimeMs());                       // 30 minutes
         poolConfig.setLeakDetectionThreshold(configParams.leakDetectionThresholdMs()); // 20 seconds
+        if (configParams.selectOnly())   // Add readonly=1 or equivalent parameter to connection
+            poolConfig.addDataSourceProperty("readonly", "1");
 
         this.dataSource = new HikariDataSource(poolConfig);
 

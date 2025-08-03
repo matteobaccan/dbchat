@@ -622,7 +622,7 @@ class HttpModeTest {
         JsonNode jsonResponse = objectMapper.readTree(response.body());
         assertTrue(jsonResponse.has("result"));
         assertTrue(jsonResponse.get("result").has("resources"));
-        assertEquals(2, jsonResponse.get("result").get("resources").size());
+        assertEquals(5, jsonResponse.get("result").get("resources").size());
     }
 
     @Test

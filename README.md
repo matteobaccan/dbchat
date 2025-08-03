@@ -26,23 +26,46 @@ LIMIT 10;
 
 ### 🗣️ Natural Language Database Queries
 - **Ask questions in plain English**: "How many customers signed up last month?"
-- **Get conversational responses**: The LLM explains the data and provides insights
+- **Get conversational responses**: The LLM explains the data and provides businessInsights
 - **No SQL knowledge required**: Perfect for business users and analysts
 
 ### 📊 Instant Data Visualizations
 - **Automatic chart creation**: Claude generates beautiful charts from your data
 - **Multiple chart types**: Line charts, bar charts, pie charts, scatter plots, and more
-- **Interactive insights**: Drill down into your data with follow-up questions
+- **Interactive businessInsights**: Drill down into your data with follow-up questions
 
 ### 🔍 Smart Data Exploration
 - **Database discovery**: "What tables do we have?" "Show me the customer table structure"
 - **Relationship understanding**: The AI model explains how your tables connect
-- **Data quality insights**: Find duplicates, missing data, and anomalies
+- **Data quality businessInsights**: Find duplicates, missing data, and anomalies
 
 ### 💼 Business Intelligence Made Easy
 - **Executive dashboards**: "Create a sales summary for our board meeting"
 - **Trend analysis**: "Show me user growth over the past 6 months"
 - **Performance metrics**: "Which products are underperforming?"
+
+## ✨ Advanced Features
+
+DBChat now includes powerful features for interactive demos, onboarding, and collaborative analysis.
+
+### 🚀 Interactive Demo & Onboarding
+Get started instantly with a guided, interactive experience. DBChat can automatically set up a sample database and walk you through a realistic business scenario.
+- **Guided Workflow**: Instead of typing free-form questions, you'll be presented with multiple-choice options to guide you through data exploration.
+- **Business Narratives**: The demo follows a story, complete with protagonists and goals, making the experience engaging and educational.
+- **Learn by Doing**: Discover database concepts and analytical techniques as you progress through the interactive prompts.
+- **How to start**: Simply connect to DBChat with no database configured (or using the default H2 in-memory database) and type "start demo".
+
+### 🛠️ Automatic Demo Data Setup
+For new users or for demonstration purposes, DBChat can create and populate a sample database on the fly.
+- **Realistic Scenarios**: Choose from scenarios like Retail, Finance, or Logistics.
+- **Database-Agnostic**: Works across all supported databases.
+- **Instant Setup**: Tables and synthetic data are generated automatically, so you can start exploring immediately.
+
+### 🧠 Insight Collection
+Capture key findings and build a shared understanding of your data.
+- **`append_insight` Tool**: A new tool available to the AI assistant allows it to save important observations or conclusions.
+- **Synthesized Memos**: As businessInsights are collected, DBChat automatically generates a `businessInsights://memo` resource, which is a formatted document summarizing all the captured businessInsights.
+- **Collaborative Analysis**: The businessInsights memo can be shared with your team to provide a snapshot of the analytical process and its findings.
 
 ## 🗃️ Supported Databases
 
@@ -80,17 +103,17 @@ DBChat works with virtually any database (as long as it has a JDBC driver)
 ### Step 1: Download DBChat
 
 Download the latest release from [GitHub Releases](https://github.com/skanga/dbchat/releases):
-- [dbchat-3.0.5.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)   `<-- Start here`
-- [dbchat-3.0.5.jar) - Standard version (add MySQL, MariaDB, ClickHouse)
-- [dbchat-3.0.5.jar) - Enterprise version (add Oracle, SQL Server, DB2)
-- [dbchat-3.0.5.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
-- [dbchat-3.0.5.jar) - All databases included (400MB+)
+- [dbchat-3.0.6.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)   `<-- Start here`
+- [dbchat-3.0.6.jar) - Standard version (add MySQL, MariaDB, ClickHouse)
+- [dbchat-3.0.6.jar) - Enterprise version (add Oracle, SQL Server, DB2)
+- [dbchat-3.0.6.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
+- [dbchat-3.0.6.jar) - All databases included (400MB+)
 
-(Optional) For simplicity rename the downloaded file to `dbchat-3.0.5.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
+(Optional) For simplicity rename the downloaded file to `dbchat-3.0.6.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
 ```agsl
-mv dbchat-3.0.5.jar
+mv dbchat-3.0.6.jar
 OR
-ren dbchat-3.0.5.jar
+ren dbchat-3.0.6.jar
 ```
 NOTE: Advanced users can also build a custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md) for details.
 
@@ -185,7 +208,7 @@ DB_DRIVER=com.dbvis.jdbc.redis.RedisDriver
       "command": "java",
       "args": [
         "-jar", 
-        "/absolute/path/to/dbchat-3.0.5.jar",
+        "/absolute/path/to/dbchat-3.0.6.jar",
         "--config_file=/absolute/path/to/dbchat.conf"
       ]
     }
@@ -199,7 +222,7 @@ DB_DRIVER=com.dbvis.jdbc.redis.RedisDriver
   "mcpServers": {
     "database": {
       "command": "java",
-      "args": ["-jar", "/absolute/path/to/dbchat-3.0.5.jar"],
+      "args": ["-jar", "/absolute/path/to/dbchat-3.0.6.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://localhost:3306/your_database",
         "DB_USER": "your_username", 
@@ -219,7 +242,7 @@ DB_DRIVER=com.dbvis.jdbc.redis.RedisDriver
       "command": "java",
       "args": [
         "-jar", 
-        "C:/Users/YourName/Downloads/dbchat-3.0.5.jar",
+        "C:/Users/YourName/Downloads/dbchat-3.0.6.jar",
         "--config_file=C:/Users/YourName/dbchat.conf"
       ]
     }
@@ -236,7 +259,7 @@ You can use many databases concurrently!
   "mcpServers": {
     "production-db": {
       "command": "java",
-      "args": ["-jar", "/path/to/dbchat-3.0.5.jar"],
+      "args": ["-jar", "/path/to/dbchat-3.0.6.jar"],
       "env": {
         "DB_URL": "jdbc:mysql://prod-server:3306/production",
         "DB_USER": "readonly_user",
@@ -247,7 +270,7 @@ You can use many databases concurrently!
     },
     "analytics-db": {
       "command": "java", 
-      "args": ["-jar", "/path/to/dbchat-3.0.5.jar"],
+      "args": ["-jar", "/path/to/dbchat-3.0.6.jar"],
       "env": {
         "DB_URL": "jdbc:postgresql://analytics:5432/warehouse",
         "DB_USER": "analyst",
@@ -391,13 +414,13 @@ Then access at `http://localhost:8080/`. For example try `http://localhost:8080/
 For similar config via CLI args use:
 ```
 # Bind to localhost only (default, most secure)
-java -jar dbchat-3.0.5.jar --http_mode=true --http_port=8080
+java -jar dbchat-3.0.6.jar --http_mode=true --http_port=8080
 
 # Bind to all interfaces (allows external access)
-java -jar dbchat-3.0.5.jar --http_mode=true --bind_address=0.0.0.0 --http_port=8080
+java -jar dbchat-3.0.6.jar --http_mode=true --bind_address=0.0.0.0 --http_port=8080
 
 # Bind to specific interface
-java -jar dbchat-3.0.5.jar --http_mode=true --bind_address=192.168.1.100 --http_port=8080
+java -jar dbchat-3.0.6.jar --http_mode=true --bind_address=192.168.1.100 --http_port=8080
 ```
 
 ## 🔧 Configuration Methods and Priority
@@ -420,7 +443,7 @@ This means command line arguments will always override config files, which overr
 **Use case**: Quick overrides, testing, one-time configurations
 
 ```bash
-java -jar dbchat-3.0.5.jar \
+java -jar dbchat-3.0.6.jar \
   --db_url="jdbc:mysql://localhost:3306/mydb" \
   --db_user="username" \
   --db_password="password" \
@@ -477,7 +500,7 @@ HTTP_PORT=8080
 
 **Usage:**
 ```bash
-java -jar dbchat-3.0.5.jar --config_file=dbchat.conf
+java -jar dbchat-3.0.6.jar --config_file=dbchat.conf
 ```
 
 **Config file features:**
@@ -500,7 +523,7 @@ export HTTP_MODE="true"
 export HTTP_PORT="8080"
 export SELECT_ONLY="true"
 
-java -jar dbchat-3.0.5.jar
+java -jar dbchat-3.0.6.jar
 ```
 
 **All environment variables:**
@@ -532,7 +555,7 @@ java -Ddb.url="jdbc:mysql://localhost:3306/mydb" \
      -Ddb.driver="com.mysql.cj.jdbc.Driver" \
      -Dhttp.mode="true" \
      -Dhttp.port="8080" \
-     -jar dbchat-3.0.5.jar
+     -jar dbchat-3.0.6.jar
 ```
 
 **Property naming**: Environment variable `DB_URL` becomes system property `db.url`
@@ -567,7 +590,7 @@ echo "HTTP_PORT=8080" > config.conf
 export HTTP_PORT=9090
 
 # Command line overrides both
-java -jar dbchat-3.0.5.jar --config_file=config.conf --http_port=7070
+java -jar dbchat-3.0.6.jar --config_file=config.conf --http_port=7070
 
 # Result: Uses port 7070 (command line wins)
 ```
@@ -583,7 +606,7 @@ echo "SELECT_ONLY=true" >> prod.conf
 export DB_PASSWORD="secure_password"
 
 # Override port via command line (for this run only)
-java -jar dbchat-3.0.5.jar --config_file=prod.conf --http_port=9090
+java -jar dbchat-3.0.6.jar --config_file=prod.conf --http_port=9090
 ```
 
 #### Example 3: Claude Desktop Configuration
@@ -596,7 +619,7 @@ and provide absolute paths for java, the dbchat jar and (optionally) the dbchat 
     "database": {
       "command": "java",
       "args": [
-        "-jar", "/path/to/dbchat-3.0.5.jar",
+        "-jar", "/path/to/dbchat-3.0.6.jar",
         "--config_file=/path/to/production.conf",
         "--select_only=true"
       ],
@@ -639,14 +662,14 @@ and provide absolute paths for java, the dbchat jar and (optionally) the dbchat 
 ```bash
 # Good: Use environment variables for passwords
 export DB_PASSWORD="secure_password"
-java -jar dbchat-3.0.5.jar --config_file=app.conf
+java -jar dbchat-3.0.6.jar --config_file=app.conf
 
 # Good: Use config file with restricted permissions
 chmod 600 secure.conf
-java -jar dbchat-3.0.5.jar --config_file=secure.conf
+java -jar dbchat-3.0.6.jar --config_file=secure.conf
 
 # Avoid: Passwords in command line (visible in process list)
-java -jar dbchat-3.0.5.jar --db_password="visible_password"
+java -jar dbchat-3.0.6.jar --db_password="visible_password"
 ```
 
 #### Configuration File Security
@@ -667,7 +690,7 @@ ls -la secure.conf
 #### Check Effective Configuration
 Enable debug logging to see which values are being used:
 ```bash
-java -Dlogging.level.root=DEBUG -jar dbchat-3.0.5.jar --config_file=myconfig.conf
+java -Dlogging.level.root=DEBUG -jar dbchat-3.0.6.jar --config_file=myconfig.conf
 ```
 
 #### Common Issues
@@ -679,7 +702,7 @@ java -Dlogging.level.root=DEBUG -jar dbchat-3.0.5.jar --config_file=myconfig.con
 #### Validation Commands
 ```bash
 # Test database connection with current config
-java -jar dbchat-3.0.5.jar --help
+java -jar dbchat-3.0.6.jar --help
 
 # Verify config file syntax
 grep -v "^#" myconfig.conf | grep -v "^$"

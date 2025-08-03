@@ -214,7 +214,7 @@ Claude can create visualizations that are:
 ### SaaS Metrics
 - "User engagement heat maps showed feature usage patterns"
 - "Churn analysis charts identified at-risk customer segments"
-- "Growth metrics dashboards provided real-time business insights"
+- "Growth metrics dashboards provided real-time business businessInsights"
 
 ### Operations Management
 - "Inventory level charts prevented stockouts"
@@ -242,4 +242,4 @@ Claude can create visualizations that are:
 "Generate our weekly executive summary charts showing KPIs and trends"
 ```
 
-By combining the Database MCP Server with Claude Desktop's visualization capabilities, you get a powerful business intelligence tool that can transform raw database data into actionable insights through beautiful, interactive charts and graphs. The natural language interface makes it accessible to non-technical users while still providing the depth and customization that analysts need.
+By combining the Database MCP Server with Claude Desktop's visualization capabilities, you get a powerful business intelligence tool that can transform raw database data into actionable businessInsights through beautiful, interactive charts and graphs. The natural language interface makes it accessible to non-technical users while still providing the depth and customization that analysts need.
