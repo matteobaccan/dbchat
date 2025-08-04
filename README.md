@@ -147,12 +147,6 @@ Download the latest release from [GitHub Releases](https://github.com/skanga/dbc
 - [dbchat-4.0.0-cloud-analytics.jar](https://github.com/skanga/dbchat/releases/download/v4.0.0/dbchat-4.0.0-cloud-analytics.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
 - [dbchat-4.0.0-all.jar](https://github.com/skanga/dbchat/releases/download/v4.0.0/dbchat-4.0.0-all.jar) - All databases included (400MB+)
 
-(Optional) For simplicity rename the downloaded file to `dbchat-4.0.0.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
-```agsl
-mv dbchat-4.0.0.jar
-OR
-ren dbchat-4.0.0.jar
-```
 NOTE: Advanced users can also build a custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md) for details.
 
 IMPORTANT: Make sure that you are properly LICENSED to use any JDBC driver you install. The DBChat license does not cover any third party code or binaries.
