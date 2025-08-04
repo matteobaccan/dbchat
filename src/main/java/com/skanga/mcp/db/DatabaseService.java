@@ -83,8 +83,6 @@ public class DatabaseService {
         poolConfig.setIdleTimeout(configParams.idleTimeoutMs());                       // 10 minutes default
         poolConfig.setMaxLifetime(configParams.maxLifetimeMs());                       // 30 minutes
         poolConfig.setLeakDetectionThreshold(configParams.leakDetectionThresholdMs()); // 20 seconds
-        if (configParams.selectOnly())   // Add readonly=1 or equivalent parameter to connection
-            poolConfig.addDataSourceProperty("readonly", "1");
 
         this.dataSource = new HikariDataSource(poolConfig);
 

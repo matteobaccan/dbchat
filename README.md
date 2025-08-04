@@ -46,26 +46,64 @@ LIMIT 10;
 
 ## ✨ Advanced Features
 
-DBChat now includes powerful features for interactive demos, onboarding, and collaborative analysis.
+DBChat now includes powerful features for interactive demos, onboarding, collaborative analysis, and sophisticated business intelligence workflows.
 
-### 🚀 Interactive Demo & Onboarding
-Get started instantly with a guided, interactive experience. DBChat can automatically set up a sample database and walk you through a realistic business scenario.
-- **Guided Workflow**: Instead of typing free-form questions, you'll be presented with multiple-choice options to guide you through data exploration.
-- **Business Narratives**: The demo follows a story, complete with protagonists and goals, making the experience engaging and educational.
-- **Learn by Doing**: Discover database concepts and analytical techniques as you progress through the interactive prompts.
-- **How to start**: Simply connect to DBChat with no database configured (or using the default H2 in-memory database) and type "start demo".
+### 🚀 MCP Prompts Support
+Revolutionary structured workflow system for guided database analysis and business intelligence.
+- **Professional Business Scenarios**: Pre-built scenarios for Retail/E-commerce, Finance/Banking, and Logistics with realistic business contexts
+- **Interactive Demo Templates**: Complete 15-20 minute guided workflows with:
+  - Business narratives with protagonists and deadlines
+  - Step-by-step analytical progression
+  - Multiple choice decision points
+  - Expected outcomes and insights for each step
+- **Three Sophisticated Prompt Types**:
+  - `mcp-demo` - Complete interactive demo with business scenarios
+  - `business-intelligence` - Comprehensive BI analysis framework  
+  - `database-analysis` - Enhanced database exploration workflow
+- **MCP Protocol Integration**: Full compliance with MCP prompts protocol including `prompts/list` and `prompts/get` handlers
+- **How to start**: Use any prompt-aware MCP client and select from available structured prompts for guided analysis
+
+### 🎯 Interactive Multiple Choice Workflow System
+Sophisticated workflow engine for structured data exploration and analysis.
+- **Structured Progressions**: Step-by-step workflows with contextual multiple choice options
+- **Scenario-Specific Content**: Tailored workflows for retail, finance, and logistics business domains
+- **State Management**: Tracks user choices and workflow progression throughout analysis sessions
+- **New MCP Tools**:
+  - `start_workflow` - Initiates interactive analysis workflows with business context
+  - `workflow_choice` - Processes user selections and advances workflow steps
+- **MCP Resources**: `workflow://status` resource shows active workflow status and progress
+- **Integration Ready**: Seamlessly works with demo data setup and insights collection systems
 
 ### 🛠️ Automatic Demo Data Setup
-For new users or for demonstration purposes, DBChat can create and populate a sample database on the fly.
-- **Realistic Scenarios**: Choose from scenarios like Retail, Finance, or Logistics.
-- **Database-Agnostic**: Works across all supported databases.
-- **Instant Setup**: Tables and synthetic data are generated automatically, so you can start exploring immediately.
+Intelligent database population system for demonstrations and onboarding.
+- **Realistic Business Scenarios**: Choose from Retail, Finance, or Logistics domains
+- **Database-Agnostic**: Works across all supported database types and configurations
+- **Comprehensive Data Models**:
+  - **Retail**: Customers, Products, Orders, Inventory with realistic relationships
+  - **Finance**: Accounts, Transactions, Customers, Loans with financial data patterns
+  - **Logistics**: Shipments, Routes, Warehouses, Deliveries with supply chain data
+- **Instant Setup**: 2-3 related tables per scenario with 10-15 representative rows each
+- **Sample Analytics**: Pre-built queries and analysis examples for each scenario
+- **Cleanup Capabilities**: Automatic reset and cleanup functionality for fresh demonstrations
 
-### 🧠 Insight Collection
-Capture key findings and build a shared understanding of your data.
-- **`append_insight` Tool**: A new tool available to the AI assistant allows it to save important observations or conclusions.
-- **Synthesized Memos**: As businessInsights are collected, DBChat automatically generates a `businessInsights://memo` resource, which is a formatted document summarizing all the captured businessInsights.
-- **Collaborative Analysis**: The businessInsights memo can be shared with your team to provide a snapshot of the analytical process and its findings.
+### 🧠 Enhanced Insights Collection System
+Professional business intelligence capture and reporting system.
+- **Structured Insight Model**: Comprehensive insights with categories, priorities, timestamps, and metadata
+- **`append_insight` Tool**: Advanced tool for capturing structured business findings with:
+  - Content validation and sanitization
+  - Automatic categorization with visual indicators
+  - Priority assignment (high/medium/low)
+  - Security audit logging
+- **Professional Memo Generation**:
+  - **Comprehensive Memos**: Executive summaries, categorized findings, priority insights, timeline analysis
+  - **Quick Summaries**: Fast consumption format for rapid business updates
+  - **Multi-format Support**: Both detailed and summary formats available
+- **MCP Resources Integration**:
+  - `insights://memo` - Professional business intelligence report
+  - `insights://summary` - Quick overview of collected insights
+  - Dynamic resource discovery as insights are captured
+- **Persistent Storage**: Auto-save to JSON with load/restore capabilities and export functionality
+- **Real-time Statistics**: Live tracking of insight counts, categories, and analytical progress
 
 ## 🗃️ Supported Databases
 
@@ -103,17 +141,17 @@ DBChat works with virtually any database (as long as it has a JDBC driver)
 ### Step 1: Download DBChat
 
 Download the latest release from [GitHub Releases](https://github.com/skanga/dbchat/releases):
-- [dbchat-3.0.6.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)   `<-- Start here`
-- [dbchat-3.0.6.jar) - Standard version (add MySQL, MariaDB, ClickHouse)
-- [dbchat-3.0.6.jar) - Enterprise version (add Oracle, SQL Server, DB2)
-- [dbchat-3.0.6.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
-- [dbchat-3.0.6.jar) - All databases included (400MB+)
+- [dbchat-3.0.6-basic.jar](https://github.com/skanga/dbchat/releases/download/v3.0.6/dbchat-3.0.6-basic.jar) - Basic version (PostgreSQL, SQLite, H2, HSQLDB, CSV)   `<-- Start here`
+- [dbchat-3.0.6-standard.jar](https://github.com/skanga/dbchat/releases/download/v3.0.6/dbchat-3.0.6-standard.jar) - Standard version (add MySQL, MariaDB, ClickHouse)
+- [dbchat-3.0.6-enterprise.jar](https://github.com/skanga/dbchat/releases/download/v3.0.6/dbchat-3.0.6-enterprise.jar) - Enterprise version (add Oracle, SQL Server, DB2)
+- [dbchat-3.0.6-cloud-analytics.jar](https://github.com/skanga/dbchat/releases/download/v3.0.6/dbchat-3.0.6-cloud-analytics.jar) - Cloud Analytics version (add Redshift, Snowflake, BigQuery)
+- [dbchat-3.0.6-all.jar](https://github.com/skanga/dbchat/releases/download/v3.0.6/dbchat-3.0.6-all.jar) - All databases included (400MB+)
 
 (Optional) For simplicity rename the downloaded file to `dbchat-3.0.6.jar` so you can follow the rest of the commands here without needing to adjust them to your version.
 ```agsl
-mv dbchat-3.0.6.jar
+mv dbchat-3.0.6.jar dbchat.jar
 OR
-ren dbchat-3.0.6.jar
+ren dbchat-3.0.6.jar dbchat.jar
 ```
 NOTE: Advanced users can also build a custom jar with only the drivers you need. See [INSTALL.md](INSTALL.md) for details.
 

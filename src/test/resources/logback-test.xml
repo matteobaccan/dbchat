@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Console appender for test output -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Suppress ERROR logs from McpServer during tests to hide expected exceptions -->
+    <logger name="com.skanga.mcp.McpServer" level="WARN" />
+    
+    <!-- Suppress ERROR logs from DemoDataService during tests to hide expected SQLException stack traces -->
+    <logger name="com.skanga.mcp.demo.DemoDataService" level="WARN" />
+    
+    <!-- Suppress ERROR logs from DemoDataGenerator during tests to hide expected SQLException stack traces -->
+    <logger name="com.skanga.mcp.demo.DemoDataGenerator" level="WARN" />
+    
+    <!-- Suppress SECURITY logs during tests -->
+    <logger name="SECURITY.com.skanga.mcp.McpServer" level="OFF" />
+    <logger name="SECURITY.com.skanga.mcp.demo.DemoDataService" level="OFF" />
+
+    <!-- Root logger configuration -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>
