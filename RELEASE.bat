@@ -1,5 +1,5 @@
 
-set RELEASE_VER=3.0.6
+set RELEASE_VER=4.0.0
 
 :: 1. Update version in pom.xml
 call mvn versions:set -DnewVersion=%RELEASE_VER%
